@@ -1,5 +1,10 @@
+require("dotenv").config();
+
 const express = require("express");
 const cors = require("cors");
+const cookieParser = require("cookie-parser");
+const db = require("./db");
+const authRoutes = require("./routes/auth");
 
 const app = express();
 
@@ -17,16 +22,22 @@ app.use(cors({
 }));
 
 app.use(express.json());
-
-app.get("/api/health", (req, res) => {
-  res.json({ ok: true, service: "draft-kit-backend" });
-});
-
-app.post("/api/echo", (req, res) => {
-  res.json({ youSent: req.body });
-});
+app.use(express.urlencoded({ extended: true }));
+app.use(cookieParser());
+app.use("/api/auth", authRoutes);
 
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
-  console.log(`API listening on port ${PORT}`);
-});
+
+async function startServer() {
+  try {
+    await db.connect();
+    app.listen(PORT, () => {
+      console.log(`API listening on port ${PORT}`);
+    });
+  } catch (err) {
+    console.error("Failed to start server:", err);
+    process.exit(1);
+  }
+}
+
+startServer();
