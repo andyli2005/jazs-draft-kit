@@ -1,4 +1,8 @@
-function LoggedInHomePage({ user, onLogout }) {
+import { useAuth } from "../auth/index.jsx";
+
+function LoggedInHomePage() {
+  const { user, logoutUser } = useAuth();
+
   return (
     <main className="page page-private">
       <section className="card hero">
@@ -7,7 +11,7 @@ function LoggedInHomePage({ user, onLogout }) {
         <p className="muted">You are signed in as {user?.email}.</p>
         <div className="actions">
           <button className="btn btn-primary" type="button">Start New Draft</button>
-          <button className="btn btn-secondary" type="button" onClick={onLogout}>Log Out</button>
+          <button className="btn btn-secondary" type="button" onClick={logoutUser}>Log Out</button>
         </div>
       </section>
     </main>

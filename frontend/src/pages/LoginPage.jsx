@@ -1,8 +1,10 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
+import { useAuth } from "../auth/index.jsx";
 
-function LoginPage({ onLogin }) {
+function LoginPage() {
   const navigate = useNavigate();
+  const { loginUser } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
@@ -14,7 +16,7 @@ function LoginPage({ onLogin }) {
     setSubmitting(true);
 
     try {
-      await onLogin({ email, password });
+      await loginUser({ email, password });
       navigate("/");
     } catch (err) {
       setError(err.message);

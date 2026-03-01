@@ -1,8 +1,10 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
+import { useAuth } from "../auth/index.jsx";
 
-function RegisterPage({ onRegister }) {
+function RegisterPage() {
   const navigate = useNavigate();
+  const { registerUser } = useAuth();
   const [userName, setUserName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -16,7 +18,7 @@ function RegisterPage({ onRegister }) {
     setSubmitting(true);
 
     try {
-      await onRegister({ userName, email, password, passwordVerify });
+      await registerUser({ userName, email, password, passwordVerify });
       navigate("/");
     } catch (err) {
       setError(err.message);

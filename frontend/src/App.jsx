@@ -1,61 +1,21 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo } from "react";
 import { Navigate, Route, Routes } from "react-router-dom";
 import "./App.css";
-
-import { getLoggedIn, login, logout, register } from "./auth/requests";
+import { useAuth } from "./auth/index.jsx";
 import LoggedInHomePage from "./pages/LoggedInHomePage";
 import LoginPage from "./pages/LoginPage";
 import PublicHomePage from "./pages/PublicHomePage";
 import RegisterPage from "./pages/RegisterPage";
 
 function App() {
-  const [isLoading, setIsLoading] = useState(true);
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
-  const [user, setUser] = useState(null);
-
-  useEffect(() => {
-    async function bootstrapAuth() {
-      try {
-        const response = await getLoggedIn();
-        setIsLoggedIn(Boolean(response.loggedIn));
-        setUser(response.user || null);
-      } catch {
-        setIsLoggedIn(false);
-        setUser(null);
-      } finally {
-        setIsLoading(false);
-      }
-    }
-
-    bootstrapAuth();
-  }, []);
-
-  async function handleLogin(payload) {
-    const response = await login(payload);
-    setIsLoggedIn(true);
-    setUser(response.user || null);
-    return response;
-  }
-
-  async function handleRegister(payload) {
-    const response = await register(payload);
-    setIsLoggedIn(true);
-    setUser(response.user || null);
-    return response;
-  }
-
-  async function handleLogout() {
-    await logout();
-    setIsLoggedIn(false);
-    setUser(null);
-  }
+  const { isLoading, isLoggedIn } = useAuth();
 
   const homeElement = useMemo(() => {
     if (isLoggedIn) {
-      return <LoggedInHomePage user={user} onLogout={handleLogout} />;
+      return <LoggedInHomePage />;
     }
     return <PublicHomePage />;
-  }, [isLoggedIn, user]);
+  }, [isLoggedIn]);
 
   if (isLoading) {
     return (
@@ -70,11 +30,11 @@ function App() {
       <Route path="/" element={homeElement} />
       <Route
         path="/login"
-        element={isLoggedIn ? <Navigate to="/" replace /> : <LoginPage onLogin={handleLogin} />}
+        element={isLoggedIn ? <Navigate to="/" replace /> : <LoginPage />}
       />
       <Route
         path="/register"
-        element={isLoggedIn ? <Navigate to="/" replace /> : <RegisterPage onRegister={handleRegister} />}
+        element={isLoggedIn ? <Navigate to="/" replace /> : <RegisterPage />}
       />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
