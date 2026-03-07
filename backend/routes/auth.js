@@ -5,7 +5,7 @@ const auth = require('../auth')
 
 router.post('/register', AuthController.registerUser)
 router.post('/login', AuthController.loginUser)
-router.get('/logout', AuthController.logoutUser)
+router.post('/logout', AuthController.logoutUser)
 router.get('/loggedIn', AuthController.getLoggedIn)
 router.put('/user', auth.verify, AuthController.updateUser);
 

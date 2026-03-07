@@ -39,6 +39,7 @@ export function login(payload) {
 }
 
 export function register(payload) {
+  console.log("Registering user with payload:", payload);
   return request("/api/auth/register", {
     method: "POST",
     body: JSON.stringify(payload),
@@ -46,5 +47,5 @@ export function register(payload) {
 }
 
 export function logout() {
-  return request("/api/auth/logout", { method: "GET" });
+  return request("/api/auth/logout", { method: "POST" });
 }

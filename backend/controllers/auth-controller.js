@@ -11,6 +11,7 @@ function getCookieOptions() {
     httpOnly: true,
     secure: true,
     sameSite: "none", // backend and frontend are on different domains, so we need to set SameSite to "none" and secure to true
+    maxAge: 24 * 60 * 60 * 1000, // 1 day in milliseconds
   };
 }
 

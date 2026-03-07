@@ -1,6 +1,6 @@
 import { NavLink } from "react-router-dom";
 
-function AuthSidebar() {
+function Sidebar() {
   return (
     <aside className="app-sidebar">
       <NavLink to="/" end className="side-link">Home</NavLink>
@@ -15,4 +15,4 @@ function AuthSidebar() {
   );
 }
 
-export default AuthSidebar;
+export default Sidebar;

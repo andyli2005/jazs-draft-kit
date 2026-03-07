@@ -1,12 +1,12 @@
-import AuthHeader from "../components/AuthHeader";
-import AuthSidebar from "../components/AuthSidebar";
+import Header from "../components/Header";
+import Sidebar from "../components/Sidebar";
 
 function MyTeamPage() {
   return (
     <main className="app-shell page-private">
-      <AuthHeader />
+      <Header />
       <div className="app-body">
-        <AuthSidebar />
+        <Sidebar />
         <section className="app-content card">
           <p className="eyebrow">My Team</p>
           <h1>Your Team Hub</h1>

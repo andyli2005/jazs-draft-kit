@@ -1,15 +1,15 @@
 import { useAuth } from "../auth/index.jsx";
-import AuthHeader from "../components/AuthHeader";
-import AuthSidebar from "../components/AuthSidebar";
+import Header from "../components/Header";
+import Sidebar from "../components/Sidebar";
 
 function LoggedInHomePage() {
   const { user } = useAuth();
 
   return (
     <main className="app-shell page-private">
-      <AuthHeader />
+      <Header />
       <div className="app-body">
-        <AuthSidebar />
+        <Sidebar />
         <section className="app-content card hero">
           <p className="eyebrow">Welcome back</p>
           <h1>{user?.userName ? user.userName : "Draft Kit User"}</h1>

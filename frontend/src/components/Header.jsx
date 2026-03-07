@@ -1,6 +1,6 @@
 import { useAuth } from "../auth/index.jsx";
 
-function AuthHeader() {
+function Header() {
   const { user, logoutUser } = useAuth();
 
   return (
@@ -19,4 +19,4 @@ function AuthHeader() {
   );
 }
 
-export default AuthHeader;
+export default Header;
