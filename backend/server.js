@@ -5,6 +5,7 @@ const cors = require("cors");
 const cookieParser = require("cookie-parser");
 const db = require("./db");
 const authRoutes = require("./routes/auth");
+const playersRoutes = require("./routes/players");
 
 const app = express();
 
@@ -25,6 +26,7 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
 app.use("/api/auth", authRoutes);
+app.use("/api/players", playersRoutes);
 
 const PORT = process.env.PORT || 4000;
 

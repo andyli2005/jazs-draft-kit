@@ -1,7 +1,131 @@
+import { useEffect, useState } from "react";
 import Header from "../components/Header";
 import Sidebar from "../components/Sidebar";
 
+const API_BASE = import.meta.env.VITE_API_BASE_URL || "http://localhost:4000";
+const TABLE_COLUMNS = [
+  { label: "Name", key: "name" },
+  { label: "Status", key: "status" },
+  { label: "Picture U R L", key: "pictureURL" },
+  { label: "Positions", key: "positions" },
+  { label: "Team", key: "team" },
+  { label: "At Bats", key: "atBats" },
+  { label: "Base On Balls", key: "baseOnBalls" },
+  { label: "Batting Average", key: "battingAverage" },
+  { label: "Caught Stealing", key: "caughtStealing" },
+  { label: "Doubles", key: "doubles" },
+  { label: "Fantasy Points", key: "fantasyPoints" },
+  { label: "Hits", key: "hits" },
+  { label: "Home Runs", key: "homeRuns" },
+  { label: "On Base Percentage", key: "onBasePercentage" },
+  { label: "Runs", key: "runs" },
+  { label: "Runs Batted In", key: "runsBattedIn" },
+  { label: "Singles", key: "singles" },
+  { label: "Slugging Percentage", key: "sluggingPercentage" },
+  { label: "Stolen Bass", key: "stolenBases" },
+  { label: "Strike Outs", key: "strikeOuts" },
+  { label: "Triples", key: "triples" },
+];
+
+function renderValue(value) {
+  if (value == null || value === "") return "N/A";
+  if (typeof value === "boolean") return value ? "Yes" : "No";
+  if (typeof value === "object") return JSON.stringify(value);
+  return String(value);
+}
+
+function isDateLike(value) {
+  if (typeof value !== "string") return false;
+  const parsed = Date.parse(value);
+  return !Number.isNaN(parsed);
+}
+
+function renderCellValue(key, value) {
+  if (key === "pictureURL") {
+    if (!value) return "N/A";
+    return (
+      <img
+        src={String(value)}
+        alt="Player portrait"
+        className="player-table-image"
+        loading="lazy"
+      />
+    );
+  }
+
+  if ((key === "createdAt" || key === "updatedAt") && isDateLike(value)) {
+    return new Date(value).toLocaleString();
+  }
+
+  return renderValue(value);
+}
+
 function PlayerSearchPage() {
+  const [players, setPlayers] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [errorMessage, setErrorMessage] = useState("");
+  const [sortBy, setSortBy] = useState("fantasyPoints");
+  const [sortOrder, setSortOrder] = useState("asc");
+
+  useEffect(() => {
+    let isMounted = true;
+
+    async function loadPlayers() {
+      setIsLoading(true);
+      setErrorMessage("");
+
+      try {
+        const params = new URLSearchParams();
+        params.set("rankBy", sortBy);
+        params.set("order", sortOrder);
+        const response = await fetch(`${API_BASE}/api/players?${params.toString()}`, {
+          method: "GET",
+          credentials: "include",
+        });
+
+        let data = {};
+        try {
+          data = await response.json();
+        } catch {
+          data = {};
+        }
+
+        if (!response.ok) {
+          throw new Error(data.errorMessage || data.message || "Failed to load players.");
+        }
+
+        if (!isMounted) return;
+        setPlayers(Array.isArray(data.players) ? data.players : []);
+      } catch (err) {
+        if (!isMounted) return;
+        setErrorMessage(err.message || "Unable to load players.");
+      } finally {
+        if (isMounted) setIsLoading(false);
+      }
+    }
+
+    loadPlayers();
+    return () => {
+      isMounted = false;
+    };
+  }, [sortBy, sortOrder]);
+
+  const hasPlayers = players.length > 0;
+
+  function handleSort(columnKey) {
+    if (sortBy === columnKey) {
+      setSortOrder((prev) => (prev === "asc" ? "desc" : "asc"));
+      return;
+    }
+    setSortBy(columnKey);
+    setSortOrder("asc");
+  }
+
+  function sortIndicator(columnKey) {
+    if (sortBy !== columnKey) return "";
+    return sortOrder === "asc" ? " ▲" : " ▼";
+  }
+
   return (
     <main className="app-shell page-private">
       <Header />
@@ -10,7 +134,52 @@ function PlayerSearchPage() {
         <section className="app-content card">
           <p className="eyebrow">Player Search</p>
           <h1>Find Players</h1>
-          <p className="muted">Search by position, team, age, and performance profile.</p>
+          <p className="muted">Loaded from Draft Kit backend via upstream players service.</p>
+
+          {isLoading ? <p className="muted">Loading players...</p> : null}
+          {!isLoading && errorMessage ? <p className="error">{errorMessage}</p> : null}
+          {!isLoading && !errorMessage && !hasPlayers ? (
+            <p className="muted">No players found.</p>
+          ) : null}
+
+          {!isLoading && !errorMessage && hasPlayers ? (
+            <div className="players-table-wrap">
+              <div className="players-table-inner">
+                <table className="players-table">
+                  <thead>
+                    <tr>
+                      {TABLE_COLUMNS.map((column) => (
+                        <th key={column.key} scope="col">
+                          <button
+                            className="table-sort-button"
+                            type="button"
+                            onClick={() => handleSort(column.key)}
+                          >
+                            {column.label}
+                            {sortIndicator(column.key)}
+                          </button>
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {players.map((player, index) => {
+                      const rowKey = player._id || `${player.name || "player"}-${index}`;
+                      return (
+                        <tr key={rowKey}>
+                          {TABLE_COLUMNS.map((column) => (
+                            <td key={`${rowKey}-${column.key}`}>
+                              {renderCellValue(column.key, player[column.key])}
+                            </td>
+                          ))}
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          ) : null}
         </section>
       </div>
     </main>
