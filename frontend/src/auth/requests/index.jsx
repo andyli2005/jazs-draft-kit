@@ -39,10 +39,22 @@ export function login(payload) {
 }
 
 export function register(payload) {
-  console.log("Registering user with payload:", payload);
   return request("/api/auth/register", {
     method: "POST",
     body: JSON.stringify(payload),
+  });
+}
+
+export function updateUser(payload) {
+  return request("/api/auth/user", {
+    method: "PUT",
+    body: JSON.stringify(payload),
+  });
+}
+
+export function deleteUser() {
+  return request("/api/auth/user", {
+    method: "DELETE",
   });
 }
 

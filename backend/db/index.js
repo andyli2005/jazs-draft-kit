@@ -26,6 +26,7 @@ class Database {
   async getUserByEmail(email)                 { return User.findOne({ email }); }
   async createUser(userData)                  { const newUser = new User(userData); return newUser.save(); }
   async updateUserById(id, fieldsToUpdate)    { return User.findByIdAndUpdate(id, { $set: fieldsToUpdate }, { new: true }); }
+  async deleteUserById(id)                    { return User.findByIdAndDelete(id); }
 }
 
 module.exports = new Database();

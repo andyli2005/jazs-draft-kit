@@ -227,10 +227,40 @@ const updateUser = async (req, res) => {
   }
 };
 
+const deleteUser = async (req, res) => {
+  try {
+    const userId = auth.verifyUser(req);
+    if (!userId) {
+      return res.status(401).json({ errorMessage: "UNAUTHORIZED" });
+    }
+
+    const deletedUser = await db.deleteUserById(userId);
+    if (!deletedUser) {
+      return res.status(404).json({ errorMessage: "User not found." });
+    }
+
+    const options = getCookieOptions();
+    res.clearCookie("token", {
+      httpOnly: true,
+      secure: options.secure,
+      sameSite: options.sameSite,
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: "Account deleted",
+    });
+  } catch (err) {
+    console.error("Error in deleteUser:", err);
+    return res.status(500).send();
+  }
+};
+
 module.exports = {
   getLoggedIn,
   registerUser,
   loginUser,
   logoutUser,
   updateUser,
+  deleteUser,
 };

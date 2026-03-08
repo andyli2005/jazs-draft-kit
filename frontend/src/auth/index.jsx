@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
-import { getLoggedIn, login, logout, register } from "./requests";
+import { deleteUser, getLoggedIn, login, logout, register, updateUser } from "./requests";
 
 const AuthContext = createContext(null);
 
@@ -40,6 +40,20 @@ export function AuthProvider({ children }) {
     return response;
   }, []);
 
+  const updateCurrentUser = useCallback(async (payload) => {
+    const response = await updateUser(payload);
+    setIsLoggedIn(true);
+    setUser(response.user || null);
+    return response;
+  }, []);
+
+  const deleteCurrentUser = useCallback(async () => {
+    const response = await deleteUser();
+    setIsLoggedIn(false);
+    setUser(null);
+    return response;
+  }, []);
+
   const logoutUser = useCallback(async () => {
     await logout();
     setIsLoggedIn(false);
@@ -54,9 +68,21 @@ export function AuthProvider({ children }) {
       bootstrapAuth,
       loginUser,
       registerUser,
+      updateCurrentUser,
+      deleteCurrentUser,
       logoutUser,
     }),
-    [isLoading, isLoggedIn, user, bootstrapAuth, loginUser, registerUser, logoutUser]
+    [
+      isLoading,
+      isLoggedIn,
+      user,
+      bootstrapAuth,
+      loginUser,
+      registerUser,
+      updateCurrentUser,
+      deleteCurrentUser,
+      logoutUser,
+    ]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
