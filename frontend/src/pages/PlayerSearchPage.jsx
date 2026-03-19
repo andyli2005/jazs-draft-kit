@@ -6,7 +6,7 @@ const API_BASE = import.meta.env.VITE_API_BASE_URL || "http://localhost:4000";
 const TABLE_COLUMNS = [
   { label: "Name", key: "name" },
   { label: "Status", key: "status" },
-  { label: "Picture U R L", key: "pictureURL" },
+  { label: "Picture URL", key: "pictureURL" },
   { label: "Positions", key: "positions" },
   { label: "Team", key: "team" },
   { label: "At Bats", key: "atBats" },
@@ -65,7 +65,7 @@ function PlayerSearchPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState("");
   const [sortBy, setSortBy] = useState("fantasyPoints");
-  const [sortOrder, setSortOrder] = useState("asc");
+  const [sortOrder, setSortOrder] = useState("desc");
   const [search, setSearch] = useState("");
 
   useEffect(() => {
@@ -167,6 +167,7 @@ function PlayerSearchPage() {
                   <thead>
                     <tr>
                       {TABLE_COLUMNS.map((column) => (
+                        column.key !== "pictureURL" ? 
                         <th key={column.key} scope="col">
                           <button
                             className="table-sort-button"
@@ -176,6 +177,9 @@ function PlayerSearchPage() {
                             {column.label}
                             {sortIndicator(column.key)}
                           </button>
+                        </th> : 
+                        <th key={column.key} scope="col">
+                            {column.label}
                         </th>
                       ))}
                     </tr>
