@@ -66,6 +66,7 @@ function PlayerSearchPage() {
   const [errorMessage, setErrorMessage] = useState("");
   const [sortBy, setSortBy] = useState("fantasyPoints");
   const [sortOrder, setSortOrder] = useState("asc");
+  const [search, setSearch] = useState("");
 
   useEffect(() => {
     let isMounted = true;
@@ -78,6 +79,7 @@ function PlayerSearchPage() {
         const params = new URLSearchParams();
         params.set("rankBy", sortBy);
         params.set("order", sortOrder);
+        if (search) params.set("name", search);
         const response = await fetch(`${API_BASE}/api/players?${params.toString()}`, {
           method: "GET",
           credentials: "include",
@@ -108,7 +110,7 @@ function PlayerSearchPage() {
     return () => {
       isMounted = false;
     };
-  }, [sortBy, sortOrder]);
+  }, [sortBy, sortOrder, search]);
 
   const hasPlayers = players.length > 0;
 
@@ -133,7 +135,23 @@ function PlayerSearchPage() {
         <Sidebar />
         <section className="app-content card">
           <p className="eyebrow">Player Search</p>
-          <h1>Find Players</h1>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "1rem", marginBottom: "1rem" }}>
+            <h1 style={{ margin: 0 }}>Find Players</h1>
+            <input
+              type="text"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search for player..."
+              style={{
+                border: "1px solid #c8d2e9",
+                borderRadius: "10px",
+                padding: "0.65rem 0.75rem",
+                font: "inherit",
+                fontSize: "1rem",
+                width: "280px",
+              }}
+            />
+          </div>
           <p className="muted">Loaded from Draft Kit backend via upstream players service.</p>
 
           {isLoading ? <p className="muted">Loading players...</p> : null}
