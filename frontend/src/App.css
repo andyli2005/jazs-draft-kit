@@ -147,7 +147,7 @@
 }
 
 .app-header {
-  max-width: 1100px;
+  max-width: 1400px;
   margin: 0 auto 1rem;
   background: rgba(255, 255, 255, 0.92);
   border: 1px solid rgba(49, 61, 89, 0.12);
@@ -176,7 +176,7 @@
 }
 
 .app-body {
-  max-width: 1100px;
+  max-width: 1400px;
   margin: 0 auto;
   display: grid;
   grid-template-columns: 220px minmax(0, 1fr);
@@ -332,4 +332,52 @@
   .players-table {
     min-width: 760px;
   }
+}
+
+.transactions-table-wrap {
+  margin-top: 1rem;
+  overflow-x: auto;
+  overflow-y: auto;
+  max-height: 60vh;
+  width: 100%;
+  border: 1px solid rgba(49, 61, 89, 0.16);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.88);
+}
+
+.transactions-table {
+  width: 100%;
+  font-size: 0.82rem;
+  border-collapse: collapse;
+}
+
+.transactions-table th,
+.transactions-table td {
+  text-align: left;
+  padding: 0.5rem 0.75rem;
+  border-bottom: 1px solid rgba(49, 61, 89, 0.12);
+  color: #2a3759;
+  vertical-align: top;
+  min-width: 100px;
+}
+
+.transactions-table th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: #edf4ff;
+  color: #263a63;
+  font-size: 0.82rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  font-weight: 700;
+}
+
+.transactions-table tr:last-child td {
+  border-bottom: none;
+}
+
+.transactions-table td:last-child {
+  white-space: normal;
+  min-width: 250px;
 }

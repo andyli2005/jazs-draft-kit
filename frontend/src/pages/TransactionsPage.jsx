@@ -1,14 +1,96 @@
 import Header from "../components/Header";
 import Sidebar from "../components/Sidebar";
+import { useEffect, useState } from "react";
+
+const API_BASE = import.meta.env.VITE_API_BASE_URL || "http://localhost:4000";
+function renderValue(value) {
+  if (value == null || value === "") return "N/A";
+  if (typeof value === "boolean") return value ? "Yes" : "No";
+  if (typeof value === "object") return JSON.stringify(value);
+  return String(value);
+}
+
+function isDateLike(value) {
+  if (typeof value !== "string") return false;
+  const parsed = Date.parse(value);
+  return !Number.isNaN(parsed);
+}
+
+function renderMessage(transaction) {
+  if (transaction.actionType === "UpdatedNotes") {
+    return `You updated ${transaction.player}'s player notes.`;
+  }
+  if (transaction.actionType === "UpdatedPosition") {
+    return `You updated ${transaction.player}'s position.`;
+  }
+  return `${transaction.teamOwner} ${transaction.actionType.toLowerCase()} ${transaction.player} for $${transaction.draftCost}. ($${transaction.budgetLeft} left)`;
+}
+
+function renderCellValue(key, value, transaction) {
+  if (key === "message") return renderMessage(transaction);
+  if (key === "actionType" && value.startsWith("Updated")) return "Updated";
+  if ((key === "createdAt" || key === "updatedAt") && isDateLike(value)) {
+    return new Date(value).toLocaleString();
+  }
+  return renderValue(value);
+}
 
 const TABLE_COLUMNS = [
-  { label: "Name", key: "name" },
+  { label: "Timestamp", key: "createdAt" },
+  { label: "Team", key: "teamOwner" },
   { label: "Player", key: "player" },
-  { label: "Action", key: "action" },
-  { label: "Budget", key: "budget" },
+  { label: "Action", key: "actionType" },
+  { label: "Messages", key: "message" }
 ];
 
 function TransactionsPage() {
+  const [transactions, setTransactions] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [errorMessage, setErrorMessage] = useState("");
+
+  useEffect(() => {
+    let isMounted = true;
+
+    async function loadTransactions() {
+      setErrorMessage("");
+
+      try {
+        const response = await fetch(`${API_BASE}/api/transactions`, {
+          method: "GET",
+          credentials: "include",
+        });
+        let data = {};
+        try {
+          data = await response.json();
+        } catch {
+          data = {};
+        }
+
+        if (!response.ok) {
+          throw new Error(data.errorMessage || "Failed to load players.");
+        }
+
+        if (!isMounted) return;
+        setTransactions(Array.isArray(data.transactions) ? data.transactions : []);
+      } catch (err) {
+        if (!isMounted) return;
+        setErrorMessage(err.message || "Unable to load transactions.");
+      } finally {
+        if (isMounted) setIsLoading(false);
+      }
+    }
+    setIsLoading(true);
+    loadTransactions();
+    const polling = setInterval(loadTransactions, 3000);
+
+    return () => {
+      isMounted = false;
+      clearInterval(polling);
+    };
+  }, []);
+
+  const hasTransactions = transactions.length > 0;
+
   return (
     <main className="app-shell page-private">
       <Header />
@@ -18,6 +100,45 @@ function TransactionsPage() {
           <p className="eyebrow">Transactions</p>
           <h1>Recent Moves</h1>
           <p className="muted">Review trades, claims, and drops to stay updated.</p>
+
+          {isLoading ? <p className="muted">Loading transactions...</p> : null}
+          {!isLoading && errorMessage ? <p className="error">{errorMessage}</p> : null}
+          {!isLoading && !errorMessage && !hasTransactions ? (
+            <p className="muted">No transactions found.</p>
+          ) : null}
+
+          {!isLoading && !errorMessage && hasTransactions ? (
+            <div className="transactions-table-wrap">
+              <div className="transactions-table-inner">
+                <table className="transactions-table">
+                  <thead>
+                    <tr>
+                      {TABLE_COLUMNS.map((column) => (
+                        <th key={column.key} scope="col">
+                          {column.label}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {transactions.map((transaction, index) => {
+                      const rowKey = transaction._id || `${transaction.teamOwner || "transaction"}-${index}`;
+                      return (
+                        <tr key={rowKey}>
+                          {TABLE_COLUMNS.map((column) => (
+                            <td key={`${rowKey}-${column.key}`}>
+                              {renderCellValue(column.key, transaction[column.key], transaction)}
+                            </td>
+                          ))}
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          ) : null}
+
         </section>
       </div>
     </main>
