@@ -1,6 +1,13 @@
 import Header from "../components/Header";
 import Sidebar from "../components/Sidebar";
 
+const TABLE_COLUMNS = [
+  { label: "Name", key: "name" },
+  { label: "Player", key: "player" },
+  { label: "Action", key: "action" },
+  { label: "Budget", key: "budget" },
+];
+
 function TransactionsPage() {
   return (
     <main className="app-shell page-private">

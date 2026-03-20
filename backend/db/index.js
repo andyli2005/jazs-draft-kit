@@ -1,5 +1,6 @@
 const mongoose = require("mongoose");
 const User = require("./models/User");
+const Transaction = require("./models/Transaction")
 
 class Database {
   async connect() {
@@ -27,6 +28,9 @@ class Database {
   async createUser(userData)                  { const newUser = new User(userData); return newUser.save(); }
   async updateUserById(id, fieldsToUpdate)    { return User.findByIdAndUpdate(id, { $set: fieldsToUpdate }, { new: true }); }
   async deleteUserById(id)                    { return User.findByIdAndDelete(id); }
+
+  async createTransaction(transactionData)    { const newTransction = new Transaction(transactionData); return newTransction.save(); }
+  async getTransactions()                      { return Transaction.find().sort({ createdAt: -1 }); }
 }
 
 module.exports = new Database();

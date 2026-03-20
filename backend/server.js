@@ -6,6 +6,7 @@ const cookieParser = require("cookie-parser");
 const db = require("./db");
 const authRoutes = require("./routes/auth");
 const playersRoutes = require("./routes/players");
+const transactionsRoutes = require("./routes/transactions")
 
 const app = express();
 
@@ -27,6 +28,7 @@ app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
 app.use("/api/auth", authRoutes);
 app.use("/api/players", playersRoutes);
+app.use("/api/transactions", transactionsRoutes);
 
 const PORT = process.env.PORT || 4000;
 
