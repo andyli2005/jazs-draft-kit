@@ -1,47 +1,25 @@
 import { useState, useEffect, useRef } from "react";
 import "./CreateLeagueModal.css";
 
-const LEAGUE_POSITIONS = {
-  MLB: [
-    { name: "Pitchers", count: 9 },
-    { name: "1st Base", count: 1 },
-    { name: "2nd Base", count: 1 },
-    { name: "3rd Base", count: 1 },
-    { name: "In Field", count: 1 },
-    { name: "Short Stop", count: 1 },
-    { name: "Outfielder", count: 5 },
-    { name: "MIF", count: 1 },
-    { name: "Utility", count: 1 },
-  ],
-  NFL: [
-    { name: "QB", count: 1 },
-    { name: "RB", count: 2 },
-    { name: "WR", count: 2 },
-    { name: "TE", count: 1 },
-    { name: "Flex", count: 1 },
-    { name: "K", count: 1 },
-    { name: "DEF", count: 1 },
-    { name: "Bench", count: 6 },
-  ],
-  NBA: [
-    { name: "PG", count: 1 },
-    { name: "SG", count: 1 },
-    { name: "SF", count: 1 },
-    { name: "PF", count: 1 },
-    { name: "C", count: 1 },
-    { name: "Guard", count: 1 },
-    { name: "Forward", count: 1 },
-    { name: "Utility", count: 2 },
-    { name: "Bench", count: 3 },
-  ],
-};
+const MLB_POSITIONS = [
+  { name: "Catchers", count: 2 },
+  { name: "1st Base", count: 1 },
+  { name: "2nd Base", count: 1 },
+  { name: "3rd Base", count: 1 },
+  { name: "Short Stop", count: 1 },
+  { name: "In Field", count: 1 },
+  { name: "MIF", count: 1 },
+  { name: "Utility", count: 1 },
+  { name: "Pitchers", count: 9 },
+  { name: "Outfielders", count: 5 },
+];
 
 const DRAFT_TYPES = ["Salary Cap", "Snake", "Linear"];
 
 function CreateLeagueModal({ open, onClose }) {
-  const [leagueType, setLeagueType] = useState("MLB");
-  const [leagueName, setLeagueName] = useState("");
+  const [name, setName] = useState("");
   const [draftType, setDraftType] = useState("Salary Cap");
+  const [teamCount, setTeamCount] = useState(12);
   const [budgetCap, setBudgetCap] = useState(260);
   const overlayRef = useRef(null);
 
@@ -56,25 +34,23 @@ function CreateLeagueModal({ open, onClose }) {
 
   if (!open) return null;
 
-  const positions = LEAGUE_POSITIONS[leagueType] || [];
-
   const handleOverlayClick = (e) => {
     if (e.target === overlayRef.current) onClose();
   };
 
   const handleSave = () => {
     const leagueData = {
-      leagueType,
-      leagueName: leagueName.trim(),
+      sport: "MLB",
+      name: name.trim(),
       draftType,
-      budgetCap: draftType === "Salary Cap" ? budgetCap : null,
-      positions,
+      teamCount,
+      budgetCap,
     };
     console.log("League data (frontend only):", leagueData);
     onClose();
   };
 
-  const canSave = leagueName.trim().length > 0;
+  const canSave = name.trim().length > 0 && teamCount >= 2;
 
   return (
     <div className="modal-overlay" ref={overlayRef} onClick={handleOverlayClick}>
@@ -92,14 +68,12 @@ function CreateLeagueModal({ open, onClose }) {
               <span>League Type</span>
               <select
                 className="modal-select"
-                value={leagueType}
-                onChange={(e) => setLeagueType(e.target.value)}
+                value="MLB"
+                onChange={() => {}}
               >
-                {Object.keys(LEAGUE_POSITIONS).map((type) => (
-                  <option key={type} value={type}>
-                    {type}
-                  </option>
-                ))}
+                <option value="MLB">MLB</option>
+                <option value="NFL" disabled>NFL (coming soon)</option>
+                <option value="NBA" disabled>NBA (coming soon)</option>
               </select>
             </label>
 
@@ -108,8 +82,8 @@ function CreateLeagueModal({ open, onClose }) {
               <input
                 className="modal-input"
                 type="text"
-                value={leagueName}
-                onChange={(e) => setLeagueName(e.target.value)}
+                value={name}
+                onChange={(e) => setName(e.target.value)}
                 placeholder="Enter league name"
               />
             </label>
@@ -129,27 +103,36 @@ function CreateLeagueModal({ open, onClose }) {
               </select>
             </label>
 
-            {draftType === "Salary Cap" && (
-              <label className="modal-label">
-                <span>Budget Cap</span>
-                <div className="modal-budget-input">
-                  <span className="budget-prefix">$</span>
-                  <input
-                    className="modal-input budget-field"
-                    type="number"
-                    min={1}
-                    value={budgetCap}
-                    onChange={(e) => setBudgetCap(Number(e.target.value))}
-                  />
-                </div>
-              </label>
-            )}
+            <label className="modal-label">
+              <span>Team Count</span>
+              <input
+                className="modal-input"
+                type="number"
+                min={2}
+                value={teamCount}
+                onChange={(e) => setTeamCount(Number(e.target.value))}
+              />
+            </label>
+
+            <label className="modal-label">
+              <span>Budget Cap</span>
+              <div className="modal-budget-input">
+                <span className="budget-prefix">$</span>
+                <input
+                  className="modal-input budget-field"
+                  type="number"
+                  min={1}
+                  value={budgetCap}
+                  onChange={(e) => setBudgetCap(Number(e.target.value))}
+                />
+              </div>
+            </label>
           </div>
 
           <div className="modal-positions">
-            <h3>Positions ({leagueType})</h3>
+            <h3>Positions (MLB)</h3>
             <div className="positions-grid">
-              {positions.map((pos) => (
+              {MLB_POSITIONS.map((pos) => (
                 <div className="position-item" key={pos.name}>
                   <span className="position-name">{pos.name}</span>
                   <span className="position-count">x{pos.count}</span>
