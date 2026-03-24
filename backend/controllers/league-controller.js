@@ -10,6 +10,15 @@ const createLeague = async (req, res) => {
         .json({ errorMessage: "Please enter all required fields." });
     }
 
+    const rosterPromises = Array.from({ length: teamCount }, (_, i) =>
+      db.createMLBRoster({
+        budgetLeft: budgetCap,
+        name: `Team ${i + 1}`,
+      })
+    );
+    const rosters = await Promise.all(rosterPromises);
+    const rosterIds = rosters.map((r) => r._id);
+
     const league = await db.createLeague({
       user: req.userId,
       sport,
@@ -17,7 +26,7 @@ const createLeague = async (req, res) => {
       draftType,
       teamCount,
       budgetCap,
-      rosterIds: [],
+      rosterIds,
     });
 
     return res.status(201).json({
