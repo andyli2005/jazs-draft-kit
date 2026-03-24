@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import { createLeague } from "../auth/requests";
 import "./CreateLeagueModal.css";
 
 const MLB_POSITIONS = [
@@ -21,6 +22,8 @@ function CreateLeagueModal({ open, onClose }) {
   const [draftType, setDraftType] = useState("Salary Cap");
   const [teamCount, setTeamCount] = useState(12);
   const [budgetCap, setBudgetCap] = useState(260);
+  const [isSaving, setIsSaving] = useState(false);
+  const [error, setError] = useState("");
   const overlayRef = useRef(null);
 
   useEffect(() => {
@@ -38,19 +41,30 @@ function CreateLeagueModal({ open, onClose }) {
     if (e.target === overlayRef.current) onClose();
   };
 
-  const handleSave = () => {
-    const leagueData = {
-      sport: "MLB",
-      name: name.trim(),
-      draftType,
-      teamCount,
-      budgetCap,
-    };
-    console.log("League data (frontend only):", leagueData);
-    onClose();
+  const handleSave = async () => {
+    setError("");
+    setIsSaving(true);
+    try {
+      await createLeague({
+        sport: "MLB",
+        name: name.trim(),
+        draftType,
+        teamCount,
+        budgetCap,
+      });
+      setName("");
+      setDraftType("Salary Cap");
+      setTeamCount(12);
+      setBudgetCap(260);
+      onClose();
+    } catch (err) {
+      setError(err.message || "Failed to create league.");
+    } finally {
+      setIsSaving(false);
+    }
   };
 
-  const canSave = name.trim().length > 0 && teamCount >= 2;
+  const canSave = name.trim().length > 0 && teamCount >= 2 && !isSaving;
 
   return (
     <div className="modal-overlay" ref={overlayRef} onClick={handleOverlayClick}>
@@ -142,8 +156,10 @@ function CreateLeagueModal({ open, onClose }) {
           </div>
         </div>
 
+        {error && <p className="error">{error}</p>}
+
         <div className="modal-footer">
-          <button className="btn btn-secondary" onClick={onClose}>
+          <button className="btn btn-secondary" onClick={onClose} disabled={isSaving}>
             Cancel
           </button>
           <button
@@ -151,7 +167,7 @@ function CreateLeagueModal({ open, onClose }) {
             onClick={handleSave}
             disabled={!canSave}
           >
-            Save
+            {isSaving ? "Saving..." : "Save"}
           </button>
         </div>
       </div>
