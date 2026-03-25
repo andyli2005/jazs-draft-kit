@@ -84,6 +84,28 @@ function PlayerSearchPage() {
   const [search, setSearch] = useState("");
   const [totalFantasyPoints, setTotalFantasyPoints] = useState(0);
   const [selectedPlayer, setSelectedPlayer] = useState(null);
+  const [activeLeagueId, setActiveLeagueId] = useState(null);
+
+  useEffect(() => {
+    let isMounted = true;
+    async function fetchLeagues() {
+      try {
+        const res = await fetch(`${API_BASE}/api/leagues`, {
+          method: "GET",
+          credentials: "include",
+        });
+        const data = await res.json();
+        if (!isMounted) return;
+        if (data.leagues && data.leagues.length > 0) {
+          setActiveLeagueId(data.leagues[0]._id);
+        }
+      } catch {
+        // league fetch is non-critical; notes will be disabled without it
+      }
+    }
+    fetchLeagues();
+    return () => { isMounted = false; };
+  }, []);
 
   useEffect(() => {
     let isMounted = true;
@@ -254,11 +276,11 @@ function PlayerSearchPage() {
                   </thead>
                   <tbody>
                     {players.map((player, index) => {
-                      const rowKey = player._id || `${player.name || "player"}-${index}`;
+                      const rowKey = player.APIplayerId || `${player.name || "player"}-${index}`;
                       const isSelected =
                         selectedPlayer &&
-                        (selectedPlayer._id
-                          ? selectedPlayer._id === player._id
+                        (selectedPlayer.APIplayerId
+                          ? selectedPlayer.APIplayerId === player.APIplayerId
                           : selectedPlayer.name === player.name && index === players.indexOf(selectedPlayer));
                       return (
                         <tr
@@ -286,6 +308,7 @@ function PlayerSearchPage() {
               player={selectedPlayer}
               fantasyPoints={0}
               cost={0}
+              activeLeagueId={activeLeagueId}
               onClose={() => setSelectedPlayer(null)}
             />
           )}
