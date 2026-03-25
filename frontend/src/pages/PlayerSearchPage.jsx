@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import Header from "../components/Header";
+import PlayerStatsPanel from "../components/PlayerStatsPanel";
 import Sidebar from "../components/Sidebar";
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || "http://localhost:4000";
@@ -82,6 +83,7 @@ function PlayerSearchPage() {
   const [sortOrder, setSortOrder] = useState("desc");
   const [search, setSearch] = useState("");
   const [totalFantasyPoints, setTotalFantasyPoints] = useState(0);
+  const [selectedPlayer, setSelectedPlayer] = useState(null);
 
   useEffect(() => {
     let isMounted = true;
@@ -197,7 +199,7 @@ function PlayerSearchPage() {
   return (
     <main className="app-shell page-private">
       <Header />
-      <div className="app-body">
+      <div className={`app-body${selectedPlayer ? " app-body-with-panel" : ""}`}>
         <Sidebar />
         <section className="app-content card">
           <p className="eyebrow">Player Search</p>
@@ -253,8 +255,17 @@ function PlayerSearchPage() {
                   <tbody>
                     {players.map((player, index) => {
                       const rowKey = player._id || `${player.name || "player"}-${index}`;
+                      const isSelected =
+                        selectedPlayer &&
+                        (selectedPlayer._id
+                          ? selectedPlayer._id === player._id
+                          : selectedPlayer.name === player.name && index === players.indexOf(selectedPlayer));
                       return (
-                        <tr key={rowKey}>
+                        <tr
+                          key={rowKey}
+                          className={isSelected ? "selected-row" : ""}
+                          onClick={() => setSelectedPlayer(player)}
+                        >
                           {TABLE_COLUMNS.map((column) => (
                             <td key={`${rowKey}-${column.key}`}>
                               {renderCellValue(column.key, player[column.key], { player, totalFantasyPoints })}
@@ -269,6 +280,15 @@ function PlayerSearchPage() {
             </div>
           ) : null}
         </section>
+
+          {selectedPlayer && (
+            <PlayerStatsPanel
+              player={selectedPlayer}
+              fantasyPoints={0}
+              cost={0}
+              onClose={() => setSelectedPlayer(null)}
+            />
+          )}
       </div>
     </main>
   );
