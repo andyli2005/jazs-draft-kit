@@ -80,6 +80,48 @@ const getPlayers = async (req, res) => {
   }
 }
 
+const getTotalFantasyPoints = async (req, res) => {
+  if (!process.env.API_TOKEN) {
+    return res.status(500).json({
+      errorMessage: "Server configuration is missing API_TOKEN.",
+    });
+  }
+
+  const url = `${getApiBase()}/api/players/totalFantasyPoints`;
+
+  try {
+    const response = await fetch(url, {
+      method: "GET",
+      headers: {
+        "x-api-token": process.env.API_TOKEN,
+      },
+    });
+
+    let data = {};
+    try {
+      data = await response.json();
+    } catch {
+      data = {};
+    }
+
+    if (!response.ok) {
+      return res.status(response.status).json({
+        errorMessage: data.errorMessage || data.message || "Failed to fetch players.",
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      totalPoints: data.totalPoints,
+    });
+  } catch (err) {
+    return res.status(502).json({
+      errorMessage: `Unable to reach players service at ${url}.`,
+    });
+  }
+}
+
 module.exports = {
   getPlayers,
+  getTotalFantasyPoints,
 };
