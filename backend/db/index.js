@@ -30,7 +30,7 @@ class Database {
   async deleteUserById(id)                    { return User.findByIdAndDelete(id); }
 
   async createTransaction(transactionData)    { const newTransction = new Transaction(transactionData); return newTransction.save(); }
-  async getTransactions()                      { return Transaction.find().sort({ createdAt: -1 }).limit(50); }
+  async getTransactions()                     { return Transaction.find().sort({ createdAt: -1 }).limit(50); }
 }
 
 module.exports = new Database();

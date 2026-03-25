@@ -9,12 +9,13 @@ const TABLE_COLUMNS = [
   { label: "Picture URL", key: "pictureURL" },
   { label: "Positions", key: "positions" },
   { label: "Team", key: "team" },
+  { label: "Fantasy Points", key: "fantasyPoints" },
+  { label: "Cost", key: "cost"},
   { label: "At Bats", key: "atBats" },
   { label: "Base On Balls", key: "baseOnBalls" },
   { label: "Batting Average", key: "battingAverage" },
   { label: "Caught Stealing", key: "caughtStealing" },
   { label: "Doubles", key: "doubles" },
-  { label: "Fantasy Points", key: "fantasyPoints" },
   { label: "Hits", key: "hits" },
   { label: "Home Runs", key: "homeRuns" },
   { label: "On Base Percentage", key: "onBasePercentage" },
@@ -26,6 +27,14 @@ const TABLE_COLUMNS = [
   { label: "Strike Outs", key: "strikeOuts" },
   { label: "Triples", key: "triples" },
 ];
+
+const TOTAL_MONEY = 260 * 12; 
+const ROSTER_SPOTS = 23 * 12;   
+const DOLLARS_AVAILABLE = TOTAL_MONEY - ROSTER_SPOTS;
+
+function computeCost(playerPoints, totalPoints) {
+  return Math.max(1, Math.round((playerPoints / totalPoints) * DOLLARS_AVAILABLE));
+}
 
 function renderValue(value) {
   if (value == null || value === "") return "N/A";
@@ -40,7 +49,7 @@ function isDateLike(value) {
   return !Number.isNaN(parsed);
 }
 
-function renderCellValue(key, value) {
+function renderCellValue(key, value, { player, totalFantasyPoints }) {
   if (key === "pictureURL") {
     if (!value) return "N/A";
     return (
@@ -57,6 +66,11 @@ function renderCellValue(key, value) {
     return new Date(value).toLocaleString();
   }
 
+  if (key === "cost") {
+    if (!totalFantasyPoints) return "...";
+    return computeCost(player.fantasyPoints, totalFantasyPoints);
+  }
+
   return renderValue(value);
 }
 
@@ -67,6 +81,45 @@ function PlayerSearchPage() {
   const [sortBy, setSortBy] = useState("fantasyPoints");
   const [sortOrder, setSortOrder] = useState("desc");
   const [search, setSearch] = useState("");
+  const [totalFantasyPoints, setTotalFantasyPoints] = useState(0);
+
+  useEffect(() => {
+    let isMounted = true;
+    
+    async function getTotalFantasyPoints() {
+      setIsLoading(true);
+      setErrorMessage("");
+      try {
+        const params = new URLSearchParams();
+        params.set("rankBy", sortBy);
+        params.set("order", sortOrder);
+        const response = await fetch(`${API_BASE}/api/players/totalFantasyPoints?${params.toString()}`, {
+          method: "GET",
+          credentials: "include",
+        });
+
+        let data = {};
+        try {
+          data = await response.json();
+        } catch {
+          data = {};
+        }
+
+        if (!response.ok) {
+          throw new Error(data.errorMessage || data.message || "Failed to load points.");
+        }
+
+        if (!isMounted) return;
+        setTotalFantasyPoints(data.totalPoints);
+      } catch (err) {
+        if (!isMounted) return;
+        setErrorMessage(err.message || "Unable to load pointss.");
+      }
+    }
+
+    getTotalFantasyPoints();
+    return () => { isMounted = false; };
+  }, []);
 
   useEffect(() => {
     let isMounted = true;
@@ -77,7 +130,8 @@ function PlayerSearchPage() {
 
       try {
         const params = new URLSearchParams();
-        params.set("rankBy", sortBy);
+        const fallBack = sortBy === "cost" ? "fantasyPoints" : sortBy;
+        params.set("rankBy", fallBack);
         params.set("order", sortOrder);
         if (search) params.set("name", search);
         const response = await fetch(`${API_BASE}/api/players?${params.toString()}`, {
@@ -115,6 +169,18 @@ function PlayerSearchPage() {
   const hasPlayers = players.length > 0;
 
   function handleSort(columnKey) {
+    if (columnKey === "cost"){
+      const order = sortBy === "cost" && sortOrder === "asc" ? "desc" : "asc";
+      const sortedPlayers = [...players].sort((a, b) => {
+        const costA = computeCost(a.fantasyPoints, totalFantasyPoints);
+        const costB = computeCost(b.fantasyPoints, totalFantasyPoints);
+        return order === "asc" ? costA - costB : costB - costA;
+      });
+      setSortBy(columnKey);
+      setSortOrder(order);
+      setPlayers(sortedPlayers);
+      return;
+    } 
     if (sortBy === columnKey) {
       setSortOrder((prev) => (prev === "asc" ? "desc" : "asc"));
       return;
@@ -167,20 +233,20 @@ function PlayerSearchPage() {
                   <thead>
                     <tr>
                       {TABLE_COLUMNS.map((column) => (
-                        column.key !== "pictureURL" ? 
-                        <th key={column.key} scope="col">
-                          <button
-                            className="table-sort-button"
-                            type="button"
-                            onClick={() => handleSort(column.key)}
-                          >
+                        column.key !== "pictureURL" ?
+                          <th key={column.key} scope="col">
+                            <button
+                              className="table-sort-button"
+                              type="button"
+                              onClick={() => handleSort(column.key)}
+                            >
+                              {column.label}
+                              {sortIndicator(column.key)}
+                            </button>
+                          </th> :
+                          <th key={column.key} scope="col">
                             {column.label}
-                            {sortIndicator(column.key)}
-                          </button>
-                        </th> : 
-                        <th key={column.key} scope="col">
-                            {column.label}
-                        </th>
+                          </th>
                       ))}
                     </tr>
                   </thead>
@@ -191,7 +257,7 @@ function PlayerSearchPage() {
                         <tr key={rowKey}>
                           {TABLE_COLUMNS.map((column) => (
                             <td key={`${rowKey}-${column.key}`}>
-                              {renderCellValue(column.key, player[column.key])}
+                              {renderCellValue(column.key, player[column.key], { player, totalFantasyPoints })}
                             </td>
                           ))}
                         </tr>
