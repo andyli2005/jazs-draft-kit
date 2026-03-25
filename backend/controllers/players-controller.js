@@ -21,6 +21,9 @@ function extractPlayers(payload) {
     pictureURL: player.pictureURL,
     positions: player.positions,
     team: player.team,
+    currentStats: player.currentStats || {},
+    projectedStats: player.projectedStats || {},
+    threeYearAverageStats: player.threeYearAverageStats || {},
     ...player.currentStats,
   }));
 }
@@ -144,7 +147,11 @@ const getPlayerDoc = async (req, res) => {
 const upsertPlayerDoc = async (req, res) => {
   try {
     const { APIplayerId } = req.params;
-    const { leagueId, personalNotes, name, status, notes, positions, team, pictureURL, price } = req.body;
+    const {
+      leagueId, personalNotes, name, status, notes,
+      positions, team, pictureURL, price,
+      currentStats, projectedStats, threeYearAverageStats,
+    } = req.body;
 
     if (!leagueId) {
       return res.status(400).json({ errorMessage: "leagueId is required." });
@@ -159,6 +166,9 @@ const upsertPlayerDoc = async (req, res) => {
       pictureURL: pictureURL || "",
       price: price ?? 0,
       personalNotes: personalNotes || "",
+      currentStats,
+      projectedStats,
+      threeYearAverageStats,
     };
 
     const playerDoc = await db.upsertPlayerDoc(APIplayerId, leagueId, fields);

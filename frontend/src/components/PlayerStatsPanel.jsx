@@ -21,7 +21,7 @@ const BATTING_STATS = [
 ];
 
 function PlayerStatsPanel({ player, fantasyPoints, cost, activeLeagueId, onClose }) {
-  const [personalNotes, setPersonalNotes] = useState("");
+  const [playerDoc, setPlayerDoc] = useState(null);
   const [isEditing, setIsEditing] = useState(false);
   const [editDraft, setEditDraft] = useState("");
   const [isSaving, setIsSaving] = useState(false);
@@ -29,7 +29,7 @@ function PlayerStatsPanel({ player, fantasyPoints, cost, activeLeagueId, onClose
 
   useEffect(() => {
     if (!player?.APIplayerId || !activeLeagueId) {
-      setPersonalNotes("");
+      setPlayerDoc(null);
       setIsEditing(false);
       return;
     }
@@ -43,13 +43,9 @@ function PlayerStatsPanel({ player, fantasyPoints, cost, activeLeagueId, onClose
         );
         const data = await res.json();
         if (!isMounted) return;
-        if (data.playerDoc && data.playerDoc.personalNotes) {
-          setPersonalNotes(data.playerDoc.personalNotes);
-        } else {
-          setPersonalNotes("");
-        }
+        setPlayerDoc(data.playerDoc || null);
       } catch {
-        if (isMounted) setPersonalNotes("");
+        if (isMounted) setPlayerDoc(null);
       }
     }
 
@@ -59,8 +55,12 @@ function PlayerStatsPanel({ player, fantasyPoints, cost, activeLeagueId, onClose
     return () => { isMounted = false; };
   }, [player?.APIplayerId, activeLeagueId]);
 
+  const hasDoc = playerDoc != null;
+  const displayData = hasDoc ? playerDoc : player;
+  const stats = hasDoc ? (playerDoc.currentStats || {}) : player;
+
   function handleEdit() {
-    setEditDraft(personalNotes);
+    setEditDraft(playerDoc?.personalNotes || "");
     setSaveError("");
     setIsEditing(true);
   }
@@ -92,6 +92,9 @@ function PlayerStatsPanel({ player, fantasyPoints, cost, activeLeagueId, onClose
             team: player.team || "",
             pictureURL: player.pictureURL || "",
             price: 0,
+            currentStats: player.currentStats || {},
+            projectedStats: player.projectedStats || {},
+            threeYearAverageStats: player.threeYearAverageStats || {},
           }),
         }
       );
@@ -99,7 +102,7 @@ function PlayerStatsPanel({ player, fantasyPoints, cost, activeLeagueId, onClose
       if (!res.ok) {
         throw new Error(data.errorMessage || "Failed to save notes.");
       }
-      setPersonalNotes(data.playerDoc.personalNotes);
+      setPlayerDoc(data.playerDoc);
       setIsEditing(false);
     } catch (err) {
       setSaveError(err.message || "Failed to save notes.");
@@ -109,6 +112,7 @@ function PlayerStatsPanel({ player, fantasyPoints, cost, activeLeagueId, onClose
   }
 
   const notesDisabled = !activeLeagueId;
+  const personalNotes = playerDoc?.personalNotes || "";
 
   return (
     <aside className="player-stats-panel">
@@ -125,10 +129,10 @@ function PlayerStatsPanel({ player, fantasyPoints, cost, activeLeagueId, onClose
       </div>
 
       <div className="player-stats-photo-wrap">
-        {player.pictureURL ? (
+        {displayData.pictureURL ? (
           <img
-            src={player.pictureURL}
-            alt={player.name}
+            src={displayData.pictureURL}
+            alt={displayData.name}
             className="player-stats-photo"
           />
         ) : (
@@ -136,17 +140,17 @@ function PlayerStatsPanel({ player, fantasyPoints, cost, activeLeagueId, onClose
         )}
       </div>
 
-      <h2 className="player-stats-name">{player.name || "Unknown Player"}</h2>
+      <h2 className="player-stats-name">{displayData.name || "Unknown Player"}</h2>
 
       <div className="player-stats-meta">
-        {player.positions && (
-          <span className="player-stats-badge">{player.positions}</span>
+        {displayData.positions && (
+          <span className="player-stats-badge">{displayData.positions}</span>
         )}
-        {player.team && (
-          <span className="player-stats-badge">{player.team}</span>
+        {displayData.team && (
+          <span className="player-stats-badge">{displayData.team}</span>
         )}
-        {player.status && (
-          <span className="player-stats-badge badge-outline">{player.status}</span>
+        {displayData.status && (
+          <span className="player-stats-badge badge-outline">{displayData.status}</span>
         )}
       </div>
 
@@ -243,7 +247,7 @@ function PlayerStatsPanel({ player, fantasyPoints, cost, activeLeagueId, onClose
               {BATTING_STATS.map((stat) => (
                 <tr key={stat.key}>
                   <td>{stat.label}</td>
-                  <td>{player[stat.key] != null ? player[stat.key] : "---"}</td>
+                  <td>{stats[stat.key] != null ? stats[stat.key] : "---"}</td>
                 </tr>
               ))}
             </tbody>
