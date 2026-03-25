@@ -1,3 +1,7 @@
+import { useEffect, useState } from "react";
+
+const API_BASE = import.meta.env.VITE_API_BASE_URL || "http://localhost:4000";
+
 const BATTING_STATS = [
   { label: "At Bats", key: "atBats" },
   { label: "Batting Avg", key: "battingAverage" },
@@ -16,7 +20,96 @@ const BATTING_STATS = [
   { label: "Caught Stealing", key: "caughtStealing" },
 ];
 
-function PlayerStatsPanel({ player, fantasyPoints, cost, onClose }) {
+function PlayerStatsPanel({ player, fantasyPoints, cost, activeLeagueId, onClose }) {
+  const [personalNotes, setPersonalNotes] = useState("");
+  const [isEditing, setIsEditing] = useState(false);
+  const [editDraft, setEditDraft] = useState("");
+  const [isSaving, setIsSaving] = useState(false);
+  const [saveError, setSaveError] = useState("");
+
+  useEffect(() => {
+    if (!player?.APIplayerId || !activeLeagueId) {
+      setPersonalNotes("");
+      setIsEditing(false);
+      return;
+    }
+
+    let isMounted = true;
+    async function fetchPlayerDoc() {
+      try {
+        const res = await fetch(
+          `${API_BASE}/api/players/${player.APIplayerId}/doc?leagueId=${activeLeagueId}`,
+          { method: "GET", credentials: "include" }
+        );
+        const data = await res.json();
+        if (!isMounted) return;
+        if (data.playerDoc && data.playerDoc.personalNotes) {
+          setPersonalNotes(data.playerDoc.personalNotes);
+        } else {
+          setPersonalNotes("");
+        }
+      } catch {
+        if (isMounted) setPersonalNotes("");
+      }
+    }
+
+    setIsEditing(false);
+    setSaveError("");
+    fetchPlayerDoc();
+    return () => { isMounted = false; };
+  }, [player?.APIplayerId, activeLeagueId]);
+
+  function handleEdit() {
+    setEditDraft(personalNotes);
+    setSaveError("");
+    setIsEditing(true);
+  }
+
+  function handleCancel() {
+    setIsEditing(false);
+    setSaveError("");
+  }
+
+  async function handleSave() {
+    if (!player?.APIplayerId || !activeLeagueId) return;
+
+    setIsSaving(true);
+    setSaveError("");
+    try {
+      const res = await fetch(
+        `${API_BASE}/api/players/${player.APIplayerId}/doc`,
+        {
+          method: "PUT",
+          credentials: "include",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            leagueId: activeLeagueId,
+            personalNotes: editDraft,
+            name: player.name,
+            status: player.status || "Active",
+            notes: player.status || "",
+            positions: player.positions || "",
+            team: player.team || "",
+            pictureURL: player.pictureURL || "",
+            price: 0,
+          }),
+        }
+      );
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.errorMessage || "Failed to save notes.");
+      }
+      setPersonalNotes(data.playerDoc.personalNotes);
+      setIsEditing(false);
+    } catch (err) {
+      setSaveError(err.message || "Failed to save notes.");
+    } finally {
+      setIsSaving(false);
+    }
+  }
+
+  const notesDisabled = !activeLeagueId;
+
   return (
     <aside className="player-stats-panel">
       <div className="player-stats-top">
@@ -73,13 +166,60 @@ function PlayerStatsPanel({ player, fantasyPoints, cost, onClose }) {
       <div className="player-stats-section">
         <div className="player-stats-section-head">
           <h3>Personal Notes</h3>
-          <button className="btn btn-secondary player-stats-edit-btn" type="button">
-            Edit
-          </button>
+          {!isEditing && (
+            <button
+              className="btn btn-secondary player-stats-edit-btn"
+              type="button"
+              onClick={handleEdit}
+              disabled={notesDisabled}
+            >
+              Edit
+            </button>
+          )}
         </div>
-        <ul className="player-stats-list">
-          <li className="muted">No notes yet. Click Edit to add notes.</li>
-        </ul>
+
+        {isEditing ? (
+          <div className="player-stats-notes-editor">
+            <textarea
+              className="player-stats-textarea"
+              value={editDraft}
+              onChange={(e) => setEditDraft(e.target.value)}
+              rows={4}
+              placeholder="Write your notes about this player..."
+            />
+            {saveError && <p className="error">{saveError}</p>}
+            <div className="player-stats-notes-actions">
+              <button
+                className="btn btn-primary player-stats-edit-btn"
+                type="button"
+                onClick={handleSave}
+                disabled={isSaving}
+              >
+                {isSaving ? "Saving..." : "Save"}
+              </button>
+              <button
+                className="btn btn-secondary player-stats-edit-btn"
+                type="button"
+                onClick={handleCancel}
+                disabled={isSaving}
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        ) : (
+          <div className="player-stats-notes-display">
+            {personalNotes ? (
+              <p>{personalNotes}</p>
+            ) : (
+              <p className="muted">
+                {notesDisabled
+                  ? "Create a league to add notes."
+                  : "No notes yet. Click Edit to add notes."}
+              </p>
+            )}
+          </div>
+        )}
       </div>
 
       <div className="player-stats-section">

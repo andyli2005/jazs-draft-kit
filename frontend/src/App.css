@@ -516,6 +516,41 @@
   gap: 0.25rem;
 }
 
+.player-stats-notes-display p {
+  margin: 0;
+  font-size: 0.85rem;
+  color: #2a3759;
+  white-space: pre-wrap;
+  line-height: 1.5;
+}
+
+.player-stats-notes-editor {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.player-stats-textarea {
+  width: 100%;
+  border: 1px solid #c8d2e9;
+  border-radius: 8px;
+  padding: 0.55rem 0.65rem;
+  font: inherit;
+  font-size: 0.85rem;
+  resize: vertical;
+  min-height: 70px;
+  color: #2a3759;
+}
+
+.player-stats-textarea:focus {
+  outline: 2px solid #7eb1ff;
+  outline-offset: 1px;
+}
+
+.player-stats-notes-actions {
+  display: flex;
+  gap: 0.4rem;
+}
+
 .player-stats-table-wrap {
   margin-top: 0.3rem;
   overflow-y: auto;
