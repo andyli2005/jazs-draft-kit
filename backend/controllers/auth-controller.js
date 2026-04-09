@@ -41,6 +41,7 @@ const getLoggedIn = async (req, res) => {
         id: loggedInUser._id,
         userName: loggedInUser.userName,
         email: loggedInUser.email,
+        profilePicture: loggedInUser.profilePicture || "",
       },
     });
   } catch (err) {
@@ -84,6 +85,7 @@ const loginUser = async (req, res) => {
         id: existingUser._id,
         userName: existingUser.userName,
         email: existingUser.email,
+        profilePicture: existingUser.profilePicture || "",
       },
     });
   } catch (err) {
@@ -155,6 +157,7 @@ const registerUser = async (req, res) => {
         id: savedUser._id,
         userName: savedUser.userName,
         email: savedUser.email,
+        profilePicture: savedUser.profilePicture || "",
       },
     });
   } catch (err) {
@@ -170,7 +173,7 @@ const updateUser = async (req, res) => {
       return res.status(401).json({ errorMessage: "UNAUTHORIZED" });
     }
 
-    const { userName, password, passwordVerify } = req.body;
+    const { userName, password, passwordVerify, profilePicture } = req.body;
     if (!userName) {
       return res
         .status(400)
@@ -206,6 +209,10 @@ const updateUser = async (req, res) => {
       updates.passwordHash = passwordHash;
     }
 
+    if (typeof profilePicture === "string") {
+      updates.profilePicture = profilePicture;
+    }
+
     const updatedUser = await db.updateUserById(userId, updates);
     if (!updatedUser) {
       return res.status(404).json({ errorMessage: "User not found." });
@@ -219,6 +226,7 @@ const updateUser = async (req, res) => {
         id: updatedUser._id,
         userName: updatedUser.userName,
         email: updatedUser.email,
+        profilePicture: updatedUser.profilePicture || "",
       },
     });
   } catch (err) {
