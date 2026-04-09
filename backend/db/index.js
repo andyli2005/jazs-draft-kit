@@ -3,6 +3,7 @@ const User = require("./models/User");
 const Transaction = require("./models/Transaction");
 const League = require("./models/League");
 const MLBRoster = require("./models/MLBRoster");
+const Player = require("./models/Player");
 
 class Database {
   async connect() {
@@ -41,6 +42,15 @@ class Database {
 
   async createMLBRoster(rosterData)           { const newRoster = new MLBRoster(rosterData); return newRoster.save(); }
   async getMLBRosterById(id)                  { return MLBRoster.findById(id); }
+
+  async getPlayerDoc(APIplayerId, leagueId)   { return Player.findOne({ APIplayerId, leagueId }); }
+  async upsertPlayerDoc(APIplayerId, leagueId, fields) {
+    return Player.findOneAndUpdate(
+      { APIplayerId, leagueId },
+      { $set: { APIplayerId, leagueId, ...fields } },
+      { upsert: true, new: true, runValidators: true }
+    );
+  }
 }
 
 module.exports = new Database();

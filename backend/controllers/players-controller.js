@@ -1,3 +1,5 @@
+const db = require("../db");
+
 const DEFAULT_API_ENDPOINT = "http://localhost:4001";
 
 function getApiBase() {
@@ -13,11 +15,15 @@ function extractPlayers(payload) {
   }
 
   return source.map((player) => ({
+    APIplayerId: player._id,
     name: player.name,
     status: player.status,
     pictureURL: player.pictureURL,
     positions: player.positions,
     team: player.team,
+    currentStats: player.currentStats || {},
+    projectedStats: player.projectedStats || {},
+    threeYearAverageStats: player.threeYearAverageStats || {},
     ...player.currentStats,
   }));
 }
@@ -121,7 +127,61 @@ const getTotalFantasyPoints = async (req, res) => {
   }
 }
 
+const getPlayerDoc = async (req, res) => {
+  try {
+    const { APIplayerId } = req.params;
+    const { leagueId } = req.query;
+
+    if (!leagueId) {
+      return res.status(400).json({ errorMessage: "leagueId query parameter is required." });
+    }
+
+    const playerDoc = await db.getPlayerDoc(APIplayerId, leagueId);
+    return res.status(200).json({ playerDoc });
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ errorMessage: "Error fetching player document." });
+  }
+};
+
+const upsertPlayerDoc = async (req, res) => {
+  try {
+    const { APIplayerId } = req.params;
+    const {
+      leagueId, personalNotes, name, status, notes,
+      positions, team, pictureURL, price,
+      currentStats, projectedStats, threeYearAverageStats,
+    } = req.body;
+
+    if (!leagueId) {
+      return res.status(400).json({ errorMessage: "leagueId is required." });
+    }
+
+    const fields = {
+      name,
+      status,
+      notes: notes || status || "",
+      positions,
+      team,
+      pictureURL: pictureURL || "",
+      price: price ?? 0,
+      personalNotes: personalNotes || "",
+      currentStats,
+      projectedStats,
+      threeYearAverageStats,
+    };
+
+    const playerDoc = await db.upsertPlayerDoc(APIplayerId, leagueId, fields);
+    return res.status(200).json({ playerDoc });
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ errorMessage: "Error saving player document." });
+  }
+};
+
 module.exports = {
   getPlayers,
   getTotalFantasyPoints,
+  getPlayerDoc,
+  upsertPlayerDoc,
 };
