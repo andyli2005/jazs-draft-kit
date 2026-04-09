@@ -1,6 +1,8 @@
 const mongoose = require("mongoose");
 const User = require("./models/User");
-const Transaction = require("./models/Transaction")
+const Transaction = require("./models/Transaction");
+const League = require("./models/League");
+const MLBRoster = require("./models/MLBRoster");
 
 class Database {
   async connect() {
@@ -31,6 +33,14 @@ class Database {
 
   async createTransaction(transactionData)    { const newTransction = new Transaction(transactionData); return newTransction.save(); }
   async getTransactions()                     { return Transaction.find().sort({ createdAt: -1 }).limit(50); }
+
+  async createLeague(leagueData)              { const newLeague = new League(leagueData); return newLeague.save(); }
+  async getLeaguesByUser(userId)              { return League.find({ user: userId }).sort({ createdAt: -1 }); }
+  async getLeagueById(id)                     { return League.findById(id); }
+  async deleteLeagueById(id)                  { return League.findByIdAndDelete(id); }
+
+  async createMLBRoster(rosterData)           { const newRoster = new MLBRoster(rosterData); return newRoster.save(); }
+  async getMLBRosterById(id)                  { return MLBRoster.findById(id); }
 }
 
 module.exports = new Database();

@@ -6,7 +6,8 @@ const cookieParser = require("cookie-parser");
 const db = require("./db");
 const authRoutes = require("./routes/auth");
 const playersRoutes = require("./routes/players");
-const transactionsRoutes = require("./routes/transactions")
+const transactionsRoutes = require("./routes/transactions");
+const leaguesRoutes = require("./routes/leagues");
 
 const app = express();
 
@@ -29,6 +30,7 @@ app.use(cookieParser());
 app.use("/api/auth", authRoutes);
 app.use("/api/players", playersRoutes);
 app.use("/api/transactions", transactionsRoutes);
+app.use("/api/leagues", leaguesRoutes);
 
 const PORT = process.env.PORT || 4000;
 
