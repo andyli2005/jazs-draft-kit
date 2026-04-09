@@ -146,6 +146,7 @@ const registerUser = async (req, res) => {
       userName: userName.trim(),
       email: normalizedEmail,
       passwordHash,
+      profilePicture: "",
     });
 
     const token = auth.signToken(savedUser._id);
