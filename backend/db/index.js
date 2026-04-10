@@ -36,7 +36,38 @@ class Database {
   async getTransactions()                     { return Transaction.find().sort({ createdAt: -1 }).limit(50); }
 
   async createLeague(leagueData)              { const newLeague = new League(leagueData); return newLeague.save(); }
-  async getLeaguesByUser(userId)              { return League.find({ user: userId }).sort({ createdAt: -1 }); }
+  async getLeaguesByUser(userId) {
+    return League.find({ user: userId })
+      .sort({ createdAt: -1 })
+      .populate({
+        path: "rosterIds",
+        populate: [
+          { path: "catcher1", select: "name positions team pictureURL" },
+          { path: "catcher2", select: "name positions team pictureURL" },
+          { path: "firstBase", select: "name positions team pictureURL" },
+          { path: "secondBase", select: "name positions team pictureURL" },
+          { path: "thirdBase", select: "name positions team pictureURL" },
+          { path: "inField", select: "name positions team pictureURL" },
+          { path: "shortStop", select: "name positions team pictureURL" },
+          { path: "utility", select: "name positions team pictureURL" },
+          { path: "middleInField", select: "name positions team pictureURL" },
+          { path: "pitcher1", select: "name positions team pictureURL" },
+          { path: "pitcher2", select: "name positions team pictureURL" },
+          { path: "pitcher3", select: "name positions team pictureURL" },
+          { path: "pitcher4", select: "name positions team pictureURL" },
+          { path: "pitcher5", select: "name positions team pictureURL" },
+          { path: "pitcher6", select: "name positions team pictureURL" },
+          { path: "pitcher7", select: "name positions team pictureURL" },
+          { path: "pitcher8", select: "name positions team pictureURL" },
+          { path: "pitcher9", select: "name positions team pictureURL" },
+          { path: "outfielder1", select: "name positions team pictureURL" },
+          { path: "outfielder2", select: "name positions team pictureURL" },
+          { path: "outfielder3", select: "name positions team pictureURL" },
+          { path: "outfielder4", select: "name positions team pictureURL" },
+          { path: "outfielder5", select: "name positions team pictureURL" },
+        ],
+      });
+  }
   async getLeagueById(id)                     { return League.findById(id); }
   async deleteLeagueById(id)                  { return League.findByIdAndDelete(id); }
 
