@@ -309,6 +309,15 @@
   margin-top: 1.25rem;
 }
 
+.profile-pic-preview {
+  width: 92px;
+  height: 92px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 1px solid rgba(49, 61, 89, 0.2);
+  background: #f1f5ff;
+}
+
 .danger-zone {
   margin-top: 1.5rem;
   padding-top: 1.25rem;

@@ -7,9 +7,12 @@ import Sidebar from "../components/Sidebar";
 function SettingsPage() {
   const navigate = useNavigate();
   const { user, updateCurrentUser, deleteCurrentUser } = useAuth();
+  const MAX_PROFILE_PICTURE_BYTES = 1024 * 1024;
   const [userName, setUserName] = useState("");
   const [password, setPassword] = useState("");
   const [passwordVerify, setPasswordVerify] = useState("");
+  const [profilePicture, setProfilePicture] = useState(null);
+  const [profilePictureError, setProfilePictureError] = useState("");
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const [updating, setUpdating] = useState(false);
@@ -19,10 +22,47 @@ function SettingsPage() {
     setUserName(user?.userName || "");
   }, [user?.userName]);
 
+  const profilePreview = profilePicture || user?.profilePicture || "";
+
+  async function handleProfilePictureChange(event) {
+    const file = event.target.files?.[0];
+    if (!file) {
+      return;
+    }
+
+    if (file.size > MAX_PROFILE_PICTURE_BYTES) {
+      setProfilePictureError(
+        "Profile image must be 1MB or smaller. Try compressing it first with a service like tinypng.com."
+      );
+      return;
+    }
+
+    setProfilePictureError("");
+
+    try {
+      const fileDataUrl = await new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result);
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+      });
+
+      if (typeof fileDataUrl === "string") {
+        setProfilePicture(fileDataUrl);
+      }
+    } catch {
+      setProfilePictureError("Could not read the selected image. Please try another file.");
+    }
+  }
+
   async function handleUpdate(event) {
     event.preventDefault();
     setError("");
     setSuccess("");
+    if (profilePictureError) {
+      setError("Please fix the profile picture issue before updating your account.");
+      return;
+    }
     setUpdating(true);
 
     try {
@@ -31,10 +71,14 @@ function SettingsPage() {
         payload.password = password;
         payload.passwordVerify = passwordVerify;
       }
+      if (profilePicture) {
+        payload.profilePicture = profilePicture;
+      }
 
       await updateCurrentUser(payload);
       setPassword("");
       setPasswordVerify("");
+      setProfilePicture(null);
       setSuccess("Account updated.");
     } catch (err) {
       setError(err.message);
@@ -69,9 +113,20 @@ function SettingsPage() {
         <section className="app-content card settings-card">
           <p className="eyebrow">Settings</p>
           <h1>Account Settings</h1>
-          <p className="muted">Update your username/password or delete your account.</p>
+          <p className="muted">Update your username/password/profile picture or delete your account.</p>
 
           <form onSubmit={handleUpdate} className="form settings-form">
+            <label>
+              Profile Picture (optional)
+              {profilePreview ? (
+                <img
+                  className="profile-pic-preview"
+                  src={profilePreview}
+                  alt={`${user?.userName || "User"} profile`}
+                />
+              ) : null}
+              <input type="file" accept="image/*" onChange={handleProfilePictureChange} />
+            </label>
             <label>
               Username
               <input value={userName} onChange={(event) => setUserName(event.target.value)} required />
@@ -95,6 +150,7 @@ function SettingsPage() {
               />
             </label>
 
+            {profilePictureError ? <p className="error">{profilePictureError}</p> : null}
             {error ? <p className="error">{error}</p> : null}
             {success ? <p className="success">{success}</p> : null}
 
