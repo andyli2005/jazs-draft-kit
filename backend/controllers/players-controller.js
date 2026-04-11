@@ -1,4 +1,6 @@
 const db = require("../db");
+const { computeTotalPoints } = require("../services/player-valuation");
+const { computeTotalMoneyRemaining, computeRosterSpotsRemaining, computeMoneyAboveMinimum } = require("../services/league-valuation");
 
 const DEFAULT_API_ENDPOINT = "http://localhost:4001";
 
@@ -52,21 +54,65 @@ const getPlayers = async (req, res) => {
     });
   }
 
-  const url = buildUpstreamUrl(req.query);
+  const { leagueId } = req.query;
+  if (!leagueId) {
+    return res.status(400).json({ errorMessage: "leagueId query parameter is required." });
+  }
+  let leagueState = null;
+
+  const league = await db.getLeagueById(leagueId);
+  if (!league) {
+    return res.status(404).json({ errorMessage: "League not found. " });
+  }
+  const rosters = await Promise.all((league.rosterIds || []).map((id) => db.getMLBRosterById(id)));
+
+  const totalMoneyRemaining = computeTotalMoneyRemaining(rosters);
+  const spotsRemaining = rosters.reduce(
+    (sum, roster) => sum + computeRosterSpotsRemaining(roster),
+    0
+  );
+  const moneyAboveMinimum = computeMoneyAboveMinimum(totalMoneyRemaining, spotsRemaining);
+  leagueState = { totalMoneyRemaining, spotsRemaining, moneyAboveMinimum };
+
+  // Cost is NOT part of API Licensing database, so if user wants to sort by cost,
+  // temporarily change rankBy to a valid data column
+  const upstreamQuery = { ...req.query };
+  if (upstreamQuery.rankBy === "cost") upstreamQuery.rankBy = "fantasyPoints";
+
+  // Similarly, leagueId is not necessary for the query
+  delete upstreamQuery.leagueId;
+
+  // Build separate query for cost so that searching/filtering players
+  // does not affect cost 
+  const upstreamQueryForCost = { ...req.query };
+
+  // Have cost of players be based on the top 200 players in DB based on FP
+  upstreamQueryForCost.top = "200";
+  upstreamQueryForCost.rankBy = "fantasyPoints";
+  upstreamQueryForCost.order = "desc";
+  delete upstreamQueryForCost.leagueId;
+  delete upstreamQueryForCost.team;
+  delete upstreamQueryForCost.name;
+  delete upstreamQueryForCost.position;
+  delete upstreamQueryForCost.page;
+  delete upstreamQueryForCost.limit;
+
+  const url = buildUpstreamUrl(upstreamQuery);
+  const costUrl = buildUpstreamUrl(upstreamQueryForCost);
 
   try {
-    const response = await fetch(url, {
-      method: "GET",
-      headers: {
-        "x-api-token": process.env.API_TOKEN,
-      },
-    });
+    const [response, costResponse] = await Promise.all([
+      fetch(url, { headers: { "x-api-token": process.env.API_TOKEN } }),
+      fetch(costUrl, { headers: { "x-api-token": process.env.API_TOKEN } }),
+    ]);
 
     let data = {};
+    let costData = {};
     try {
-      data = await response.json();
+      [data, costData] = await Promise.all([response.json(), costResponse.json()]);
     } catch {
       data = {};
+      costData = {};
     }
 
     if (!response.ok) {
@@ -75,9 +121,50 @@ const getPlayers = async (req, res) => {
       });
     }
 
+    if (!costResponse.ok) {
+      return res.status(costResponse.status).json({
+        errorMessage: costData.errorMessage || costData.message || "Failed to fetch top players.",
+      });
+    }
+
+    let players = extractPlayers(data).map((player) => ({
+      ...player,
+      points: computeTotalPoints(player),
+    }));
+
+    // extract the top 200 players in order to evaluate costs
+    let topPlayers = extractPlayers(costData).map((player) => ({
+      ...player,
+      points: computeTotalPoints(player),
+    }));    
+
+    const totalPoints = topPlayers.reduce(
+      (sum, player) => sum + player.points,
+      0
+    );
+
+    players = players.map((player) => {
+      const cost = totalPoints > 0
+        ? (player.points / totalPoints) * moneyAboveMinimum + 1
+        : 1;
+
+      return {
+        ...player,
+        cost: Math.max(Math.round(cost), 1),
+      };
+    });
+
+    // The query from original request should contain the true rankBy, 
+    // since it is overridden in the upstreamQuery previously  
+    if (req.query.rankBy === "cost") {
+      const dir = String(req.query.order || "desc").toLowerCase() === "asc" ? 1 : -1;
+      players = [...players].sort((a, b) => ((a.cost || 0) - (b.cost || 0)) * dir);
+    }
+
     return res.status(200).json({
       success: true,
-      players: extractPlayers(data),
+      players,
+      leagueState,
     });
   } catch (err) {
     return res.status(502).json({

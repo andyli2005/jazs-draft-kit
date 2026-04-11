@@ -39,7 +39,7 @@ function Header() {
   return (
     <header className="app-header">
       <div>
-        <p className="eyebrow">Draft Kit</p>
+        <p className="eyebrow">JAZS Draft Kit</p>
         <h2 className="app-title">Dashboard</h2>
       </div>
       <div className="header-right" ref={menuRef}>
