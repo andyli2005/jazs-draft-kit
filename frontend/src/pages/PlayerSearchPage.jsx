@@ -11,7 +11,7 @@ const TABLE_COLUMNS = [
   { label: "Positions", key: "positions" },
   { label: "Team", key: "team" },
   { label: "Fantasy Points", key: "fantasyPoints" },
-  { label: "Cost", key: "price" },
+  { label: "Cost", key: "cost" },
   { label: "At Bats", key: "atBats" },
   { label: "Base On Balls", key: "baseOnBalls" },
   { label: "Batting Average", key: "battingAverage" },
@@ -59,7 +59,7 @@ function renderCellValue(key, value) {
     return new Date(value).toLocaleString();
   }
 
-  if (key === "price") {
+  if (key === "cost") {
     if (value == null) return "...";
     return value;
   }
@@ -113,9 +113,7 @@ function PlayerSearchPage() {
 
       try {
         const params = new URLSearchParams();
-        // API-Licensing only knows how to rank by stats/name; "price" exists only after Draft-Kit computes it.
-        const fallBack = sortBy === "price" ? "fantasyPoints" : sortBy;
-        params.set("rankBy", fallBack);
+        params.set("rankBy", sortBy);
         params.set("order", sortOrder);
         if (search) params.set("name", search);
         params.set("leagueId", activeLeagueId);
@@ -136,14 +134,7 @@ function PlayerSearchPage() {
         }
 
         if (!isMounted) return;
-        let nextPlayers = Array.isArray(data.players) ? data.players : [];
-        if (sortBy === "price") {
-          const dir = sortOrder === "asc" ? 1 : -1;
-          nextPlayers = [...nextPlayers].sort(
-            (a, b) => ((Number(a?.price) || 0) - (Number(b?.price) || 0)) * dir
-          );
-        }
-        setPlayers(nextPlayers);
+        setPlayers(Array.isArray(data.players) ? data.players : []);
       } catch (err) {
         if (!isMounted) return;
         setErrorMessage(err.message || "Unable to load players.");
@@ -161,8 +152,8 @@ function PlayerSearchPage() {
   const hasPlayers = players.length > 0;
 
   function handleSort(columnKey) {
-    if (columnKey === "price") {
-      const order = sortBy === "price" && sortOrder === "asc" ? "desc" : "asc";
+    if (columnKey === "cost") {
+      const order = sortBy === "cost" && sortOrder === "asc" ? "desc" : "asc";
       setSortBy(columnKey);
       setSortOrder(order);
       return;
@@ -269,7 +260,7 @@ function PlayerSearchPage() {
             <PlayerStatsPanel
               player={selectedPlayer}
               fantasyPoints={selectedPlayer?.fantasyPoints ?? 0}
-              cost={selectedPlayer?.price ?? 0}
+              cost={selectedPlayer?.cost ?? selectedPlayer?.price ?? 0}
               activeLeagueId={activeLeagueId}
               onClose={() => setSelectedPlayer(null)}
             />

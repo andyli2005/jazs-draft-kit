@@ -74,7 +74,15 @@ const getPlayers = async (req, res) => {
   const moneyAboveMinimum = computeMoneyAboveMinimum(totalMoneyRemaining, spotsRemaining);
   leagueState = { totalMoneyRemaining, spotsRemaining, moneyAboveMinimum };
 
-  const url = buildUpstreamUrl(req.query);
+  // Cost is NOT part of API Licensing database, so if user wants to sort by cost,
+  // temporarily change rankBy to a valid data column
+  const upstreamQuery = { ...req.query };
+  if (upstreamQuery.rankBy === "cost") upstreamQuery.rankBy = "fantasyPoints";
+
+  // Similarly, leagueId is not necessary for the query
+  delete upstreamQuery.leagueId;
+
+  const url = buildUpstreamUrl(upstreamQuery);
 
   try {
     const response = await fetch(url, {
@@ -109,14 +117,21 @@ const getPlayers = async (req, res) => {
 
     players = players.map((player) => {
       const cost = totalPoints > 0
-          ? (player.points / totalPoints) * moneyAboveMinimum + 1
-          : 1;
+        ? (player.points / totalPoints) * moneyAboveMinimum + 1
+        : 1;
 
       return {
         ...player,
-        price: Math.max(Math.round(cost), 1),
+        cost: Math.max(Math.round(cost), 1),
       };
     });
+
+    // The query from original request should contain the true rankBy, 
+    // since it is overridden in the upstreamQuery previously  
+    if (req.query.rankBy === "cost") {
+      const dir = String(req.query.order || "desc").toLowerCase() === "asc" ? 1 : -1;
+      players = [...players].sort((a, b) => ((a.cost || 0) - (b.cost || 0)) * dir);
+    }
 
     return res.status(200).json({
       success: true,
