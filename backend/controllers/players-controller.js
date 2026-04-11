@@ -82,21 +82,37 @@ const getPlayers = async (req, res) => {
   // Similarly, leagueId is not necessary for the query
   delete upstreamQuery.leagueId;
 
+  // Build separate query for cost so that searching/filtering players
+  // does not affect cost 
+  const upstreamQueryForCost = { ...req.query };
+
+  // Have cost of players be based on the top 200 players in DB based on FP
+  upstreamQueryForCost.top = "200";
+  upstreamQueryForCost.rankBy = "fantasyPoints";
+  upstreamQueryForCost.order = "desc";
+  delete upstreamQueryForCost.leagueId;
+  delete upstreamQueryForCost.team;
+  delete upstreamQueryForCost.name;
+  delete upstreamQueryForCost.position;
+  delete upstreamQueryForCost.page;
+  delete upstreamQueryForCost.limit;
+
   const url = buildUpstreamUrl(upstreamQuery);
+  const costUrl = buildUpstreamUrl(upstreamQueryForCost);
 
   try {
-    const response = await fetch(url, {
-      method: "GET",
-      headers: {
-        "x-api-token": process.env.API_TOKEN,
-      },
-    });
+    const [response, costResponse] = await Promise.all([
+      fetch(url, { headers: { "x-api-token": process.env.API_TOKEN } }),
+      fetch(costUrl, { headers: { "x-api-token": process.env.API_TOKEN } }),
+    ]);
 
     let data = {};
+    let costData = {};
     try {
-      data = await response.json();
+      [data, costData] = await Promise.all([response.json(), costResponse.json()]);
     } catch {
       data = {};
+      costData = {};
     }
 
     if (!response.ok) {
@@ -105,12 +121,24 @@ const getPlayers = async (req, res) => {
       });
     }
 
+    if (!costResponse.ok) {
+      return res.status(costResponse.status).json({
+        errorMessage: costData.errorMessage || costData.message || "Failed to fetch top players.",
+      });
+    }
+
     let players = extractPlayers(data).map((player) => ({
       ...player,
       points: computeTotalPoints(player),
     }));
 
-    const totalPoints = players.reduce(
+    // extract the top 200 players in order to evaluate costs
+    let topPlayers = extractPlayers(costData).map((player) => ({
+      ...player,
+      points: computeTotalPoints(player),
+    }));    
+
+    const totalPoints = topPlayers.reduce(
       (sum, player) => sum + player.points,
       0
     );
