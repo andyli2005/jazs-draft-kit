@@ -11,7 +11,7 @@ const TABLE_COLUMNS = [
   { label: "Positions", key: "positions" },
   { label: "Team", key: "team" },
   { label: "Fantasy Points", key: "fantasyPoints" },
-  { label: "Cost", key: "cost"},
+  { label: "Cost", key: "price" },
   { label: "At Bats", key: "atBats" },
   { label: "Base On Balls", key: "baseOnBalls" },
   { label: "Batting Average", key: "battingAverage" },
@@ -29,14 +29,6 @@ const TABLE_COLUMNS = [
   { label: "Triples", key: "triples" },
 ];
 
-const TOTAL_MONEY = 260 * 12; 
-const ROSTER_SPOTS = 23 * 12;   
-const DOLLARS_AVAILABLE = TOTAL_MONEY - ROSTER_SPOTS;
-
-function computeCost(playerPoints, totalPoints) {
-  return Math.max(1, Math.round((playerPoints / totalPoints) * DOLLARS_AVAILABLE));
-}
-
 function renderValue(value) {
   if (value == null || value === "") return "N/A";
   if (typeof value === "boolean") return value ? "Yes" : "No";
@@ -50,7 +42,7 @@ function isDateLike(value) {
   return !Number.isNaN(parsed);
 }
 
-function renderCellValue(key, value, { player, totalFantasyPoints }) {
+function renderCellValue(key, value) {
   if (key === "pictureURL") {
     if (!value) return "N/A";
     return (
@@ -67,9 +59,9 @@ function renderCellValue(key, value, { player, totalFantasyPoints }) {
     return new Date(value).toLocaleString();
   }
 
-  if (key === "cost") {
-    if (!totalFantasyPoints) return "...";
-    return computeCost(player.fantasyPoints, totalFantasyPoints);
+  if (key === "price") {
+    if (value == null) return "...";
+    return value;
   }
 
   return renderValue(value);
@@ -82,7 +74,6 @@ function PlayerSearchPage() {
   const [sortBy, setSortBy] = useState("fantasyPoints");
   const [sortOrder, setSortOrder] = useState("desc");
   const [search, setSearch] = useState("");
-  const [totalFantasyPoints, setTotalFantasyPoints] = useState(0);
   const [selectedPlayer, setSelectedPlayer] = useState(null);
   const [activeLeagueId, setActiveLeagueId] = useState(null);
 
@@ -109,55 +100,25 @@ function PlayerSearchPage() {
 
   useEffect(() => {
     let isMounted = true;
-    
-    async function getTotalFantasyPoints() {
-      setIsLoading(true);
-      setErrorMessage("");
-      try {
-        const params = new URLSearchParams();
-        params.set("rankBy", sortBy);
-        params.set("order", sortOrder);
-        const response = await fetch(`${API_BASE}/api/players/totalFantasyPoints?${params.toString()}`, {
-          method: "GET",
-          credentials: "include",
-        });
-
-        let data = {};
-        try {
-          data = await response.json();
-        } catch {
-          data = {};
-        }
-
-        if (!response.ok) {
-          throw new Error(data.errorMessage || data.message || "Failed to load points.");
-        }
-
-        if (!isMounted) return;
-        setTotalFantasyPoints(data.totalPoints);
-      } catch (err) {
-        if (!isMounted) return;
-        setErrorMessage(err.message || "Unable to load pointss.");
-      }
-    }
-
-    getTotalFantasyPoints();
-    return () => { isMounted = false; };
-  }, []);
-
-  useEffect(() => {
-    let isMounted = true;
 
     async function loadPlayers() {
       setIsLoading(true);
       setErrorMessage("");
 
+      if (!activeLeagueId) {
+        setIsLoading(false);
+        setErrorMessage("Create a league first.");
+        return;
+      }
+
       try {
         const params = new URLSearchParams();
-        const fallBack = sortBy === "cost" ? "fantasyPoints" : sortBy;
+        // API-Licensing only knows how to rank by stats/name; "price" exists only after Draft-Kit computes it.
+        const fallBack = sortBy === "price" ? "fantasyPoints" : sortBy;
         params.set("rankBy", fallBack);
         params.set("order", sortOrder);
         if (search) params.set("name", search);
+        params.set("leagueId", activeLeagueId);
         const response = await fetch(`${API_BASE}/api/players?${params.toString()}`, {
           method: "GET",
           credentials: "include",
@@ -175,7 +136,14 @@ function PlayerSearchPage() {
         }
 
         if (!isMounted) return;
-        setPlayers(Array.isArray(data.players) ? data.players : []);
+        let nextPlayers = Array.isArray(data.players) ? data.players : [];
+        if (sortBy === "price") {
+          const dir = sortOrder === "asc" ? 1 : -1;
+          nextPlayers = [...nextPlayers].sort(
+            (a, b) => ((Number(a?.price) || 0) - (Number(b?.price) || 0)) * dir
+          );
+        }
+        setPlayers(nextPlayers);
       } catch (err) {
         if (!isMounted) return;
         setErrorMessage(err.message || "Unable to load players.");
@@ -188,23 +156,17 @@ function PlayerSearchPage() {
     return () => {
       isMounted = false;
     };
-  }, [sortBy, sortOrder, search]);
+  }, [sortBy, sortOrder, search, activeLeagueId]);
 
   const hasPlayers = players.length > 0;
 
   function handleSort(columnKey) {
-    if (columnKey === "cost"){
-      const order = sortBy === "cost" && sortOrder === "asc" ? "desc" : "asc";
-      const sortedPlayers = [...players].sort((a, b) => {
-        const costA = computeCost(a.fantasyPoints, totalFantasyPoints);
-        const costB = computeCost(b.fantasyPoints, totalFantasyPoints);
-        return order === "asc" ? costA - costB : costB - costA;
-      });
+    if (columnKey === "price") {
+      const order = sortBy === "price" && sortOrder === "asc" ? "desc" : "asc";
       setSortBy(columnKey);
       setSortOrder(order);
-      setPlayers(sortedPlayers);
       return;
-    } 
+    }
     if (sortBy === columnKey) {
       setSortOrder((prev) => (prev === "asc" ? "desc" : "asc"));
       return;
@@ -290,7 +252,7 @@ function PlayerSearchPage() {
                         >
                           {TABLE_COLUMNS.map((column) => (
                             <td key={`${rowKey}-${column.key}`}>
-                              {renderCellValue(column.key, player[column.key], { player, totalFantasyPoints })}
+                              {renderCellValue(column.key, player[column.key])}
                             </td>
                           ))}
                         </tr>
@@ -306,8 +268,8 @@ function PlayerSearchPage() {
           {selectedPlayer && (
             <PlayerStatsPanel
               player={selectedPlayer}
-              fantasyPoints={0}
-              cost={0}
+              fantasyPoints={selectedPlayer?.fantasyPoints ?? 0}
+              cost={selectedPlayer?.price ?? 0}
               activeLeagueId={activeLeagueId}
               onClose={() => setSelectedPlayer(null)}
             />

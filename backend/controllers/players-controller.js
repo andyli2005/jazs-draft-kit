@@ -1,4 +1,6 @@
 const db = require("../db");
+const { computeTotalPoints } = require("../services/player-valuation");
+const { computeTotalMoneyRemaining, computeRosterSpotsRemaining, computeMoneyAboveMinimum } = require("../services/league-valuation");
 
 const DEFAULT_API_ENDPOINT = "http://localhost:4001";
 
@@ -52,6 +54,26 @@ const getPlayers = async (req, res) => {
     });
   }
 
+  const { leagueId } = req.query;
+  if (!leagueId) {
+    return res.status(400).json({ errorMessage: "leagueId query parameter is required." });
+  }
+  let leagueState = null;
+
+  const league = await db.getLeagueById(leagueId);
+  if (!league) {
+    return res.status(404).json({ errorMessage: "League not found. " });
+  }
+  const rosters = await Promise.all((league.rosterIds || []).map((id) => db.getMLBRosterById(id)));
+
+  const totalMoneyRemaining = computeTotalMoneyRemaining(rosters);
+  const spotsRemaining = rosters.reduce(
+    (sum, roster) => sum + computeRosterSpotsRemaining(roster),
+    0
+  );
+  const moneyAboveMinimum = computeMoneyAboveMinimum(totalMoneyRemaining, spotsRemaining);
+  leagueState = { totalMoneyRemaining, spotsRemaining, moneyAboveMinimum };
+
   const url = buildUpstreamUrl(req.query);
 
   try {
@@ -75,9 +97,31 @@ const getPlayers = async (req, res) => {
       });
     }
 
+    let players = extractPlayers(data).map((player) => ({
+      ...player,
+      points: computeTotalPoints(player),
+    }));
+
+    const totalPoints = players.reduce(
+      (sum, player) => sum + player.points,
+      0
+    );
+
+    players = players.map((player) => {
+      const cost = totalPoints > 0
+          ? (player.points / totalPoints) * moneyAboveMinimum + 1
+          : 1;
+
+      return {
+        ...player,
+        price: Math.max(Math.round(cost), 1),
+      };
+    });
+
     return res.status(200).json({
       success: true,
-      players: extractPlayers(data),
+      players,
+      leagueState,
     });
   } catch (err) {
     return res.status(502).json({
