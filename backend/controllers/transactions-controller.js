@@ -2,7 +2,15 @@ const db = require("../db");
 
 const getTransactions = async (req, res) => {
   try {
-    const transactions = await db.getTransactions();
+    const leagueId = req.query.leagueId;
+
+    if (!leagueId) {
+      return res
+      .status(400)
+      .json({ errorMessage: "Please provide leagueId." });
+    }
+
+    const transactions = await db.getTransactions(leagueId);
 
     return res.status(200).json({
         transactions
@@ -16,9 +24,9 @@ const getTransactions = async (req, res) => {
 
 const createTransaction = async (req, res) => {
   try {
-    const { teamOwner, player, actionType, draftCost, budgetLeft } = req.body;
+    const { teamOwner, player, actionType, draftCost, budgetLeft, leagueId } = req.body;
 
-    if (!teamOwner || !player || !actionType) {
+    if (!teamOwner || !player || !actionType || !leagueId) {
       return res
         .status(400)
         .json({ errorMessage: "Please enter all required fields." });
@@ -29,7 +37,8 @@ const createTransaction = async (req, res) => {
         player,
         actionType,
         draftCost,
-        budgetLeft
+        budgetLeft,
+        leagueId
     });
 
     return res.status(201).json({

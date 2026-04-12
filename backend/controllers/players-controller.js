@@ -258,7 +258,23 @@ const upsertPlayerDoc = async (req, res) => {
       threeYearAverageStats,
     };
 
+    const prevDoc = await db.getPlayerDoc(APIplayerId, leagueId);
+    const prevNotes = prevDoc?.personalNotes ?? "";
+    const hasChangedNotes = prevNotes !== fields.personalNotes;
+
     const playerDoc = await db.upsertPlayerDoc(APIplayerId, leagueId, fields);
+
+    if (hasChangedNotes) {
+      const user = await db.getUserById(req.userId);
+      const data = {
+        teamOwner: user.userName,
+        player: playerDoc.name,
+        actionType: "UpdatedNotes",
+        leagueId,
+      };
+      await db.createTransaction(data);
+    }
+    
     return res.status(200).json({ playerDoc });
   } catch (err) {
     console.error(err);
