@@ -33,11 +33,11 @@ class Database {
   async deleteUserById(id)                    { return User.findByIdAndDelete(id); }
 
   async createTransaction(transactionData)    { const newTransction = new Transaction(transactionData); return newTransction.save(); }
-  async getTransactions()                     { return Transaction.find().sort({ createdAt: -1 }).limit(50); }
+  async getTransactions(leagueId)             { return Transaction.find({ leagueId }).sort({ createdAt: -1 }).limit(50); }
 
   async createLeague(leagueData)              { const newLeague = new League(leagueData); return newLeague.save(); }
   async getLeaguesByUser(userId)              { return League.find({ user: userId }).sort({ createdAt: -1 }); }
-  async getLeagueById(id)                     { return League.findById(id); }
+  async getLeagueById(id)                     { return League.findById(id); } 
   async deleteLeagueById(id)                  { return League.findByIdAndDelete(id); }
 
   async createMLBRoster(rosterData)           { const newRoster = new MLBRoster(rosterData); return newRoster.save(); }
