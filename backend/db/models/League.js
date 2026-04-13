@@ -10,6 +10,7 @@ const leagueSchema = new mongoose.Schema(
     teamCount:  { type: Number, required: true },
     budgetCap:  { type: Number, required: true },
     rosterIds:  [{ type: ObjectId, ref: "MLBRoster" }],
+    myTeam:     { type: ObjectId, ref: "MLBRoster", default: null },
   },
   { timestamps: true }
 );
