@@ -6,14 +6,17 @@ const NAV_ITEMS = [
   { to: "/all-teams", label: "All Teams", requiresLeague: true },
   { to: "/my-team", label: "My Team", requiresLeague: true },
   { to: "/player-search", label: "Player Search", requiresLeague: true },
-  { to: "/rosters", label: "Rosters", requiresLeague: true },
   { to: "/transactions", label: "Transactions", requiresLeague: true },
   { to: "/api-dashboard", label: "API Dashboard" },
   { to: "/settings", label: "Settings" },
 ];
 
 function Sidebar() {
-  const { hasSelectedLeague } = useLeague();
+  const { hasSelectedLeague, selectedLeague } = useLeague();
+  const leagueRosters = Array.isArray(selectedLeague?.rosterIds) ? selectedLeague.rosterIds : [];
+  const rosterOptions = leagueRosters.filter(
+    (roster) => !selectedLeague?.myTeam || String(roster._id) !== String(selectedLeague.myTeam)
+  );
 
   return (
     <aside className="app-sidebar">
@@ -44,6 +47,35 @@ function Sidebar() {
           </NavLink>
         );
       })}
+
+      {hasSelectedLeague ? (
+        <>
+          <span className="side-section-label">Rosters</span>
+          {rosterOptions.length > 0 ? (
+            rosterOptions.map((roster, index) => (
+              <NavLink
+                key={roster._id || `roster-link-${index}`}
+                to={`/rosters/${roster._id}`}
+                className="side-link"
+              >
+                {roster.name || `Team ${index + 1}`}
+              </NavLink>
+            ))
+          ) : (
+            <span className="side-link side-link-disabled" aria-disabled="true">
+              No additional rosters
+            </span>
+          )}
+        </>
+      ) : (
+        <span
+          className="side-link side-link-disabled"
+          aria-disabled="true"
+          title="Select a league on the dashboard to unlock this page."
+        >
+          Rosters
+        </span>
+      )}
 
       {!hasSelectedLeague ? (
         <p className="sidebar-hint">Select a league on the dashboard to unlock league pages.</p>
