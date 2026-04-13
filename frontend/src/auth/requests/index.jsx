@@ -72,3 +72,10 @@ export function createLeague(payload) {
 export function getLeagues() {
   return request("/api/leagues", { method: "GET" });
 }
+
+export function setMyTeam(leagueId, myTeamId) {
+  return request(`/api/leagues/${leagueId}/my-team`, {
+    method: "PATCH",
+    body: JSON.stringify({ myTeamId }),
+  });
+}
