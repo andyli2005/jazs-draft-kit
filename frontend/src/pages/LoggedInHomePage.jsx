@@ -8,7 +8,7 @@ import { useLeague } from "../leagues";
 
 function LoggedInHomePage() {
   const { user } = useAuth();
-  const { leagues, isLoadingLeagues, refreshLeagues } = useLeague();
+  const { leagues, isLoadingLeagues, refreshLeagues, selectLeague, selectedLeagueId } = useLeague();
   const [showModal, setShowModal] = useState(false);
 
   return (
@@ -52,7 +52,10 @@ function LoggedInHomePage() {
             {!isLoadingLeagues && leagues.length > 0 ? (
               <div className="dashboard-league-grid">
                 {leagues.map((league) => (
-                  <article className="dashboard-league-card" key={league._id}>
+                  <article
+                    className={`dashboard-league-card${selectedLeagueId === league._id ? " selected" : ""}`}
+                    key={league._id}
+                  >
                     <div className="dashboard-league-top">
                       <h3>{league.name}</h3>
                       <span className="dashboard-league-sport">{league.sport}</span>
@@ -62,8 +65,20 @@ function LoggedInHomePage() {
                     </p>
                     <p className="dashboard-league-meta">Budget cap: ${league.budgetCap}</p>
                     <div className="dashboard-league-actions">
-                      <Link className="btn btn-secondary" to="/all-teams">View Teams</Link>
-                      <Link className="btn btn-primary" to="/player-search">Open Draft Board</Link>
+                      <button
+                        className="btn btn-secondary"
+                        type="button"
+                        onClick={() => selectLeague(league)}
+                      >
+                        {selectedLeagueId === league._id ? "Selected League" : "Select League"}
+                      </button>
+                      <Link
+                        className="btn btn-primary"
+                        to="/player-search"
+                        onClick={() => selectLeague(league)}
+                      >
+                        Open Draft Board
+                      </Link>
                     </div>
                   </article>
                 ))}

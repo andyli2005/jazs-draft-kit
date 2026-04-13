@@ -295,6 +295,23 @@
   color: #fff;
 }
 
+.side-link-disabled {
+  opacity: 0.45;
+  background: rgba(49, 61, 89, 0.04);
+  color: #6f7b95;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+.sidebar-hint {
+  margin: 0.4rem 0 0;
+  padding: 0.55rem 0.7rem 0;
+  border-top: 1px solid rgba(49, 61, 89, 0.1);
+  color: #5a6788;
+  font-size: 0.78rem;
+  line-height: 1.4;
+}
+
 .app-content {
   width: 100%;
   min-width: 0;
@@ -348,6 +365,11 @@
   border-radius: 16px;
   border: 1px solid rgba(49, 61, 89, 0.12);
   background: linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(243, 248, 255, 0.94));
+}
+
+.dashboard-league-card.selected {
+  border-color: #1f6fff;
+  box-shadow: 0 0 0 2px rgba(31, 111, 255, 0.12);
 }
 
 .dashboard-league-top {

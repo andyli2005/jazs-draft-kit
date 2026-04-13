@@ -1,6 +1,7 @@
 import Header from "../components/Header";
 import Sidebar from "../components/Sidebar";
 import { useEffect, useState } from "react";
+import { useLeague } from "../leagues";
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || "http://localhost:4000";
 
@@ -45,31 +46,10 @@ const TABLE_COLUMNS = [
 ];
 
 function TransactionsPage() {
+  const { selectedLeagueId } = useLeague();
   const [transactions, setTransactions] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState("");
-  const [activeLeagueId, setActiveLeagueId] = useState(null);
-  
-    useEffect(() => {
-      let isMounted = true;
-      async function fetchLeagues() {
-        try {
-          const res = await fetch(`${API_BASE}/api/leagues`, {
-            method: "GET",
-            credentials: "include",
-          });
-          const data = await res.json();
-          if (!isMounted) return;
-          if (data.leagues && data.leagues.length > 0) {
-            setActiveLeagueId(data.leagues[0]._id);
-          }
-        } catch {
-          // league fetch is non-critical; notes will be disabled without it
-        }
-      }
-      fetchLeagues();
-      return () => { isMounted = false; };
-    }, []);
 
   useEffect(() => {
     let isMounted = true;
@@ -77,15 +57,15 @@ function TransactionsPage() {
     async function loadTransactions() {
       setErrorMessage("");
 
-      if (!activeLeagueId) {
+      if (!selectedLeagueId) {
         setIsLoading(false);
-        setErrorMessage("Create a league first.");
+        setErrorMessage("Select a league first.");
         return;
       }
 
       try {
         const params = new URLSearchParams();
-        params.set("leagueId", activeLeagueId);
+        params.set("leagueId", selectedLeagueId);
         const response = await fetch(`${API_BASE}/api/transactions?${params.toString()}`, {
           method: "GET",
           credentials: "include",
@@ -119,7 +99,7 @@ function TransactionsPage() {
       isMounted = false;
       clearInterval(polling);
     };
-  }, [activeLeagueId]);
+  }, [selectedLeagueId]);
 
   const hasTransactions = transactions.length > 0;
 

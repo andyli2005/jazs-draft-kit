@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Header from "../components/Header";
 import Sidebar from "../components/Sidebar";
+import { useLeague } from "../leagues";
 import "./AllTeamsPage.css";
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || "http://localhost:4000";
@@ -41,8 +42,8 @@ function playerLabel(player) {
 }
 
 function AllTeamsPage() {
+  const { selectedLeagueId } = useLeague();
   const [leagues, setLeagues] = useState([]);
-  const [activeLeagueId, setActiveLeagueId] = useState("");
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState("");
 
@@ -72,9 +73,7 @@ function AllTeamsPage() {
 
         if (!isMounted) return;
 
-        const nextLeagues = Array.isArray(data.leagues) ? data.leagues : [];
-        setLeagues(nextLeagues);
-        setActiveLeagueId((current) => current || nextLeagues[0]?._id || "");
+        setLeagues(Array.isArray(data.leagues) ? data.leagues : []);
       } catch (err) {
         if (!isMounted) return;
         setErrorMessage(err.message || "Unable to load league rosters.");
@@ -91,8 +90,8 @@ function AllTeamsPage() {
 
   const activeLeague = useMemo(() => {
     if (leagues.length === 0) return null;
-    return leagues.find((league) => league._id === activeLeagueId) || leagues[0];
-  }, [activeLeagueId, leagues]);
+    return leagues.find((league) => league._id === selectedLeagueId) || null;
+  }, [leagues, selectedLeagueId]);
 
   const rosters = Array.isArray(activeLeague?.rosterIds) ? activeLeague.rosterIds : [];
 
@@ -107,21 +106,6 @@ function AllTeamsPage() {
           <p className="muted">
             Compare every roster side by side in a draft-board style summary.
           </p>
-
-          {leagues.length > 1 ? (
-            <div className="league-tabs" role="tablist" aria-label="League selector">
-              {leagues.map((league) => (
-                <button
-                  key={league._id}
-                  type="button"
-                  className={`league-tab${activeLeague?._id === league._id ? " active" : ""}`}
-                  onClick={() => setActiveLeagueId(league._id)}
-                >
-                  {league.name}
-                </button>
-              ))}
-            </div>
-          ) : null}
 
           {activeLeague ? (
             <div className="league-summary-strip">
@@ -147,7 +131,7 @@ function AllTeamsPage() {
           {isLoading ? <p className="muted">Loading rosters...</p> : null}
           {!isLoading && errorMessage ? <p className="error">{errorMessage}</p> : null}
           {!isLoading && !errorMessage && !activeLeague ? (
-            <p className="muted">Create a league to see all team rosters here.</p>
+            <p className="muted">Select a league on the dashboard to see its team rosters here.</p>
           ) : null}
 
           {!isLoading && !errorMessage && activeLeague ? (
