@@ -53,7 +53,50 @@ const getMyLeagues = async (req, res) => {
   }
 };
 
+const setMyTeam = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { myTeamId } = req.body;
+
+    if (!myTeamId) {
+      return res.status(400).json({
+        errorMessage: "Please provide a team to designate as My Team.",
+      });
+    }
+
+    const league = await db.getLeagueById(id);
+    if (!league || String(league.user) !== String(req.userId)) {
+      return res.status(404).json({
+        errorMessage: "League not found.",
+      });
+    }
+
+    const isLeagueRoster = Array.isArray(league.rosterIds)
+      ? league.rosterIds.some((rosterId) => String(rosterId) === String(myTeamId))
+      : false;
+
+    if (!isLeagueRoster) {
+      return res.status(400).json({
+        errorMessage: "Selected team is not part of this league.",
+      });
+    }
+
+    const updatedLeague = await db.updateLeagueById(id, { myTeam: myTeamId });
+
+    return res.status(200).json({
+      success: true,
+      league: updatedLeague,
+    });
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({
+      errorMessage: "Error setting My Team.",
+    });
+  }
+};
+
 module.exports = {
   createLeague,
   getMyLeagues,
+  setMyTeam,
 };
