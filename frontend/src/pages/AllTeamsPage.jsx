@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import Header from "../components/Header";
 import Sidebar from "../components/Sidebar";
 import { useLeague } from "../leagues";
+import { setMyTeam } from "../auth/requests";
 import "./AllTeamsPage.css";
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || "http://localhost:4000";
@@ -42,10 +43,12 @@ function playerLabel(player) {
 }
 
 function AllTeamsPage() {
-  const { selectedLeagueId } = useLeague();
+  const { selectedLeagueId, refreshLeagues } = useLeague();
   const [leagues, setLeagues] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState("");
+  const [isSavingMyTeam, setIsSavingMyTeam] = useState(false);
+  const [saveMyTeamError, setSaveMyTeamError] = useState("");
 
   useEffect(() => {
     let isMounted = true;
@@ -95,6 +98,26 @@ function AllTeamsPage() {
 
   const rosters = Array.isArray(activeLeague?.rosterIds) ? activeLeague.rosterIds : [];
 
+  async function handleMyTeamChange(event) {
+    const nextMyTeamId = event.target.value;
+    if (!activeLeague || !nextMyTeamId) {
+      return;
+    }
+
+    setIsSavingMyTeam(true);
+    setSaveMyTeamError("");
+
+    try {
+      await setMyTeam(activeLeague._id, nextMyTeamId);
+      const nextLeagues = await refreshLeagues();
+      setLeagues(Array.isArray(nextLeagues) ? nextLeagues : []);
+    } catch (err) {
+      setSaveMyTeamError(err.message || "Unable to save My Team.");
+    } finally {
+      setIsSavingMyTeam(false);
+    }
+  }
+
   return (
     <main className="app-shell page-private">
       <Header />
@@ -135,36 +158,65 @@ function AllTeamsPage() {
           ) : null}
 
           {!isLoading && !errorMessage && activeLeague ? (
-            <div className="roster-board-wrap">
-              <div className="roster-board">
-                {rosters.map((roster, index) => (
-                  <article className="roster-column" key={roster._id || `${roster.name}-${index}`}>
-                    <div className="roster-column-head">
-                      <p className="eyebrow">Owner {index + 1}</p>
-                      <h2>{roster.name || `Team ${index + 1}`}</h2>
-                      <p className="muted">Budget Left: ${roster.budgetLeft ?? activeLeague.budgetCap}</p>
-                    </div>
-
-                    <div className="roster-slot-list">
-                      {ROSTER_SLOTS.map((slot) => {
-                        const player = roster[slot.key];
-                        return (
-                          <div className="roster-slot-card" key={slot.key}>
-                            <span className="roster-slot-label">{slot.label}</span>
-                            <div className="roster-slot-content">
-                              <strong>{playerLabel(player)}</strong>
-                              <span className="muted">
-                                {player?.positions || (player ? "Rostered" : "Waiting for draft pick")}
-                              </span>
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </article>
-                ))}
+            <>
+              <div className="my-team-selector-row">
+                <label className="league-summary-label" htmlFor="my-team-selector">
+                  Designate My Team
+                </label>
+                <select
+                  id="my-team-selector"
+                  className="my-team-select"
+                  value={activeLeague.myTeam || ""}
+                  onChange={handleMyTeamChange}
+                  disabled={isSavingMyTeam}
+                >
+                  <option value="" disabled>
+                    -- Select a team --
+                  </option>
+                  {rosters.map((roster, index) => (
+                    <option key={roster._id || `my-team-option-${index}`} value={roster._id}>
+                      {roster.name || `Team ${index + 1}`}
+                    </option>
+                  ))}
+                </select>
               </div>
-            </div>
+              {saveMyTeamError ? <p className="error">{saveMyTeamError}</p> : null}
+
+              <div className="roster-board-wrap">
+                <div className="roster-board">
+                  {rosters.map((roster, index) => {
+                    const isMyTeam = Boolean(activeLeague.myTeam) && String(activeLeague.myTeam) === String(roster._id);
+                    return (
+                      <article className="roster-column" key={roster._id || `${roster.name}-${index}`}>
+                        <div className="roster-column-head">
+                          <p className="eyebrow">Owner {index + 1}</p>
+                          <h2>{roster.name || `Team ${index + 1}`}</h2>
+                          {isMyTeam ? <span className="my-team-badge">My Team</span> : null}
+                          <p className="muted">Budget Left: ${roster.budgetLeft ?? activeLeague.budgetCap}</p>
+                        </div>
+
+                        <div className="roster-slot-list">
+                          {ROSTER_SLOTS.map((slot) => {
+                            const player = roster[slot.key];
+                            return (
+                              <div className="roster-slot-card" key={slot.key}>
+                                <span className="roster-slot-label">{slot.label}</span>
+                                <div className="roster-slot-content">
+                                  <strong>{playerLabel(player)}</strong>
+                                  <span className="muted">
+                                    {player?.positions || (player ? "Rostered" : "Waiting for draft pick")}
+                                  </span>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </article>
+                    );
+                  })}
+                </div>
+              </div>
+            </>
           ) : null}
         </section>
       </div>
