@@ -5,5 +5,6 @@ const auth = require("../auth");
 
 router.get("/", auth.verify, LeagueController.getMyLeagues);
 router.post("/", auth.verify, LeagueController.createLeague);
+router.patch("/:id/my-team", auth.verify, LeagueController.setMyTeam);
 
 module.exports = router;
