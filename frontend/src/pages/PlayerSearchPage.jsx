@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import Header from "../components/Header";
 import PlayerStatsPanel from "../components/PlayerStatsPanel";
 import Sidebar from "../components/Sidebar";
+import { useLeague } from "../leagues";
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || "http://localhost:4000";
 const TABLE_COLUMNS = [
@@ -68,6 +69,7 @@ function renderCellValue(key, value) {
 }
 
 function PlayerSearchPage() {
+  const { selectedLeagueId } = useLeague();
   const [players, setPlayers] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState("");
@@ -75,28 +77,6 @@ function PlayerSearchPage() {
   const [sortOrder, setSortOrder] = useState("desc");
   const [search, setSearch] = useState("");
   const [selectedPlayer, setSelectedPlayer] = useState(null);
-  const [activeLeagueId, setActiveLeagueId] = useState(null);
-
-  useEffect(() => {
-    let isMounted = true;
-    async function fetchLeagues() {
-      try {
-        const res = await fetch(`${API_BASE}/api/leagues`, {
-          method: "GET",
-          credentials: "include",
-        });
-        const data = await res.json();
-        if (!isMounted) return;
-        if (data.leagues && data.leagues.length > 0) {
-          setActiveLeagueId(data.leagues[0]._id);
-        }
-      } catch {
-        // league fetch is non-critical; notes will be disabled without it
-      }
-    }
-    fetchLeagues();
-    return () => { isMounted = false; };
-  }, []);
 
   useEffect(() => {
     let isMounted = true;
@@ -105,9 +85,9 @@ function PlayerSearchPage() {
       setIsLoading(true);
       setErrorMessage("");
 
-      if (!activeLeagueId) {
+      if (!selectedLeagueId) {
         setIsLoading(false);
-        setErrorMessage("Create a league first.");
+        setErrorMessage("Select a league first.");
         return;
       }
 
@@ -116,7 +96,7 @@ function PlayerSearchPage() {
         params.set("rankBy", sortBy);
         params.set("order", sortOrder);
         if (search) params.set("name", search);
-        params.set("leagueId", activeLeagueId);
+        params.set("leagueId", selectedLeagueId);
         const response = await fetch(`${API_BASE}/api/players?${params.toString()}`, {
           method: "GET",
           credentials: "include",
@@ -147,7 +127,7 @@ function PlayerSearchPage() {
     return () => {
       isMounted = false;
     };
-  }, [sortBy, sortOrder, search, activeLeagueId]);
+  }, [sortBy, sortOrder, search, selectedLeagueId]);
 
   const hasPlayers = players.length > 0;
 
@@ -261,7 +241,7 @@ function PlayerSearchPage() {
               player={selectedPlayer}
               fantasyPoints={selectedPlayer?.fantasyPoints ?? 0}
               cost={selectedPlayer?.cost ?? selectedPlayer?.price ?? 0}
-              activeLeagueId={activeLeagueId}
+              activeLeagueId={selectedLeagueId}
               onClose={() => setSelectedPlayer(null)}
             />
           )}

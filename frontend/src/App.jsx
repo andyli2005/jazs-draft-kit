@@ -2,6 +2,7 @@ import { useMemo } from "react";
 import { Navigate, Route, Routes } from "react-router-dom";
 import "./App.css";
 import { useAuth } from "./auth/index.jsx";
+import { useLeague } from "./leagues";
 import AllTeamsPage from "./pages/AllTeamsPage";
 import ApiDashboardPage from "./pages/ApiDashboardPage";
 import LoggedInHomePage from "./pages/LoggedInHomePage";
@@ -14,8 +15,29 @@ import RostersPage from "./pages/RostersPage";
 import SettingsPage from "./pages/SettingsPage";
 import TransactionsPage from "./pages/TransactionsPage";
 
+function ProtectedRoute({ isLoggedIn, children }) {
+  if (!isLoggedIn) {
+    return <Navigate to="/" replace />;
+  }
+
+  return children;
+}
+
+function LeagueProtectedRoute({ isLoggedIn, hasSelectedLeague, children }) {
+  if (!isLoggedIn) {
+    return <Navigate to="/" replace />;
+  }
+
+  if (!hasSelectedLeague) {
+    return <Navigate to="/" replace />;
+  }
+
+  return children;
+}
+
 function App() {
   const { isLoading, isLoggedIn } = useAuth();
+  const { hasSelectedLeague } = useLeague();
 
   const homeElement = useMemo(() => {
     if (isLoggedIn) {
@@ -37,31 +59,59 @@ function App() {
       <Route path="/" element={homeElement} />
       <Route
         path="/all-teams"
-        element={isLoggedIn ? <AllTeamsPage /> : <Navigate to="/" replace />}
+        element={
+          <ProtectedRoute isLoggedIn={isLoggedIn}>
+            <AllTeamsPage />
+          </ProtectedRoute>
+        }
       />
       <Route
         path="/my-team"
-        element={isLoggedIn ? <MyTeamPage /> : <Navigate to="/" replace />}
+        element={
+          <LeagueProtectedRoute isLoggedIn={isLoggedIn} hasSelectedLeague={hasSelectedLeague}>
+            <MyTeamPage />
+          </LeagueProtectedRoute>
+        }
       />
       <Route
         path="/player-search"
-        element={isLoggedIn ? <PlayerSearchPage /> : <Navigate to="/" replace />}
+        element={
+          <LeagueProtectedRoute isLoggedIn={isLoggedIn} hasSelectedLeague={hasSelectedLeague}>
+            <PlayerSearchPage />
+          </LeagueProtectedRoute>
+        }
       />
       <Route
         path="/rosters"
-        element={isLoggedIn ? <RostersPage /> : <Navigate to="/" replace />}
+        element={
+          <LeagueProtectedRoute isLoggedIn={isLoggedIn} hasSelectedLeague={hasSelectedLeague}>
+            <RostersPage />
+          </LeagueProtectedRoute>
+        }
       />
       <Route
         path="/transactions"
-        element={isLoggedIn ? <TransactionsPage /> : <Navigate to="/" replace />}
+        element={
+          <LeagueProtectedRoute isLoggedIn={isLoggedIn} hasSelectedLeague={hasSelectedLeague}>
+            <TransactionsPage />
+          </LeagueProtectedRoute>
+        }
       />
       <Route
         path="/api-dashboard"
-        element={isLoggedIn ? <ApiDashboardPage /> : <Navigate to="/" replace />}
+        element={
+          <ProtectedRoute isLoggedIn={isLoggedIn}>
+            <ApiDashboardPage />
+          </ProtectedRoute>
+        }
       />
       <Route
         path="/settings"
-        element={isLoggedIn ? <SettingsPage /> : <Navigate to="/" replace />}
+        element={
+          <ProtectedRoute isLoggedIn={isLoggedIn}>
+            <SettingsPage />
+          </ProtectedRoute>
+        }
       />
       <Route
         path="/login"

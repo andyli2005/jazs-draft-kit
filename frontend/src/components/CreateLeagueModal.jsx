@@ -17,7 +17,7 @@ const MLB_POSITIONS = [
 
 const DRAFT_TYPES = ["Salary Cap", "Snake", "Linear"];
 
-function CreateLeagueModal({ open, onClose }) {
+function CreateLeagueModal({ open, onClose, onCreated }) {
   const [name, setName] = useState("");
   const [draftType, setDraftType] = useState("Salary Cap");
   const [teamCount, setTeamCount] = useState(12);
@@ -56,6 +56,9 @@ function CreateLeagueModal({ open, onClose }) {
       setDraftType("Salary Cap");
       setTeamCount(12);
       setBudgetCap(260);
+      if (onCreated) {
+        await onCreated();
+      }
       onClose();
     } catch (err) {
       setError(err.message || "Failed to create league.");
