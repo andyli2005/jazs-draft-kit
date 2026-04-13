@@ -82,7 +82,7 @@ function App() {
         }
       />
       <Route
-        path="/rosters"
+        path="/rosters/:rosterId"
         element={
           <LeagueProtectedRoute isLoggedIn={isLoggedIn} hasSelectedLeague={hasSelectedLeague}>
             <RostersPage />

@@ -1,4 +1,5 @@
-import { NavLink } from "react-router-dom";
+import { useEffect, useState } from "react";
+import { NavLink, useLocation } from "react-router-dom";
 import { useLeague } from "../leagues";
 
 const NAV_ITEMS = [
@@ -12,11 +13,66 @@ const NAV_ITEMS = [
 ];
 
 function Sidebar() {
+  const location = useLocation();
   const { hasSelectedLeague, selectedLeague } = useLeague();
   const leagueRosters = Array.isArray(selectedLeague?.rosterIds) ? selectedLeague.rosterIds : [];
   const rosterOptions = leagueRosters.filter(
     (roster) => !selectedLeague?.myTeam || String(roster._id) !== String(selectedLeague.myTeam)
   );
+  const [isRostersOpen, setIsRostersOpen] = useState(location.pathname.startsWith("/rosters/"));
+
+  useEffect(() => {
+    if (location.pathname.startsWith("/rosters/")) {
+      setIsRostersOpen(true);
+    }
+  }, [location.pathname]);
+
+  function renderRostersMenu() {
+    if (hasSelectedLeague) {
+      return (
+        <>
+          <button
+            type="button"
+            className="side-link side-link-toggle"
+            onClick={() => setIsRostersOpen((isOpen) => !isOpen)}
+            aria-expanded={isRostersOpen}
+          >
+            <span>Rosters</span>
+            <span className="side-link-caret">{isRostersOpen ? "▾" : "▸"}</span>
+          </button>
+          {isRostersOpen ? (
+            <div className="side-submenu">
+              {rosterOptions.length > 0 ? (
+                rosterOptions.map((roster, index) => (
+                  <NavLink
+                    key={roster._id || `roster-link-${index}`}
+                    to={`/rosters/${roster._id}`}
+                    className="side-link side-link-subitem"
+                  >
+                    {roster.name || `Team ${index + 1}`}
+                  </NavLink>
+                ))
+              ) : (
+                <span className="side-link side-link-disabled side-link-subitem" aria-disabled="true">
+                  No additional rosters
+                </span>
+              )}
+            </div>
+          ) : null}
+        </>
+      );
+    }
+
+    return (
+      <span
+        className="side-link side-link-disabled"
+        aria-disabled="true"
+        title="Select a league on the dashboard to unlock league pages."
+      >
+        Rosters
+      </span>
+    );
+  }
 
   return (
     <aside className="app-sidebar">
@@ -36,7 +92,14 @@ function Sidebar() {
           );
         }
 
-        return (
+        return item.to === "/transactions" ? (
+          <div key="rosters-and-transactions" className="side-nav-group">
+            {renderRostersMenu()}
+            <NavLink to={item.to} end={item.to === "/"} className="side-link">
+              {item.label}
+            </NavLink>
+          </div>
+        ) : (
           <NavLink
             key={item.to}
             to={item.to}
@@ -47,35 +110,6 @@ function Sidebar() {
           </NavLink>
         );
       })}
-
-      {hasSelectedLeague ? (
-        <>
-          <span className="side-section-label">Rosters</span>
-          {rosterOptions.length > 0 ? (
-            rosterOptions.map((roster, index) => (
-              <NavLink
-                key={roster._id || `roster-link-${index}`}
-                to={`/rosters/${roster._id}`}
-                className="side-link"
-              >
-                {roster.name || `Team ${index + 1}`}
-              </NavLink>
-            ))
-          ) : (
-            <span className="side-link side-link-disabled" aria-disabled="true">
-              No additional rosters
-            </span>
-          )}
-        </>
-      ) : (
-        <span
-          className="side-link side-link-disabled"
-          aria-disabled="true"
-          title="Select a league on the dashboard to unlock this page."
-        >
-          Rosters
-        </span>
-      )}
 
       {!hasSelectedLeague ? (
         <p className="sidebar-hint">Select a league on the dashboard to unlock league pages.</p>
