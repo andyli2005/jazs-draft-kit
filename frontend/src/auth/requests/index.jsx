@@ -68,3 +68,7 @@ export function createLeague(payload) {
     body: JSON.stringify(payload),
   });
 }
+
+export function getLeagues() {
+  return request("/api/leagues", { method: "GET" });
+}
