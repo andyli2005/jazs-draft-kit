@@ -899,3 +899,16 @@
   white-space: normal;
   min-width: 250px;
 }
+
+.my-team-roster-box {
+  margin-top: 1rem;
+  border: 1px solid rgba(49, 61, 89, 0.16);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.72);
+  overflow: hidden;
+}
+
+.my-team-budget {
+  font-weight: 700;
+  text-decoration: underline;
+}

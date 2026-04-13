@@ -24,15 +24,14 @@ const ROSTER_SLOTS = [
   { key: "pitcher9", label: "P9" },
 ];
 
-function RosterPageContent({ roster, budgetCap }) {
+function RosterPageContent({ roster, budgetCap, showBudget = true }) {
   if (!roster) {
     return null;
   }
 
   return (
     <>
-      <h2>{roster.name || "Team"}</h2>
-      <p className="muted">Budget Left: ${roster.budgetLeft ?? budgetCap ?? 0}</p>
+      {showBudget ? <p className="muted">Budget Left: ${roster.budgetLeft ?? budgetCap ?? 0}</p> : null}
 
       <div className="roster-slot-list">
         {ROSTER_SLOTS.map((slot) => {
