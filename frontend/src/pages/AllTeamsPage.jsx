@@ -189,7 +189,6 @@ function AllTeamsPage() {
                     return (
                       <article className="roster-column" key={roster._id || `${roster.name}-${index}`}>
                         <div className="roster-column-head">
-                          <p className="eyebrow">Owner {index + 1}</p>
                           <h2>{roster.name || `Team ${index + 1}`}</h2>
                           {isMyTeam ? <span className="my-team-badge">My Team</span> : null}
                           <p className="muted">Budget Left: ${roster.budgetLeft ?? activeLeague.budgetCap}</p>
