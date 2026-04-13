@@ -1,4 +1,5 @@
 const db = require("../db");
+const { computeTotalMoneyRemaining, computeRosterSpotsRemaining, computeMoneyAboveMinimum } = require("../services/league-valuation");
 
 const DEFAULT_API_ENDPOINT = "http://localhost:4001";
 
@@ -21,6 +22,7 @@ function extractPlayers(payload) {
     pictureURL: player.pictureURL,
     positions: player.positions,
     team: player.team,
+    cost: player.cost,
     currentStats: player.currentStats || {},
     projectedStats: player.projectedStats || {},
     threeYearAverageStats: player.threeYearAverageStats || {},
@@ -28,7 +30,7 @@ function extractPlayers(payload) {
   }));
 }
 
-function buildUpstreamUrl(query) {
+function buildUpstreamUrl(query, path="/api/players") {
   const searchParams = new URLSearchParams();
   Object.entries(query || {}).forEach(([key, value]) => {
     if (Array.isArray(value)) {
@@ -41,7 +43,7 @@ function buildUpstreamUrl(query) {
   });
 
   const queryString = searchParams.toString();
-  const base = `${getApiBase()}/api/players`;
+  const base = `${getApiBase()}${path}`;
   return queryString ? `${base}?${queryString}` : base;
 }
 
@@ -52,15 +54,40 @@ const getPlayers = async (req, res) => {
     });
   }
 
-  const url = buildUpstreamUrl(req.query);
+  const { leagueId } = req.query;
+  if (!leagueId) {
+    return res.status(400).json({ errorMessage: "leagueId query parameter is required." });
+  }
+  let leagueState = null;
+
+  const league = await db.getLeagueById(leagueId);
+  if (!league) {
+    return res.status(404).json({ errorMessage: "League not found. " });
+  }
+  const rosters = await Promise.all((league.rosterIds || []).map((id) => db.getMLBRosterById(id)));
+
+  const totalMoneyRemaining = computeTotalMoneyRemaining(rosters);
+  const spotsRemaining = rosters.reduce(
+    (sum, roster) => sum + computeRosterSpotsRemaining(roster),
+    0
+  );
+  const moneyAboveMinimum = computeMoneyAboveMinimum(totalMoneyRemaining, spotsRemaining);
+  leagueState = { totalMoneyRemaining, spotsRemaining, moneyAboveMinimum };
+
+  // Cost is NOT part of API Licensing database, so if user wants to sort by cost,
+  // temporarily change rankBy to a valid data column
+  const upstreamQuery = { ...req.query };
+  if (upstreamQuery.rankBy === "cost") upstreamQuery.rankBy = "fantasyPoints";
+    
+  // Similarly, leagueId is not necessary for the query
+  delete upstreamQuery.leagueId;
+
+  upstreamQuery.moneyAboveMinimum = moneyAboveMinimum;
+
+  const url = buildUpstreamUrl(upstreamQuery, "/api/players/evaluations");
 
   try {
-    const response = await fetch(url, {
-      method: "GET",
-      headers: {
-        "x-api-token": process.env.API_TOKEN,
-      },
-    });
+    const response = await fetch(url, { headers: { "x-api-token": process.env.API_TOKEN } });
 
     let data = {};
     try {
@@ -71,13 +98,23 @@ const getPlayers = async (req, res) => {
 
     if (!response.ok) {
       return res.status(response.status).json({
-        errorMessage: data.errorMessage || data.message || "Failed to fetch players.",
+        errorMessage: data.errorMessage || data.message || data.error || "Failed to fetch players.",
       });
+    }
+
+    let players = extractPlayers(data);
+
+    // The query from original request should contain the true rankBy, 
+    // since it is overridden in the upstreamQuery previously
+    if (req.query.rankBy === "cost") {
+      const dir = String(req.query.order || "desc").toLowerCase() === "asc" ? 1 : -1;
+      players = [...players].sort((a, b) => ((a.cost || 0) - (b.cost || 0)) * dir);
     }
 
     return res.status(200).json({
       success: true,
-      players: extractPlayers(data),
+      players,
+      leagueState,
     });
   } catch (err) {
     return res.status(502).json({
@@ -171,7 +208,23 @@ const upsertPlayerDoc = async (req, res) => {
       threeYearAverageStats,
     };
 
+    const prevDoc = await db.getPlayerDoc(APIplayerId, leagueId);
+    const prevNotes = prevDoc?.personalNotes ?? "";
+    const hasChangedNotes = prevNotes !== fields.personalNotes;
+
     const playerDoc = await db.upsertPlayerDoc(APIplayerId, leagueId, fields);
+
+    if (hasChangedNotes) {
+      const user = await db.getUserById(req.userId);
+      const data = {
+        teamOwner: user.userName,
+        player: playerDoc.name,
+        actionType: "UpdatedNotes",
+        leagueId,
+      };
+      await db.createTransaction(data);
+    }
+    
     return res.status(200).json({ playerDoc });
   } catch (err) {
     console.error(err);

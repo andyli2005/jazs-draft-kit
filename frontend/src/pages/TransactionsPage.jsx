@@ -3,6 +3,7 @@ import Sidebar from "../components/Sidebar";
 import { useEffect, useState } from "react";
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || "http://localhost:4000";
+
 function renderValue(value) {
   if (value == null || value === "") return "N/A";
   if (typeof value === "boolean") return value ? "Yes" : "No";
@@ -28,7 +29,7 @@ function renderMessage(transaction) {
 
 function renderCellValue(key, value, transaction) {
   if (key === "message") return renderMessage(transaction);
-  if (key === "actionType" && value.startsWith("Updated")) return "Updated";
+  if (key === "actionType" && value.startsWith("Updated")) return "Update";
   if ((key === "createdAt" || key === "updatedAt") && isDateLike(value)) {
     return new Date(value).toLocaleString();
   }
@@ -47,6 +48,28 @@ function TransactionsPage() {
   const [transactions, setTransactions] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState("");
+  const [activeLeagueId, setActiveLeagueId] = useState(null);
+  
+    useEffect(() => {
+      let isMounted = true;
+      async function fetchLeagues() {
+        try {
+          const res = await fetch(`${API_BASE}/api/leagues`, {
+            method: "GET",
+            credentials: "include",
+          });
+          const data = await res.json();
+          if (!isMounted) return;
+          if (data.leagues && data.leagues.length > 0) {
+            setActiveLeagueId(data.leagues[0]._id);
+          }
+        } catch {
+          // league fetch is non-critical; notes will be disabled without it
+        }
+      }
+      fetchLeagues();
+      return () => { isMounted = false; };
+    }, []);
 
   useEffect(() => {
     let isMounted = true;
@@ -54,11 +77,20 @@ function TransactionsPage() {
     async function loadTransactions() {
       setErrorMessage("");
 
+      if (!activeLeagueId) {
+        setIsLoading(false);
+        setErrorMessage("Create a league first.");
+        return;
+      }
+
       try {
-        const response = await fetch(`${API_BASE}/api/transactions`, {
+        const params = new URLSearchParams();
+        params.set("leagueId", activeLeagueId);
+        const response = await fetch(`${API_BASE}/api/transactions?${params.toString()}`, {
           method: "GET",
           credentials: "include",
         });
+
         let data = {};
         try {
           data = await response.json();
@@ -87,7 +119,7 @@ function TransactionsPage() {
       isMounted = false;
       clearInterval(polling);
     };
-  }, []);
+  }, [activeLeagueId]);
 
   const hasTransactions = transactions.length > 0;
 
