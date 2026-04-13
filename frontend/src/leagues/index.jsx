@@ -14,14 +14,20 @@ function getStoredLeagueId() {
 }
 
 export function LeagueProvider({ children }) {
-  const { isLoggedIn } = useAuth();
+  const { isLoading: isLoadingAuth, isLoggedIn } = useAuth();
   const [leagues, setLeagues] = useState([]);
   const [selectedLeagueId, setSelectedLeagueId] = useState(() => getStoredLeagueId());
   const [isLoadingLeagues, setIsLoadingLeagues] = useState(false);
+  const [hasLoadedLeagues, setHasLoadedLeagues] = useState(false);
 
   useEffect(() => {
+    if (isLoadingAuth) {
+      return;
+    }
+
     if (!isLoggedIn) {
       setLeagues([]);
+      setHasLoadedLeagues(false);
       setSelectedLeagueId("");
       try {
         window.localStorage.removeItem(STORAGE_KEY);
@@ -45,6 +51,7 @@ export function LeagueProvider({ children }) {
         setLeagues([]);
       } finally {
         if (isMounted) {
+          setHasLoadedLeagues(true);
           setIsLoadingLeagues(false);
         }
       }
@@ -54,7 +61,7 @@ export function LeagueProvider({ children }) {
     return () => {
       isMounted = false;
     };
-  }, [isLoggedIn]);
+  }, [isLoadingAuth, isLoggedIn]);
 
   useEffect(() => {
     if (!selectedLeagueId) {
@@ -74,6 +81,10 @@ export function LeagueProvider({ children }) {
   }, [selectedLeagueId]);
 
   useEffect(() => {
+    if (!hasLoadedLeagues) {
+      return;
+    }
+
     if (leagues.length === 0) {
       if (selectedLeagueId) {
         setSelectedLeagueId("");
@@ -85,7 +96,7 @@ export function LeagueProvider({ children }) {
     if (!selectedStillExists && selectedLeagueId) {
       setSelectedLeagueId("");
     }
-  }, [leagues, selectedLeagueId]);
+  }, [hasLoadedLeagues, leagues, selectedLeagueId]);
 
   const selectedLeague = useMemo(
     () => leagues.find((league) => league._id === selectedLeagueId) || null,
