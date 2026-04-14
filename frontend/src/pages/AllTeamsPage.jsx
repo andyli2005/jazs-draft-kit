@@ -1,10 +1,8 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo } from "react";
 import Header from "../components/Header";
 import Sidebar from "../components/Sidebar";
 import { useLeague } from "../leagues";
 import "./AllTeamsPage.css";
-
-const API_BASE = import.meta.env.VITE_API_BASE_URL || "http://localhost:4000";
 
 const ROSTER_SLOTS = [
   { key: "catcher1", label: "C1" },
@@ -42,51 +40,7 @@ function playerLabel(player) {
 }
 
 function AllTeamsPage() {
-  const { selectedLeagueId } = useLeague();
-  const [leagues, setLeagues] = useState([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [errorMessage, setErrorMessage] = useState("");
-
-  useEffect(() => {
-    let isMounted = true;
-
-    async function loadLeagues() {
-      setIsLoading(true);
-      setErrorMessage("");
-
-      try {
-        const response = await fetch(`${API_BASE}/api/leagues`, {
-          method: "GET",
-          credentials: "include",
-        });
-
-        let data = {};
-        try {
-          data = await response.json();
-        } catch {
-          data = {};
-        }
-
-        if (!response.ok) {
-          throw new Error(data.errorMessage || data.message || "Failed to load leagues.");
-        }
-
-        if (!isMounted) return;
-
-        setLeagues(Array.isArray(data.leagues) ? data.leagues : []);
-      } catch (err) {
-        if (!isMounted) return;
-        setErrorMessage(err.message || "Unable to load league rosters.");
-      } finally {
-        if (isMounted) setIsLoading(false);
-      }
-    }
-
-    loadLeagues();
-    return () => {
-      isMounted = false;
-    };
-  }, []);
+  const { leagues, selectedLeagueId, isLoadingLeagues } = useLeague();
 
   const activeLeague = useMemo(() => {
     if (leagues.length === 0) return null;
@@ -128,13 +82,12 @@ function AllTeamsPage() {
             </div>
           ) : null}
 
-          {isLoading ? <p className="muted">Loading rosters...</p> : null}
-          {!isLoading && errorMessage ? <p className="error">{errorMessage}</p> : null}
-          {!isLoading && !errorMessage && !activeLeague ? (
+          {isLoadingLeagues ? <p className="muted">Loading rosters...</p> : null}
+          {!isLoadingLeagues && !activeLeague ? (
             <p className="muted">Select a league on the dashboard to see its team rosters here.</p>
           ) : null}
 
-          {!isLoading && !errorMessage && activeLeague ? (
+          {!isLoadingLeagues && activeLeague ? (
             <div className="roster-board-wrap">
               <div className="roster-board">
                 {rosters.map((roster, index) => (

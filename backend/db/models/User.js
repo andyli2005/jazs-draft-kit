@@ -1,5 +1,5 @@
 const mongoose = require("mongoose");
-// const ObjectId = Schema.Types.ObjectId
+const ObjectId = mongoose.Schema.Types.ObjectId;
 
 const userSchema = new mongoose.Schema(
   {
@@ -7,7 +7,7 @@ const userSchema = new mongoose.Schema(
     email:          { type: String, required: true, unique: true, lowercase: true, trim: true, },
     passwordHash:   { type: String, required: true, },
     profilePicture: { type: String, default: "", },
-    // leagues:        [{ type: ObjectId, ref: "League" }],
+    leagues:        { type: [{ type: ObjectId, ref: "League" }], default: [] },
   },
   { timestamps: true }
 );
