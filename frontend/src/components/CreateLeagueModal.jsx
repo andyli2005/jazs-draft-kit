@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { createLeague } from "../auth/requests";
+import { useLeague } from "../leagues";
 import "./CreateLeagueModal.css";
 
 const MLB_POSITIONS = [
@@ -18,6 +18,7 @@ const MLB_POSITIONS = [
 const DRAFT_TYPES = ["Salary Cap", "Snake", "Linear"];
 
 function CreateLeagueModal({ open, onClose, onCreated }) {
+  const { createLeague } = useLeague();
   const [name, setName] = useState("");
   const [draftType, setDraftType] = useState("Salary Cap");
   const [teamCount, setTeamCount] = useState(12);
