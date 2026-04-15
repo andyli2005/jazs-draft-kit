@@ -56,6 +56,11 @@ function createHttpError(status, message) {
   return error;
 }
 
+function isTransactionUnsupportedError(error) {
+  const message = String(error?.message || "");
+  return message.includes("Transaction numbers are only allowed on a replica set member or mongos");
+}
+
 function normalizeStatBlock(block) {
   return STAT_KEYS.reduce((acc, key) => {
     const raw = block?.[key];
@@ -123,7 +128,7 @@ async function fetchLicensedPlayerById(APIplayerId) {
   const url = `${getApiBase()}/api/players/${APIplayerId}`;
   const { response, data } = await fetchUpstreamJson(url);
   if (response.status === 404) {
-    throw createHttpError(404, data?.error || "Player not found.");
+    return fetchLicensedPlayerFromEvaluations(APIplayerId);
   }
   if (!response.ok) {
     throw createHttpError(response.status, data?.errorMessage || data?.message || "Failed to fetch player.");
@@ -134,6 +139,41 @@ async function fetchLicensedPlayerById(APIplayerId) {
     throw createHttpError(502, "Licensed API returned an invalid player payload.");
   }
   return normalized;
+}
+
+async function fetchLicensedPlayerFromEvaluations(APIplayerId) {
+  const evaluationsUrl = buildUpstreamUrl(
+    { moneyAboveMinimum: 0 },
+    "/api/players/evaluations"
+  );
+  const { response, data } = await fetchUpstreamJson(evaluationsUrl);
+  if (!response.ok) {
+    throw createHttpError(
+      response.status,
+      data?.errorMessage || data?.message || "Failed to fetch evaluations for player fallback."
+    );
+  }
+
+  const players = extractPlayers(data);
+  const matched = players.find(
+    (player) => String(player.APIplayerId) === String(APIplayerId)
+  );
+  if (!matched) {
+    throw createHttpError(404, data?.error || "Player not found.");
+  }
+
+  return normalizeApiPlayer({
+    _id: matched.APIplayerId,
+    name: matched.name,
+    status: matched.status,
+    note: matched.notes || matched.status || "",
+    pictureURL: matched.pictureURL,
+    positions: matched.positions,
+    team: matched.team,
+    currentStats: matched.currentStats,
+    projectedStats: matched.projectedStats,
+    threeYearAverageStats: matched.threeYearAverageStats,
+  });
 }
 
 function getApiBase() {
@@ -354,6 +394,8 @@ const upsertPlayerDoc = async (req, res) => {
       return res.status(400).json({ errorMessage: "leagueId is required." });
     }
 
+    const prevDoc = await db.getPlayerDoc(APIplayerId, leagueId);
+
     const fields = {
       name,
       status,
@@ -361,14 +403,14 @@ const upsertPlayerDoc = async (req, res) => {
       positions,
       team,
       pictureURL: pictureURL || "",
-      price: price ?? 0,
+      // Preserve existing draft cost unless explicitly provided.
+      price: price ?? prevDoc?.price ?? 0,
       personalNotes: personalNotes || "",
       currentStats,
       projectedStats,
       threeYearAverageStats,
     };
 
-    const prevDoc = await db.getPlayerDoc(APIplayerId, leagueId);
     const prevNotes = prevDoc?.personalNotes ?? "";
     const hasChangedNotes = prevNotes !== fields.personalNotes;
 
@@ -433,12 +475,14 @@ const draftPlayer = async (req, res) => {
       });
     }
 
-    session = await mongoose.startSession();
     let updatedPlayerDoc = null;
     let updatedRoster = null;
 
-    await session.withTransaction(async () => {
-      const league = await League.findById(leagueId).session(session);
+    const applyDraftMutation = async (activeSession = null) => {
+      const queryOptions = activeSession ? { session: activeSession } : {};
+      const leagueQuery = League.findById(leagueId);
+      if (activeSession) leagueQuery.session(activeSession);
+      const league = await leagueQuery;
       if (!league) {
         throw createHttpError(404, "League not found.");
       }
@@ -452,7 +496,9 @@ const draftPlayer = async (req, res) => {
         throw createHttpError(400, "Selected roster does not belong to this league.");
       }
 
-      const draftedToRoster = await MLBRoster.findById(draftedToRosterId).session(session);
+      const rosterQuery = MLBRoster.findById(draftedToRosterId);
+      if (activeSession) rosterQuery.session(activeSession);
+      const draftedToRoster = await rosterQuery;
       if (!draftedToRoster) {
         throw createHttpError(404, "Draft destination roster not found.");
       }
@@ -470,7 +516,9 @@ const draftPlayer = async (req, res) => {
         throw createHttpError(400, "Draft cost exceeds legal budget based on remaining slots.");
       }
 
-      const existingDoc = await Player.findOne({ APIplayerId, leagueId }).session(session);
+      const existingDocQuery = Player.findOne({ APIplayerId, leagueId });
+      if (activeSession) existingDocQuery.session(activeSession);
+      const existingDoc = await existingDocQuery;
       if (existingDoc?.ownerId) {
         if (String(existingDoc.ownerId) === String(draftedToRosterId)) {
           throw createHttpError(409, "Player is already drafted to the selected roster.");
@@ -482,13 +530,13 @@ const draftPlayer = async (req, res) => {
       const playerDoc = await Player.findOneAndUpdate(
         { APIplayerId, leagueId },
         { $set: { APIplayerId, leagueId, ...docFields } },
-        { upsert: true, new: true, runValidators: true, session }
+        { upsert: true, new: true, runValidators: true, ...queryOptions }
       );
 
       const claimResult = await Player.updateOne(
         { _id: playerDoc._id, $or: [{ ownerId: null }, { ownerId: { $exists: false } }] },
         { $set: { ownerId: draftedToRosterId, bidStartedById, price: normalizedDraftCost } },
-        { session }
+        queryOptions
       );
       if (claimResult.modifiedCount !== 1) {
         throw createHttpError(409, "Player was drafted by another request.");
@@ -502,15 +550,32 @@ const draftPlayer = async (req, res) => {
           budgetLeft: { $gte: normalizedDraftCost + minReserve },
         },
         { $set: { [slotKey]: playerDoc._id }, $inc: { budgetLeft: -normalizedDraftCost } },
-        { session }
+        queryOptions
       );
       if (rosterUpdate.modifiedCount !== 1) {
         throw createHttpError(409, "Roster changed before draft could be applied.");
       }
 
-      updatedPlayerDoc = await Player.findById(playerDoc._id).session(session);
-      updatedRoster = await MLBRoster.findById(draftedToRosterId).session(session);
-    });
+      const updatedPlayerQuery = Player.findById(playerDoc._id);
+      if (activeSession) updatedPlayerQuery.session(activeSession);
+      updatedPlayerDoc = await updatedPlayerQuery;
+
+      const updatedRosterQuery = MLBRoster.findById(draftedToRosterId);
+      if (activeSession) updatedRosterQuery.session(activeSession);
+      updatedRoster = await updatedRosterQuery;
+    };
+
+    session = await mongoose.startSession();
+    try {
+      await session.withTransaction(async () => {
+        await applyDraftMutation(session);
+      });
+    } catch (error) {
+      if (!isTransactionUnsupportedError(error)) {
+        throw error;
+      }
+      await applyDraftMutation(null);
+    }
 
     return res.status(200).json({ playerDoc: updatedPlayerDoc, roster: updatedRoster });
   } catch (err) {
@@ -533,12 +598,14 @@ const dropPlayer = async (req, res) => {
       return res.status(400).json({ errorMessage: "leagueId and rosterId are required." });
     }
 
-    session = await mongoose.startSession();
     let updatedPlayerDoc = null;
     let updatedRoster = null;
 
-    await session.withTransaction(async () => {
-      const league = await League.findById(leagueId).session(session);
+    const applyDropMutation = async (activeSession = null) => {
+      const queryOptions = activeSession ? { session: activeSession } : {};
+      const leagueQuery = League.findById(leagueId);
+      if (activeSession) leagueQuery.session(activeSession);
+      const league = await leagueQuery;
       if (!league) {
         throw createHttpError(404, "League not found.");
       }
@@ -552,12 +619,16 @@ const dropPlayer = async (req, res) => {
         throw createHttpError(400, "Selected roster does not belong to this league.");
       }
 
-      const roster = await MLBRoster.findById(rosterId).session(session);
+      const rosterQuery = MLBRoster.findById(rosterId);
+      if (activeSession) rosterQuery.session(activeSession);
+      const roster = await rosterQuery;
       if (!roster) {
         throw createHttpError(404, "Roster not found.");
       }
 
-      const playerDoc = await Player.findOne({ APIplayerId, leagueId }).session(session);
+      const playerDocQuery = Player.findOne({ APIplayerId, leagueId });
+      if (activeSession) playerDocQuery.session(activeSession);
+      const playerDoc = await playerDocQuery;
       if (!playerDoc) {
         throw createHttpError(404, "Player document not found for this league.");
       }
@@ -575,7 +646,7 @@ const dropPlayer = async (req, res) => {
       const rosterUpdate = await MLBRoster.updateOne(
         { _id: rosterId, [slotKey]: playerDoc._id },
         { $set: { [slotKey]: null }, $inc: { budgetLeft: refundAmount } },
-        { session }
+        queryOptions
       );
       if (rosterUpdate.modifiedCount !== 1) {
         throw createHttpError(409, "Roster changed before drop could be applied.");
@@ -584,15 +655,32 @@ const dropPlayer = async (req, res) => {
       const playerUpdate = await Player.updateOne(
         { _id: playerDoc._id, ownerId: rosterId },
         { $set: { ownerId: null, bidStartedById: null, price: 0 } },
-        { session }
+        queryOptions
       );
       if (playerUpdate.modifiedCount !== 1) {
         throw createHttpError(409, "Player ownership changed before drop could be applied.");
       }
 
-      updatedPlayerDoc = await Player.findById(playerDoc._id).session(session);
-      updatedRoster = await MLBRoster.findById(rosterId).session(session);
-    });
+      const updatedPlayerQuery = Player.findById(playerDoc._id);
+      if (activeSession) updatedPlayerQuery.session(activeSession);
+      updatedPlayerDoc = await updatedPlayerQuery;
+
+      const updatedRosterQuery = MLBRoster.findById(rosterId);
+      if (activeSession) updatedRosterQuery.session(activeSession);
+      updatedRoster = await updatedRosterQuery;
+    };
+
+    session = await mongoose.startSession();
+    try {
+      await session.withTransaction(async () => {
+        await applyDropMutation(session);
+      });
+    } catch (error) {
+      if (!isTransactionUnsupportedError(error)) {
+        throw error;
+      }
+      await applyDropMutation(null);
+    }
 
     return res.status(200).json({ playerDoc: updatedPlayerDoc, roster: updatedRoster });
   } catch (err) {

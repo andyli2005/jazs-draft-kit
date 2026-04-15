@@ -100,7 +100,8 @@ function PlayerStatsPanel({
             positions: player.positions || "",
             team: player.team || "",
             pictureURL: player.pictureURL || "",
-            price: 0,
+            // Keep existing draft price for accurate drop refunds.
+            price: playerDoc?.price ?? player?.leaguePrice ?? 0,
             currentStats: player.currentStats || {},
             projectedStats: player.projectedStats || {},
             threeYearAverageStats: player.threeYearAverageStats || {},
