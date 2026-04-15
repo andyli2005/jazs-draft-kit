@@ -658,6 +658,12 @@
   animation: panelSlideIn 0.25s ease-out;
 }
 
+.player-stats-panel.player-stats-panel-inline {
+  position: sticky;
+  top: 1rem;
+  align-self: start;
+}
+
 @keyframes panelSlideIn {
   from {
     opacity: 0;
@@ -917,6 +923,70 @@
   color: #1a3570;
 }
 
+.players-table tbody tr.drafted-row td {
+  color: #7d879f;
+}
+
+.players-table tbody tr.drafted-row:not(.selected-row) {
+  background: rgba(49, 61, 89, 0.04);
+}
+
+.players-table tbody tr.inactive-row td {
+  color: #8a94aa;
+}
+
+.players-table tbody tr.inactive-row:not(.selected-row) {
+  background: rgba(49, 61, 89, 0.03);
+}
+
+.player-stats-draft-btn {
+  min-width: 88px;
+}
+
+.draft-modal-panel {
+  width: min(960px, 100%);
+}
+
+.draft-modal-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+}
+
+.draft-preview {
+  background: #f4f8ff;
+  border: 1px solid rgba(49, 61, 89, 0.1);
+  border-radius: 14px;
+  padding: 0.8rem;
+}
+
+.draft-preview h3 {
+  margin: 0 0 0.6rem;
+  font-size: 0.95rem;
+  color: #263a63;
+}
+
+.draft-warning-box {
+  border: 1px solid rgba(177, 46, 52, 0.28);
+  border-radius: 10px;
+  background: rgba(177, 46, 52, 0.06);
+  padding: 0.65rem;
+}
+
+.draft-checkbox {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  font-size: 0.88rem;
+  color: #2a3759;
+}
+
+@media (max-width: 900px) {
+  .draft-modal-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
 /* ── Responsive: panel overlays on small screens ─── */
 
 @media (max-width: 1100px) {
@@ -925,7 +995,7 @@
     position: relative;
   }
 
-  .player-stats-panel {
+  .player-stats-panel:not(.player-stats-panel-inline) {
     position: fixed;
     top: 0;
     right: 0;
@@ -1008,5 +1078,28 @@
 
 .my-team-budget {
   font-weight: 700;
+  text-decoration: underline;
+}
+
+.my-team-toolbar {
+  margin-top: 1rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.roster-player-button {
+  border: 0;
+  padding: 0;
+  margin: 0;
+  background: transparent;
+  text-align: left;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+
+.roster-player-button:hover strong {
   text-decoration: underline;
 }

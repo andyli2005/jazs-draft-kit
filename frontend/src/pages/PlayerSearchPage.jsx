@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import Header from "../components/Header";
+import DraftPlayerModal from "../components/DraftPlayerModal";
 import PlayerStatsPanel from "../components/PlayerStatsPanel";
 import Sidebar from "../components/Sidebar";
 import { useLeague } from "../leagues";
@@ -68,8 +69,12 @@ function renderCellValue(key, value) {
   return renderValue(value);
 }
 
+function isStatusActive(status) {
+  return String(status || "").trim().toLowerCase() === "active";
+}
+
 function PlayerSearchPage() {
-  const { selectedLeagueId } = useLeague();
+  const { selectedLeagueId, selectedLeague, refreshLeagues } = useLeague();
   const [players, setPlayers] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState("");
@@ -77,6 +82,8 @@ function PlayerSearchPage() {
   const [sortOrder, setSortOrder] = useState("desc");
   const [search, setSearch] = useState("");
   const [selectedPlayer, setSelectedPlayer] = useState(null);
+  const [showDraftModal, setShowDraftModal] = useState(false);
+  const [panelRefreshKey, setPanelRefreshKey] = useState(0);
 
   useEffect(() => {
     let isMounted = true;
@@ -114,7 +121,12 @@ function PlayerSearchPage() {
         }
 
         if (!isMounted) return;
-        setPlayers(Array.isArray(data.players) ? data.players : []);
+        const nextPlayers = Array.isArray(data.players) ? data.players : [];
+        setPlayers(nextPlayers);
+        setSelectedPlayer((prev) => {
+          if (!prev?.APIplayerId) return prev;
+          return nextPlayers.find((player) => player.APIplayerId === prev.APIplayerId) || prev;
+        });
       } catch (err) {
         if (!isMounted) return;
         setErrorMessage(err.message || "Unable to load players.");
@@ -149,6 +161,59 @@ function PlayerSearchPage() {
   function sortIndicator(columnKey) {
     if (sortBy !== columnKey) return "";
     return sortOrder === "asc" ? " ▲" : " ▼";
+  }
+
+  async function reloadPlayers() {
+    const params = new URLSearchParams();
+    params.set("rankBy", sortBy);
+    params.set("order", sortOrder);
+    if (search) params.set("name", search);
+    params.set("leagueId", selectedLeagueId);
+    const response = await fetch(`${API_BASE}/api/players?${params.toString()}`, {
+      method: "GET",
+      credentials: "include",
+    });
+    const data = await response.json();
+    if (!response.ok) {
+      throw new Error(data.errorMessage || data.message || "Failed to load players.");
+    }
+    const nextPlayers = Array.isArray(data.players) ? data.players : [];
+    setPlayers(nextPlayers);
+    setSelectedPlayer((prev) => {
+      if (!prev?.APIplayerId) return prev;
+      return nextPlayers.find((player) => player.APIplayerId === prev.APIplayerId) || prev;
+    });
+    setPanelRefreshKey((prev) => prev + 1);
+  }
+
+  function handleDraftClick() {
+    setShowDraftModal(true);
+  }
+
+  async function handleDropClick(player) {
+    if (!selectedLeagueId || !player?.APIplayerId || !player?.draftOwnerId) return;
+    const didConfirm = window.confirm(`Drop ${player.name || "this player"} from their roster?`);
+    if (!didConfirm) return;
+
+    try {
+      const response = await fetch(`${API_BASE}/api/players/${player.APIplayerId}/drop`, {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          leagueId: selectedLeagueId,
+          rosterId: player.draftOwnerId,
+        }),
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.errorMessage || "Failed to drop player.");
+      }
+      await refreshLeagues();
+      await reloadPlayers();
+    } catch (err) {
+      setErrorMessage(err.message || "Failed to drop player.");
+    }
   }
 
   return (
@@ -210,6 +275,7 @@ function PlayerSearchPage() {
                   <tbody>
                     {players.map((player, index) => {
                       const rowKey = player.APIplayerId || `${player.name || "player"}-${index}`;
+                      const isInactive = !isStatusActive(player.status);
                       const isSelected =
                         selectedPlayer &&
                         (selectedPlayer.APIplayerId
@@ -218,7 +284,7 @@ function PlayerSearchPage() {
                       return (
                         <tr
                           key={rowKey}
-                          className={isSelected ? "selected-row" : ""}
+                          className={`${isSelected ? " selected-row" : ""}${player.isDrafted ? " drafted-row" : ""}${isInactive ? " inactive-row" : ""}`.trim()}
                           onClick={() => setSelectedPlayer(player)}
                         >
                           {TABLE_COLUMNS.map((column) => (
@@ -236,16 +302,29 @@ function PlayerSearchPage() {
           ) : null}
         </section>
 
-          {selectedPlayer && (
-            <PlayerStatsPanel
-              player={selectedPlayer}
-              fantasyPoints={selectedPlayer?.fantasyPoints ?? 0}
-              cost={selectedPlayer?.cost ?? selectedPlayer?.price ?? 0}
-              activeLeagueId={selectedLeagueId}
-              onClose={() => setSelectedPlayer(null)}
-            />
-          )}
+        {selectedPlayer && (
+          <PlayerStatsPanel
+            player={selectedPlayer}
+            fantasyPoints={selectedPlayer?.fantasyPoints ?? 0}
+            cost={selectedPlayer?.isDrafted ? (selectedPlayer?.leaguePrice ?? selectedPlayer?.cost ?? 0) : (selectedPlayer?.cost ?? 0)}
+            activeLeagueId={selectedLeagueId}
+            onDraftClick={handleDraftClick}
+            onDropClick={handleDropClick}
+            refreshKey={panelRefreshKey}
+            onClose={() => setSelectedPlayer(null)}
+          />
+        )}
       </div>
+      <DraftPlayerModal
+        open={showDraftModal}
+        player={selectedPlayer}
+        league={selectedLeague}
+        onClose={() => setShowDraftModal(false)}
+        onDrafted={async () => {
+          await refreshLeagues();
+          await reloadPlayers();
+        }}
+      />
     </main>
   );
 }

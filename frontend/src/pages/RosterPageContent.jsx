@@ -24,7 +24,7 @@ const ROSTER_SLOTS = [
   { key: "pitcher9", label: "P9" },
 ];
 
-function RosterPageContent({ roster, budgetCap, showBudget = true }) {
+function RosterPageContent({ roster, budgetCap, showBudget = true, onPlayerSelect }) {
   if (!roster) {
     return null;
   }
@@ -42,7 +42,13 @@ function RosterPageContent({ roster, budgetCap, showBudget = true }) {
               <div className="roster-slot-content">
                 {player ? (
                   <>
-                    <strong>{player.name || "Rostered Player"}</strong>
+                    <button
+                      className="roster-player-button"
+                      type="button"
+                      onClick={() => onPlayerSelect?.(player)}
+                    >
+                      <strong>{player.name || "Rostered Player"}</strong>
+                    </button>
                     <span className="muted">
                       {[player.team, player.price != null ? `$${player.price}` : null]
                         .filter(Boolean)

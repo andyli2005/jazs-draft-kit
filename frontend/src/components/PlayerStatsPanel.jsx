@@ -20,7 +20,17 @@ const BATTING_STATS = [
   { label: "Caught Stealing", key: "caughtStealing" },
 ];
 
-function PlayerStatsPanel({ player, fantasyPoints, cost, activeLeagueId, onClose }) {
+function PlayerStatsPanel({
+  player,
+  fantasyPoints,
+  cost,
+  activeLeagueId,
+  onClose,
+  onDraftClick,
+  onDropClick,
+  refreshKey = 0,
+  scrollWithPage = false,
+}) {
   const [playerDoc, setPlayerDoc] = useState(null);
   const [isEditing, setIsEditing] = useState(false);
   const [editDraft, setEditDraft] = useState("");
@@ -53,7 +63,7 @@ function PlayerStatsPanel({ player, fantasyPoints, cost, activeLeagueId, onClose
     setSaveError("");
     fetchPlayerDoc();
     return () => { isMounted = false; };
-  }, [player?.APIplayerId, activeLeagueId]);
+  }, [player?.APIplayerId, activeLeagueId, refreshKey]);
 
   const hasDoc = playerDoc != null;
   const displayData = hasDoc ? playerDoc : player;
@@ -91,7 +101,8 @@ function PlayerStatsPanel({ player, fantasyPoints, cost, activeLeagueId, onClose
             positions: player.positions || "",
             team: player.team || "",
             pictureURL: player.pictureURL || "",
-            price: 0,
+            // Keep existing draft price for accurate drop refunds.
+            price: playerDoc?.price ?? player?.leaguePrice ?? 0,
             currentStats: player.currentStats || {},
             projectedStats: player.projectedStats || {},
             threeYearAverageStats: player.threeYearAverageStats || {},
@@ -113,9 +124,25 @@ function PlayerStatsPanel({ player, fantasyPoints, cost, activeLeagueId, onClose
 
   const notesDisabled = !activeLeagueId;
   const personalNotes = playerDoc?.personalNotes || "";
+  const isDrafted = Boolean(player?.isDrafted ?? playerDoc?.ownerId);
+  const hasActionHandler = isDrafted ? Boolean(onDropClick) : Boolean(onDraftClick);
+  const actionDisabled = !activeLeagueId || !hasActionHandler;
+  const actionLabel = isDrafted ? "Drop" : "Draft";
+  const actionClassName = `btn ${
+    isDrafted ? "btn-danger" : "btn-primary"
+  } player-stats-edit-btn player-stats-draft-btn`;
+
+  function handlePrimaryAction() {
+    if (actionDisabled) return;
+    if (isDrafted) {
+      onDropClick?.(player);
+      return;
+    }
+    onDraftClick?.(player);
+  }
 
   return (
-    <aside className="player-stats-panel">
+    <aside className={`player-stats-panel${scrollWithPage ? " player-stats-panel-inline" : ""}`}>
       <div className="player-stats-top">
         <p className="eyebrow">Player Stats</p>
         <button
@@ -165,6 +192,25 @@ function PlayerStatsPanel({ player, fantasyPoints, cost, activeLeagueId, onClose
           <span className="player-stats-kpi-label">Est. Cost</span>
           <span className="player-stats-kpi-value">${cost}</span>
         </div>
+      </div>
+
+      <div className="player-stats-section">
+        <div className="player-stats-section-head">
+          <h3>Player Action</h3>
+          <button
+            className={actionClassName}
+            type="button"
+            onClick={handlePrimaryAction}
+            disabled={actionDisabled}
+          >
+            {actionLabel}
+          </button>
+        </div>
+        {!activeLeagueId ? (
+          <p className="muted">Select a league to manage draft actions.</p>
+        ) : !hasActionHandler ? (
+          <p className="muted">Draft actions are only available from player search.</p>
+        ) : null}
       </div>
 
       <div className="player-stats-section">
