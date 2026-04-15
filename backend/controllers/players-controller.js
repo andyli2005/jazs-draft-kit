@@ -2,6 +2,31 @@ const db = require("../db");
 const { computeTotalMoneyRemaining, computeRosterSpotsRemaining, computeMoneyAboveMinimum } = require("../services/league-valuation");
 
 const DEFAULT_API_ENDPOINT = "http://localhost:4001";
+const ROSTER_SLOT_KEYS = [
+  "catcher1",
+  "catcher2",
+  "firstBase",
+  "secondBase",
+  "thirdBase",
+  "inField",
+  "shortStop",
+  "utility",
+  "middleInField",
+  "pitcher1",
+  "pitcher2",
+  "pitcher3",
+  "pitcher4",
+  "pitcher5",
+  "pitcher6",
+  "pitcher7",
+  "pitcher8",
+  "pitcher9",
+  "outfielder1",
+  "outfielder2",
+  "outfielder3",
+  "outfielder4",
+  "outfielder5",
+];
 
 function getApiBase() {
   const raw = process.env.API_ENDPOINT || DEFAULT_API_ENDPOINT;
@@ -232,9 +257,177 @@ const upsertPlayerDoc = async (req, res) => {
   }
 };
 
+const draftPlayer = async (req, res) => {
+  try {
+    const { APIplayerId } = req.params;
+    const {
+      leagueId,
+      bidStartedById,
+      draftedToRosterId,
+      slotKey,
+      draftCost,
+      inactiveOverrideAccepted,
+    } = req.body || {};
+
+    if (!leagueId || !bidStartedById || !draftedToRosterId || !slotKey || draftCost == null) {
+      return res.status(400).json({
+        errorMessage: "leagueId, bidStartedById, draftedToRosterId, slotKey, and draftCost are required.",
+      });
+    }
+
+    if (!ROSTER_SLOT_KEYS.includes(slotKey)) {
+      return res.status(400).json({ errorMessage: "Invalid roster slot selected." });
+    }
+
+    if (!Number.isFinite(Number(draftCost))) {
+      return res.status(400).json({ errorMessage: "draftCost must be a valid number." });
+    }
+
+    const normalizedDraftCost = Number(draftCost);
+    if (normalizedDraftCost < 0) {
+      return res.status(400).json({ errorMessage: "draftCost must be zero or greater." });
+    }
+
+    const league = await db.getLeagueById(leagueId);
+    if (!league) {
+      return res.status(404).json({ errorMessage: "League not found." });
+    }
+
+    if (String(league.user) !== String(req.userId)) {
+      return res.status(403).json({ errorMessage: "You do not have access to this league." });
+    }
+
+    const rosterIdsInLeague = new Set((league.rosterIds || []).map((id) => String(id)));
+    if (!rosterIdsInLeague.has(String(bidStartedById)) || !rosterIdsInLeague.has(String(draftedToRosterId))) {
+      return res.status(400).json({ errorMessage: "Selected roster does not belong to this league." });
+    }
+
+    const draftedToRoster = await db.getMLBRosterById(draftedToRosterId);
+    if (!draftedToRoster) {
+      return res.status(404).json({ errorMessage: "Draft destination roster not found." });
+    }
+
+    if (draftedToRoster[slotKey]) {
+      return res.status(409).json({ errorMessage: "Selected slot is already occupied." });
+    }
+
+    const openSlotsRemaining = ROSTER_SLOT_KEYS.reduce(
+      (count, key) => count + (draftedToRoster[key] ? 0 : 1),
+      0
+    );
+    const maxSpendable = draftedToRoster.budgetLeft - (openSlotsRemaining - 1);
+    if (normalizedDraftCost > maxSpendable) {
+      return res.status(400).json({
+        errorMessage: "Draft cost exceeds legal budget based on remaining slots.",
+      });
+    }
+
+    const playerDoc = await db.getPlayerDoc(APIplayerId, leagueId);
+    if (!playerDoc) {
+      return res.status(404).json({
+        errorMessage: "Player document does not exist yet for this league.",
+      });
+    }
+
+    const normalizedStatus = String(playerDoc.status || "").trim().toLowerCase();
+    const isActive = normalizedStatus === "active";
+    if (!isActive && !inactiveOverrideAccepted) {
+      return res.status(400).json({
+        errorMessage: "Player is not currently active. Confirm inactive override to continue.",
+      });
+    }
+
+    if (playerDoc.ownerId && String(playerDoc.ownerId) !== String(draftedToRosterId)) {
+      return res.status(409).json({ errorMessage: "Player is already drafted in this league." });
+    }
+
+    if (playerDoc.ownerId && String(playerDoc.ownerId) === String(draftedToRosterId)) {
+      return res.status(409).json({ errorMessage: "Player is already drafted to the selected roster." });
+    }
+
+    draftedToRoster[slotKey] = playerDoc._id;
+    draftedToRoster.budgetLeft = draftedToRoster.budgetLeft - normalizedDraftCost;
+
+    playerDoc.bidStartedById = bidStartedById;
+    playerDoc.ownerId = draftedToRosterId;
+    playerDoc.price = normalizedDraftCost;
+
+    await draftedToRoster.save();
+    await playerDoc.save();
+
+    return res.status(200).json({ playerDoc, roster: draftedToRoster });
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ errorMessage: "Error drafting player." });
+  }
+};
+
+const dropPlayer = async (req, res) => {
+  try {
+    const { APIplayerId } = req.params;
+    const { leagueId, rosterId } = req.body || {};
+
+    if (!leagueId || !rosterId) {
+      return res.status(400).json({ errorMessage: "leagueId and rosterId are required." });
+    }
+
+    const league = await db.getLeagueById(leagueId);
+    if (!league) {
+      return res.status(404).json({ errorMessage: "League not found." });
+    }
+
+    if (String(league.user) !== String(req.userId)) {
+      return res.status(403).json({ errorMessage: "You do not have access to this league." });
+    }
+
+    const rosterIdsInLeague = new Set((league.rosterIds || []).map((id) => String(id)));
+    if (!rosterIdsInLeague.has(String(rosterId))) {
+      return res.status(400).json({ errorMessage: "Selected roster does not belong to this league." });
+    }
+
+    const roster = await db.getMLBRosterById(rosterId);
+    if (!roster) {
+      return res.status(404).json({ errorMessage: "Roster not found." });
+    }
+
+    const playerDoc = await db.getPlayerDoc(APIplayerId, leagueId);
+    if (!playerDoc) {
+      return res.status(404).json({ errorMessage: "Player document not found for this league." });
+    }
+
+    if (!playerDoc.ownerId || String(playerDoc.ownerId) !== String(rosterId)) {
+      return res.status(400).json({ errorMessage: "Player is not owned by the selected roster." });
+    }
+
+    const slotKey = ROSTER_SLOT_KEYS.find((key) => String(roster[key] || "") === String(playerDoc._id));
+    if (!slotKey) {
+      return res.status(409).json({ errorMessage: "Roster/player assignment is inconsistent." });
+    }
+
+    const refundAmount = Number(playerDoc.price) || 0;
+    roster[slotKey] = null;
+    roster.budgetLeft = roster.budgetLeft + refundAmount;
+
+    playerDoc.bidStartedById = null;
+    playerDoc.ownerId = null;
+    // Price-reset behavior will be fully aligned with model changes in next todo.
+    playerDoc.price = 0;
+
+    await roster.save();
+    await playerDoc.save();
+
+    return res.status(200).json({ playerDoc, roster });
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ errorMessage: "Error dropping player." });
+  }
+};
+
 module.exports = {
   getPlayers,
   getTotalFantasyPoints,
   getPlayerDoc,
   upsertPlayerDoc,
+  draftPlayer,
+  dropPlayer,
 };

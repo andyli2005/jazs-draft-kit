@@ -6,6 +6,8 @@ const auth = require("../auth");
 router.get("/totalFantasyPoints", auth.verify, PlayersController.getTotalFantasyPoints);
 router.get("/:APIplayerId/doc", auth.verify, PlayersController.getPlayerDoc);
 router.put("/:APIplayerId/doc", auth.verify, PlayersController.upsertPlayerDoc);
+router.post("/:APIplayerId/draft", auth.verify, PlayersController.draftPlayer);
+router.post("/:APIplayerId/drop", auth.verify, PlayersController.dropPlayer);
 router.get("/", auth.verify, PlayersController.getPlayers);
 
 module.exports = router;
