@@ -61,3 +61,10 @@ export function deleteUser() {
 export function logout() {
   return request("/api/auth/logout", { method: "POST" });
 }
+
+export function setMyTeam(leagueId, myTeamId) {
+  return request(`/api/leagues/${leagueId}/my-team`, {
+    method: "PATCH",
+    body: JSON.stringify({ myTeamId }),
+  });
+}

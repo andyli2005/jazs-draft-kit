@@ -128,6 +128,7 @@ class Database {
     return leagues;
   }
   async getLeagueById(id)                     { return League.findById(id); }
+  async updateLeagueById(id, fieldsToUpdate)  { return League.findByIdAndUpdate(id, { $set: fieldsToUpdate }, { new: true }); }
   async deleteLeagueById(id) {
     const deletedLeague = await League.findByIdAndDelete(id);
     if (!deletedLeague) {

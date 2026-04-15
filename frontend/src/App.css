@@ -303,6 +303,50 @@
   pointer-events: none;
 }
 
+.side-section-label {
+  margin-top: 0.3rem;
+  padding: 0.45rem 0.7rem 0.2rem;
+  font-size: 0.72rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #4866a2;
+  font-weight: 700;
+}
+
+.side-link-toggle {
+  border: 0;
+  background: transparent;
+  margin: 0;
+  font-family: inherit;
+  font-size: inherit;
+  text-align: left;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 0.35rem;
+  line-height: 1.2;
+  cursor: pointer;
+}
+
+.side-link-caret {
+  font-size: 0.85rem;
+}
+
+.side-submenu {
+  display: grid;
+  gap: 0.25rem;
+}
+
+.side-nav-group {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.side-link-subitem {
+  margin-left: 0.8rem;
+}
+
 .sidebar-hint {
   margin: 0.4rem 0 0;
   padding: 0.55rem 0.7rem 0;
@@ -898,4 +942,17 @@
 .transactions-table td:last-child {
   white-space: normal;
   min-width: 250px;
+}
+
+.my-team-roster-box {
+  margin-top: 1rem;
+  border: 1px solid rgba(49, 61, 89, 0.16);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.72);
+  overflow: hidden;
+}
+
+.my-team-budget {
+  font-weight: 700;
+  text-decoration: underline;
 }

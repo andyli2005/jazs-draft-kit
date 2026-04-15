@@ -87,7 +87,7 @@ function PlayerStatsPanel({ player, fantasyPoints, cost, activeLeagueId, onClose
             personalNotes: editDraft,
             name: player.name,
             status: player.status || "Active",
-            notes: player.status || "",
+            notes: player.notes || "",
             positions: player.positions || "",
             team: player.team || "",
             pictureURL: player.pictureURL || "",

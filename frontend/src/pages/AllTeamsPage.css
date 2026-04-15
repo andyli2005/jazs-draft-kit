@@ -46,6 +46,30 @@
   font-weight: 700;
 }
 
+.my-team-selector-row {
+  margin-top: 1rem;
+  margin-bottom: 0.75rem;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.my-team-select {
+  min-width: 220px;
+  border: 1px solid #c8d2e9;
+  border-radius: 10px;
+  padding: 0.55rem 0.7rem;
+  font: inherit;
+  background: #fff;
+  color: #243457;
+}
+
+.my-team-select:focus {
+  outline: 2px solid #7eb1ff;
+  outline-offset: 1px;
+}
+
 .roster-board-wrap {
   margin-top: 1rem;
   overflow-x: auto;
@@ -74,6 +98,7 @@
 }
 
 .roster-column-head {
+  position: relative;
   padding: 1rem 1rem 0.9rem;
   border-bottom: 1px solid rgba(49, 61, 89, 0.1);
   background: linear-gradient(145deg, #edf4ff, #f7fbff);
@@ -83,6 +108,24 @@
   margin: 0.2rem 0 0.35rem;
   font-size: 1.1rem;
   color: #1e2a47;
+}
+
+.my-team-badge {
+  position: absolute;
+  top: 0.85rem;
+  right: 1rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 2px solid #1f6fff;
+  color: #1f6fff;
+  background: transparent;
+  border-radius: 8px;
+  padding: 0.2rem 0.5rem;
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
 }
 
 .roster-slot-list {
