@@ -34,16 +34,10 @@ const POS_TO_SLOT_KEYS = {
   "2B": ["secondBase", "middleInField", "inField", "utility"],
   "3B": ["thirdBase", "inField", "utility"],
   SS: ["shortStop", "middleInField", "inField", "utility"],
-  IF: ["firstBase", "secondBase", "thirdBase", "shortStop", "inField", "middleInField", "utility"],
-  MIF: ["secondBase", "shortStop", "middleInField", "inField", "utility"],
-  MI: ["secondBase", "shortStop", "middleInField", "inField", "utility"],
   OF: ["outfielder1", "outfielder2", "outfielder3", "outfielder4", "outfielder5", "utility"],
-  UTIL: ["utility"],
-  UT: ["utility"],
+  U: ["utility"],
   DH: ["utility"],
   P: ["pitcher1", "pitcher2", "pitcher3", "pitcher4", "pitcher5", "pitcher6", "pitcher7", "pitcher8", "pitcher9"],
-  SP: ["pitcher1", "pitcher2", "pitcher3", "pitcher4", "pitcher5", "pitcher6", "pitcher7", "pitcher8", "pitcher9"],
-  RP: ["pitcher1", "pitcher2", "pitcher3", "pitcher4", "pitcher5", "pitcher6", "pitcher7", "pitcher8", "pitcher9"],
 };
 
 function normalizeStatus(status) {

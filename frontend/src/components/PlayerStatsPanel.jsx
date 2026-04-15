@@ -28,6 +28,7 @@ function PlayerStatsPanel({
   onClose,
   onDraftClick,
   onDropClick,
+  refreshKey = 0,
 }) {
   const [playerDoc, setPlayerDoc] = useState(null);
   const [isEditing, setIsEditing] = useState(false);
@@ -61,7 +62,7 @@ function PlayerStatsPanel({
     setSaveError("");
     fetchPlayerDoc();
     return () => { isMounted = false; };
-  }, [player?.APIplayerId, activeLeagueId]);
+  }, [player?.APIplayerId, activeLeagueId, refreshKey]);
 
   const hasDoc = playerDoc != null;
   const displayData = hasDoc ? playerDoc : player;

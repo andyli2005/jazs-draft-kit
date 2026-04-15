@@ -69,6 +69,10 @@ function renderCellValue(key, value) {
   return renderValue(value);
 }
 
+function isStatusActive(status) {
+  return String(status || "").trim().toLowerCase() === "active";
+}
+
 function PlayerSearchPage() {
   const { selectedLeagueId, selectedLeague, refreshLeagues } = useLeague();
   const [players, setPlayers] = useState([]);
@@ -79,6 +83,7 @@ function PlayerSearchPage() {
   const [search, setSearch] = useState("");
   const [selectedPlayer, setSelectedPlayer] = useState(null);
   const [showDraftModal, setShowDraftModal] = useState(false);
+  const [panelRefreshKey, setPanelRefreshKey] = useState(0);
 
   useEffect(() => {
     let isMounted = true;
@@ -178,6 +183,7 @@ function PlayerSearchPage() {
       if (!prev?.APIplayerId) return prev;
       return nextPlayers.find((player) => player.APIplayerId === prev.APIplayerId) || prev;
     });
+    setPanelRefreshKey((prev) => prev + 1);
   }
 
   function handleDraftClick() {
@@ -269,6 +275,7 @@ function PlayerSearchPage() {
                   <tbody>
                     {players.map((player, index) => {
                       const rowKey = player.APIplayerId || `${player.name || "player"}-${index}`;
+                      const isInactive = !isStatusActive(player.status);
                       const isSelected =
                         selectedPlayer &&
                         (selectedPlayer.APIplayerId
@@ -277,7 +284,7 @@ function PlayerSearchPage() {
                       return (
                         <tr
                           key={rowKey}
-                          className={`${isSelected ? "selected-row" : ""}${player.isDrafted ? " drafted-row" : ""}`}
+                          className={`${isSelected ? " selected-row" : ""}${player.isDrafted ? " drafted-row" : ""}${isInactive ? " inactive-row" : ""}`.trim()}
                           onClick={() => setSelectedPlayer(player)}
                         >
                           {TABLE_COLUMNS.map((column) => (
@@ -303,6 +310,7 @@ function PlayerSearchPage() {
             activeLeagueId={selectedLeagueId}
             onDraftClick={handleDraftClick}
             onDropClick={handleDropClick}
+            refreshKey={panelRefreshKey}
             onClose={() => setSelectedPlayer(null)}
           />
         )}

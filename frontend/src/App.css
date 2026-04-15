@@ -925,6 +925,14 @@
   background: rgba(49, 61, 89, 0.04);
 }
 
+.players-table tbody tr.inactive-row td {
+  color: #8a94aa;
+}
+
+.players-table tbody tr.inactive-row:not(.selected-row) {
+  background: rgba(49, 61, 89, 0.03);
+}
+
 .player-stats-draft-btn {
   min-width: 88px;
 }
