@@ -282,26 +282,38 @@
   padding-right: 0.6rem;
 }
 
-.header-league-option {
+.header-league-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: 0.45rem;
   border: 1px solid rgba(49, 61, 89, 0.12);
   border-radius: 10px;
   background: #fff;
   color: #223052;
+  padding: 0.4rem 0.45rem 0.4rem 0.6rem;
   cursor: pointer;
-  display: grid;
-  gap: 0.2rem;
-  font: inherit;
-  padding: 0.65rem 0.75rem;
-  text-align: left;
   transition:
     background-color 0.2s ease,
     border-color 0.2s ease,
     color 0.2s ease;
-  width: 100%;
 }
 
-.header-league-option:hover,
-.header-league-option.selected {
+.header-league-row:focus {
+  outline: 2px solid #7eb1ff;
+  outline-offset: 1px;
+}
+
+.header-league-option {
+  display: grid;
+  gap: 0.2rem;
+  font: inherit;
+  padding: 0.25rem 0;
+  text-align: left;
+}
+
+.header-league-row.selected,
+.header-league-row:hover:not(:has(.header-league-edit-btn:hover)) {
   background: #edf2ff;
   border-color: rgba(31, 111, 255, 0.34);
   color: #1756c7;
@@ -316,6 +328,18 @@
   font-weight: 700;
   letter-spacing: 0.03em;
   text-transform: uppercase;
+}
+
+.header-league-edit-btn {
+  padding: 0.45rem 0.6rem;
+  font-size: 0.76rem;
+  white-space: nowrap;
+}
+
+.header-league-edit-btn:hover {
+  background: #edf2ff;
+  border-color: rgba(31, 111, 255, 0.34);
+  color: #1756c7;
 }
 
 .app-body {
@@ -483,6 +507,18 @@
   color: #1e2a47;
 }
 
+.dashboard-league-title-wrap {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.dashboard-league-edit-btn {
+  padding: 0.35rem 0.55rem;
+  font-size: 0.74rem;
+}
+
 .dashboard-league-sport {
   display: inline-flex;
   align-items: center;
@@ -506,6 +542,25 @@
   display: flex;
   gap: 0.65rem;
   flex-wrap: wrap;
+}
+
+.dashboard-league-card .btn {
+  transition:
+    background-color 0.2s ease,
+    border-color 0.2s ease,
+    color 0.2s ease,
+    box-shadow 0.2s ease;
+}
+
+.dashboard-league-card .btn-primary:hover {
+  background: #175ed8;
+  box-shadow: 0 6px 14px rgba(31, 111, 255, 0.25);
+}
+
+.dashboard-league-card .btn-secondary:hover {
+  background: #edf2ff;
+  border-color: rgba(31, 111, 255, 0.34);
+  color: #1756c7;
 }
 
 .settings-form {
