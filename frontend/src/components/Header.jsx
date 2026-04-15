@@ -1,39 +1,49 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../auth/index.jsx";
+import { useLeague } from "../leagues";
 
 function Header() {
   const navigate = useNavigate();
   const { user, logoutUser } = useAuth();
-  const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const { leagues, selectedLeagueId, selectLeague, isLoadingLeagues } = useLeague();
+  const [openMenu, setOpenMenu] = useState(null);
   const menuRef = useRef(null);
   const avatarInitial = (user?.userName || user?.email || "?").trim().charAt(0).toUpperCase();
   const hasProfilePicture = Boolean(user?.profilePicture);
+  const isLeaguesMenuOpen = openMenu === "leagues";
+  const isAccountMenuOpen = openMenu === "account";
 
   useEffect(() => {
     function handleDocumentClick(event) {
       if (menuRef.current && !menuRef.current.contains(event.target)) {
-        setIsMenuOpen(false);
+        setOpenMenu(null);
       }
     }
 
-    if (isMenuOpen) {
+    if (openMenu) {
       document.addEventListener("mousedown", handleDocumentClick);
     }
 
     return () => {
       document.removeEventListener("mousedown", handleDocumentClick);
     };
-  }, [isMenuOpen]);
+  }, [openMenu]);
 
   function handleOpenEditProfile() {
-    setIsMenuOpen(false);
+    setOpenMenu(null);
     navigate("/settings");
   }
 
   async function handleLogout() {
-    setIsMenuOpen(false);
+    setOpenMenu(null);
     await logoutUser();
+  }
+
+  function handleSelectLeague(league) {
+    selectLeague(league);
+    setOpenMenu(null);
+    navigate("/all-teams");
   }
 
   return (
@@ -43,12 +53,24 @@ function Header() {
         <h2 className="app-title">Dashboard</h2>
       </div>
       <div className="header-right" ref={menuRef}>
+        <button 
+          className="btn btn-primary"
+          type="button"
+          onClick={() => setOpenMenu((menu) => (menu === "leagues" ? null : "leagues"))}
+          aria-label="Open leagues menu"
+          aria-expanded={isLeaguesMenuOpen}
+          aria-haspopup="menu"
+        >
+          Leagues
+        </button>
+
         <button
           className="header-avatar-trigger"
           type="button"
-          onClick={() => setIsMenuOpen((open) => !open)}
+          onClick={() => setOpenMenu((menu) => (menu === "account" ? null : "account"))}
           aria-label="Open account menu"
-          aria-expanded={isMenuOpen}
+          aria-expanded={isAccountMenuOpen}
+          aria-haspopup="menu"
         >
           {hasProfilePicture ? (
             <img
@@ -61,7 +83,37 @@ function Header() {
           )}
         </button>
 
-        {isMenuOpen ? (
+        {isLeaguesMenuOpen ? (
+          <div className="header-dropdown header-leagues-dropdown" role="menu" aria-label="Leagues menu">
+            <div className="header-dropdown-section">
+              <p className="header-dropdown-name">Your Leagues</p>
+              {isLoadingLeagues ? (
+                <p className="header-dropdown-email">Loading leagues...</p>
+              ) : null}
+              {!isLoadingLeagues && leagues.length === 0 ? (
+                <p className="header-dropdown-email">No leagues yet.</p>
+              ) : null}
+              {!isLoadingLeagues && leagues.length > 0 ? (
+                <div className="header-league-list">
+                  {leagues.map((league) => (
+                    <button
+                      key={league._id}
+                      className={`header-league-option${league._id === selectedLeagueId ? " selected" : ""}`}
+                      type="button"
+                      role="menuitem"
+                      onClick={() => handleSelectLeague(league)}
+                    >
+                      <span>{league.name}</span>
+                      <small>{league.sport || "League"}</small>
+                    </button>
+                  ))}
+                </div>
+              ) : null}
+            </div>
+          </div>
+        ) : null}
+
+        {isAccountMenuOpen ? (
           <div className="header-dropdown" role="menu" aria-label="Account menu">
             <div className="header-dropdown-section">
               {hasProfilePicture ? (
