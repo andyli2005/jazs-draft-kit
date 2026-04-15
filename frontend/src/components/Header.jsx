@@ -2,12 +2,14 @@ import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../auth/index.jsx";
 import { useLeague } from "../leagues";
+import EditLeagueModal from "./EditLeagueModal";
 
 function Header() {
   const navigate = useNavigate();
   const { user, logoutUser } = useAuth();
-  const { leagues, selectedLeagueId, selectLeague, isLoadingLeagues } = useLeague();
+  const { leagues, selectedLeagueId, selectLeague, isLoadingLeagues, refreshLeagues } = useLeague();
   const [openMenu, setOpenMenu] = useState(null);
+  const [editingLeague, setEditingLeague] = useState(null);
   const menuRef = useRef(null);
   const avatarInitial = (user?.userName || user?.email || "?").trim().charAt(0).toUpperCase();
   const hasProfilePicture = Boolean(user?.profilePicture);
@@ -44,6 +46,11 @@ function Header() {
     selectLeague(league);
     setOpenMenu(null);
     navigate("/all-teams");
+  }
+
+  function handleEditLeague(league) {
+    setEditingLeague(league);
+    setOpenMenu(null);
   }
 
   return (
@@ -96,16 +103,34 @@ function Header() {
               {!isLoadingLeagues && leagues.length > 0 ? (
                 <div className="header-league-list">
                   {leagues.map((league) => (
-                    <button
+                    <div
                       key={league._id}
-                      className={`header-league-option${league._id === selectedLeagueId ? " selected" : ""}`}
-                      type="button"
-                      role="menuitem"
+                      className={`header-league-row${league._id === selectedLeagueId ? " selected" : ""}`}
+                      role="button"
+                      tabIndex={0}
                       onClick={() => handleSelectLeague(league)}
+                      onKeyDown={(event) => {
+                        if (event.key === "Enter" || event.key === " ") {
+                          event.preventDefault();
+                          handleSelectLeague(league);
+                        }
+                      }}
                     >
-                      <span>{league.name}</span>
-                      <small>{league.sport || "League"}</small>
-                    </button>
+                      <div className="header-league-option" role="menuitem">
+                        <span>{league.name}</span>
+                        <small>{league.sport || "League"}</small>
+                      </div>
+                      <button
+                        className="btn btn-secondary header-league-edit-btn"
+                        type="button"
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          handleEditLeague(league);
+                        }}
+                      >
+                        Edit
+                      </button>
+                    </div>
                   ))}
                 </div>
               ) : null}
@@ -140,6 +165,12 @@ function Header() {
           </div>
         ) : null}
       </div>
+      <EditLeagueModal
+        open={Boolean(editingLeague)}
+        league={editingLeague}
+        onClose={() => setEditingLeague(null)}
+        onSaved={refreshLeagues}
+      />
     </header>
   );
 }

@@ -44,3 +44,10 @@ export function setMyTeam(leagueId, myTeamId) {
     body: JSON.stringify({ myTeamId }),
   });
 }
+
+export function updateLeague(leagueId, payload) {
+  return request(`/api/leagues/${leagueId}`, {
+    method: "PATCH",
+    body: JSON.stringify(payload),
+  });
+}

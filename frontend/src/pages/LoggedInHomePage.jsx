@@ -4,12 +4,14 @@ import { useAuth } from "../auth/index.jsx";
 import Header from "../components/Header";
 import Sidebar from "../components/Sidebar";
 import CreateLeagueModal from "../components/CreateLeagueModal";
+import EditLeagueModal from "../components/EditLeagueModal";
 import { useLeague } from "../leagues";
 
 function LoggedInHomePage() {
   const { user } = useAuth();
   const { leagues, isLoadingLeagues, refreshLeagues, selectLeague, selectedLeagueId } = useLeague();
   const [showModal, setShowModal] = useState(false);
+  const [editingLeague, setEditingLeague] = useState(null);
 
   return (
     <main className="app-shell page-private">
@@ -57,7 +59,16 @@ function LoggedInHomePage() {
                     key={league._id}
                   >
                     <div className="dashboard-league-top">
-                      <h3>{league.name}</h3>
+                      <div className="dashboard-league-title-wrap">
+                        <h3>{league.name}</h3>
+                        <button
+                          className="btn btn-secondary dashboard-league-edit-btn"
+                          type="button"
+                          onClick={() => setEditingLeague(league)}
+                        >
+                          Edit League
+                        </button>
+                      </div>
                       <span className="dashboard-league-sport">{league.sport}</span>
                     </div>
                     <p className="muted">
@@ -91,6 +102,12 @@ function LoggedInHomePage() {
         open={showModal}
         onClose={() => setShowModal(false)}
         onCreated={refreshLeagues}
+      />
+      <EditLeagueModal
+        open={Boolean(editingLeague)}
+        league={editingLeague}
+        onClose={() => setEditingLeague(null)}
+        onSaved={refreshLeagues}
       />
     </main>
   );

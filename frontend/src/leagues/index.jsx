@@ -4,6 +4,7 @@ import {
   createLeague as createLeagueRequest,
   getLeagues,
   setMyTeam as setMyTeamRequest,
+  updateLeague as updateLeagueRequest,
 } from "./requests";
 
 const STORAGE_KEY = "draft-kit:selected-league-id";
@@ -126,6 +127,12 @@ export function LeagueProvider({ children }) {
     return response;
   }
 
+  async function editLeague(leagueId, payload) {
+    const response = await updateLeagueRequest(leagueId, payload);
+    await refreshLeagues();
+    return response;
+  }
+
   function selectLeague(leagueOrId) {
     const nextId = typeof leagueOrId === "string" ? leagueOrId : leagueOrId?._id || "";
     setSelectedLeagueId(nextId);
@@ -144,6 +151,7 @@ export function LeagueProvider({ children }) {
       isLoadingLeagues,
       createLeague,
       setMyTeam,
+      editLeague,
       refreshLeagues,
       selectLeague,
       clearSelectedLeague,
@@ -155,6 +163,7 @@ export function LeagueProvider({ children }) {
       isLoadingLeagues,
       createLeague,
       setMyTeam,
+      editLeague,
       refreshLeagues,
       selectLeague,
       clearSelectedLeague,
