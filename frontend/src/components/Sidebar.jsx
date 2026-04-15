@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { NavLink, useLocation } from "react-router-dom";
 import { useLeague } from "../leagues";
 
@@ -19,13 +19,8 @@ function Sidebar() {
   const rosterOptions = leagueRosters.filter(
     (roster) => !selectedLeague?.myTeam || String(roster._id) !== String(selectedLeague.myTeam)
   );
-  const [isRostersOpen, setIsRostersOpen] = useState(location.pathname.startsWith("/rosters/"));
-
-  useEffect(() => {
-    if (location.pathname.startsWith("/rosters/")) {
-      setIsRostersOpen(true);
-    }
-  }, [location.pathname]);
+  const [isRostersManuallyOpen, setIsRostersManuallyOpen] = useState(location.pathname.startsWith("/rosters/"));
+  const isRostersOpen = location.pathname.startsWith("/rosters/") || isRostersManuallyOpen;
 
   function renderRostersMenu() {
     if (hasSelectedLeague) {
@@ -34,7 +29,7 @@ function Sidebar() {
           <button
             type="button"
             className="side-link side-link-toggle"
-            onClick={() => setIsRostersOpen((isOpen) => !isOpen)}
+            onClick={() => setIsRostersManuallyOpen((isOpen) => !isOpen)}
             aria-expanded={isRostersOpen}
           >
             <span>Rosters</span>

@@ -2,8 +2,7 @@ import Header from "../components/Header";
 import Sidebar from "../components/Sidebar";
 import { useEffect, useState } from "react";
 import { useLeague } from "../leagues";
-
-const API_BASE = import.meta.env.VITE_API_BASE_URL || "http://localhost:4000";
+import { getTransactions } from "../leagues/requests";
 
 function renderValue(value) {
   if (value == null || value === "") return "N/A";
@@ -64,23 +63,7 @@ function TransactionsPage() {
       }
 
       try {
-        const params = new URLSearchParams();
-        params.set("leagueId", selectedLeagueId);
-        const response = await fetch(`${API_BASE}/api/transactions?${params.toString()}`, {
-          method: "GET",
-          credentials: "include",
-        });
-
-        let data = {};
-        try {
-          data = await response.json();
-        } catch {
-          data = {};
-        }
-
-        if (!response.ok) {
-          throw new Error(data.errorMessage || "Failed to load players.");
-        }
+        const data = await getTransactions(selectedLeagueId);
 
         if (!isMounted) return;
         setTransactions(Array.isArray(data.transactions) ? data.transactions : []);
