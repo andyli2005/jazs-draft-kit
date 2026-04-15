@@ -62,17 +62,6 @@ export function logout() {
   return request("/api/auth/logout", { method: "POST" });
 }
 
-export function createLeague(payload) {
-  return request("/api/leagues", {
-    method: "POST",
-    body: JSON.stringify(payload),
-  });
-}
-
-export function getLeagues() {
-  return request("/api/leagues", { method: "GET" });
-}
-
 export function setMyTeam(leagueId, myTeamId) {
   return request(`/api/leagues/${leagueId}/my-team`, {
     method: "PATCH",
