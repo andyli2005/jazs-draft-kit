@@ -29,6 +29,7 @@ function PlayerStatsPanel({
   onDraftClick,
   onDropClick,
   refreshKey = 0,
+  scrollWithPage = false,
 }) {
   const [playerDoc, setPlayerDoc] = useState(null);
   const [isEditing, setIsEditing] = useState(false);
@@ -124,7 +125,8 @@ function PlayerStatsPanel({
   const notesDisabled = !activeLeagueId;
   const personalNotes = playerDoc?.personalNotes || "";
   const isDrafted = Boolean(player?.isDrafted ?? playerDoc?.ownerId);
-  const actionDisabled = !activeLeagueId;
+  const hasActionHandler = isDrafted ? Boolean(onDropClick) : Boolean(onDraftClick);
+  const actionDisabled = !activeLeagueId || !hasActionHandler;
   const actionLabel = isDrafted ? "Drop" : "Draft";
   const actionClassName = `btn ${
     isDrafted ? "btn-danger" : "btn-primary"
@@ -140,7 +142,7 @@ function PlayerStatsPanel({
   }
 
   return (
-    <aside className="player-stats-panel">
+    <aside className={`player-stats-panel${scrollWithPage ? " player-stats-panel-inline" : ""}`}>
       <div className="player-stats-top">
         <p className="eyebrow">Player Stats</p>
         <button
@@ -206,6 +208,8 @@ function PlayerStatsPanel({
         </div>
         {!activeLeagueId ? (
           <p className="muted">Select a league to manage draft actions.</p>
+        ) : !hasActionHandler ? (
+          <p className="muted">Draft actions are only available from player search.</p>
         ) : null}
       </div>
 

@@ -658,6 +658,12 @@
   animation: panelSlideIn 0.25s ease-out;
 }
 
+.player-stats-panel.player-stats-panel-inline {
+  position: sticky;
+  top: 1rem;
+  align-self: start;
+}
+
 @keyframes panelSlideIn {
   from {
     opacity: 0;
@@ -989,7 +995,7 @@
     position: relative;
   }
 
-  .player-stats-panel {
+  .player-stats-panel:not(.player-stats-panel-inline) {
     position: fixed;
     top: 0;
     right: 0;
@@ -1072,5 +1078,28 @@
 
 .my-team-budget {
   font-weight: 700;
+  text-decoration: underline;
+}
+
+.my-team-toolbar {
+  margin-top: 1rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.roster-player-button {
+  border: 0;
+  padding: 0;
+  margin: 0;
+  background: transparent;
+  text-align: left;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+
+.roster-player-button:hover strong {
   text-decoration: underline;
 }
