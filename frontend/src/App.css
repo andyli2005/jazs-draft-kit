@@ -917,6 +917,18 @@
   color: #1a3570;
 }
 
+.players-table tbody tr.drafted-row td {
+  color: #7d879f;
+}
+
+.players-table tbody tr.drafted-row:not(.selected-row) {
+  background: rgba(49, 61, 89, 0.04);
+}
+
+.player-stats-draft-btn {
+  min-width: 88px;
+}
+
 /* ── Responsive: panel overlays on small screens ─── */
 
 @media (max-width: 1100px) {

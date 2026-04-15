@@ -20,7 +20,15 @@ const BATTING_STATS = [
   { label: "Caught Stealing", key: "caughtStealing" },
 ];
 
-function PlayerStatsPanel({ player, fantasyPoints, cost, activeLeagueId, onClose }) {
+function PlayerStatsPanel({
+  player,
+  fantasyPoints,
+  cost,
+  activeLeagueId,
+  onClose,
+  onDraftClick,
+  onDropClick,
+}) {
   const [playerDoc, setPlayerDoc] = useState(null);
   const [isEditing, setIsEditing] = useState(false);
   const [editDraft, setEditDraft] = useState("");
@@ -113,6 +121,21 @@ function PlayerStatsPanel({ player, fantasyPoints, cost, activeLeagueId, onClose
 
   const notesDisabled = !activeLeagueId;
   const personalNotes = playerDoc?.personalNotes || "";
+  const isDrafted = Boolean(player?.isDrafted ?? playerDoc?.ownerId);
+  const actionDisabled = !activeLeagueId;
+  const actionLabel = isDrafted ? "Drop" : "Draft";
+  const actionClassName = `btn ${
+    isDrafted ? "btn-danger" : "btn-primary"
+  } player-stats-edit-btn player-stats-draft-btn`;
+
+  function handlePrimaryAction() {
+    if (actionDisabled) return;
+    if (isDrafted) {
+      onDropClick?.(player);
+      return;
+    }
+    onDraftClick?.(player);
+  }
 
   return (
     <aside className="player-stats-panel">
@@ -165,6 +188,23 @@ function PlayerStatsPanel({ player, fantasyPoints, cost, activeLeagueId, onClose
           <span className="player-stats-kpi-label">Est. Cost</span>
           <span className="player-stats-kpi-value">${cost}</span>
         </div>
+      </div>
+
+      <div className="player-stats-section">
+        <div className="player-stats-section-head">
+          <h3>Player Action</h3>
+          <button
+            className={actionClassName}
+            type="button"
+            onClick={handlePrimaryAction}
+            disabled={actionDisabled}
+          >
+            {actionLabel}
+          </button>
+        </div>
+        {!activeLeagueId ? (
+          <p className="muted">Select a league to manage draft actions.</p>
+        ) : null}
       </div>
 
       <div className="player-stats-section">

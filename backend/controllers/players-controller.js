@@ -237,6 +237,33 @@ const getPlayers = async (req, res) => {
 
     let players = extractPlayers(data);
 
+    const apiPlayerIds = players
+      .map((player) => player.APIplayerId)
+      .filter((id) => id != null && id !== "");
+
+    let localPlayerMap = new Map();
+    if (apiPlayerIds.length > 0) {
+      const localPlayerDocs = await Player.find(
+        { leagueId, APIplayerId: { $in: apiPlayerIds } },
+        "APIplayerId ownerId bidStartedById price"
+      ).lean();
+      localPlayerMap = new Map(
+        localPlayerDocs.map((doc) => [String(doc.APIplayerId), doc])
+      );
+    }
+
+    players = players.map((player) => {
+      const localDoc = localPlayerMap.get(String(player.APIplayerId));
+      const isDrafted = Boolean(localDoc?.ownerId);
+      return {
+        ...player,
+        isDrafted,
+        draftOwnerId: localDoc?.ownerId ? String(localDoc.ownerId) : null,
+        bidStartedById: localDoc?.bidStartedById ? String(localDoc.bidStartedById) : null,
+        leaguePrice: localDoc?.price ?? null,
+      };
+    });
+
     // The query from original request should contain the true rankBy, 
     // since it is overridden in the upstreamQuery previously
     if (req.query.rankBy === "cost") {

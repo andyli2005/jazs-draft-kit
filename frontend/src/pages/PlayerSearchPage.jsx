@@ -77,6 +77,7 @@ function PlayerSearchPage() {
   const [sortOrder, setSortOrder] = useState("desc");
   const [search, setSearch] = useState("");
   const [selectedPlayer, setSelectedPlayer] = useState(null);
+  const [draftActionMessage, setDraftActionMessage] = useState("");
 
   useEffect(() => {
     let isMounted = true;
@@ -84,6 +85,7 @@ function PlayerSearchPage() {
     async function loadPlayers() {
       setIsLoading(true);
       setErrorMessage("");
+      setDraftActionMessage("");
 
       if (!selectedLeagueId) {
         setIsLoading(false);
@@ -114,7 +116,12 @@ function PlayerSearchPage() {
         }
 
         if (!isMounted) return;
-        setPlayers(Array.isArray(data.players) ? data.players : []);
+        const nextPlayers = Array.isArray(data.players) ? data.players : [];
+        setPlayers(nextPlayers);
+        setSelectedPlayer((prev) => {
+          if (!prev?.APIplayerId) return prev;
+          return nextPlayers.find((player) => player.APIplayerId === prev.APIplayerId) || prev;
+        });
       } catch (err) {
         if (!isMounted) return;
         setErrorMessage(err.message || "Unable to load players.");
@@ -151,6 +158,14 @@ function PlayerSearchPage() {
     return sortOrder === "asc" ? " ▲" : " ▼";
   }
 
+  function handleDraftClick(player) {
+    setDraftActionMessage(`Draft flow for ${player?.name || "player"} will be enabled in the next todo.`);
+  }
+
+  function handleDropClick(player) {
+    setDraftActionMessage(`Drop flow for ${player?.name || "player"} will be enabled in the next todo.`);
+  }
+
   return (
     <main className="app-shell page-private">
       <Header />
@@ -179,6 +194,7 @@ function PlayerSearchPage() {
 
           {isLoading ? <p className="muted">Loading players...</p> : null}
           {!isLoading && errorMessage ? <p className="error">{errorMessage}</p> : null}
+          {!isLoading && !errorMessage && draftActionMessage ? <p className="muted">{draftActionMessage}</p> : null}
           {!isLoading && !errorMessage && !hasPlayers ? (
             <p className="muted">No players found.</p>
           ) : null}
@@ -218,7 +234,7 @@ function PlayerSearchPage() {
                       return (
                         <tr
                           key={rowKey}
-                          className={isSelected ? "selected-row" : ""}
+                          className={`${isSelected ? "selected-row" : ""}${player.isDrafted ? " drafted-row" : ""}`}
                           onClick={() => setSelectedPlayer(player)}
                         >
                           {TABLE_COLUMNS.map((column) => (
@@ -240,8 +256,10 @@ function PlayerSearchPage() {
             <PlayerStatsPanel
               player={selectedPlayer}
               fantasyPoints={selectedPlayer?.fantasyPoints ?? 0}
-              cost={selectedPlayer?.cost ?? selectedPlayer?.price ?? 0}
+              cost={selectedPlayer?.isDrafted ? (selectedPlayer?.leaguePrice ?? selectedPlayer?.cost ?? 0) : (selectedPlayer?.cost ?? 0)}
               activeLeagueId={selectedLeagueId}
+              onDraftClick={handleDraftClick}
+              onDropClick={handleDropClick}
               onClose={() => setSelectedPlayer(null)}
             />
           )}
