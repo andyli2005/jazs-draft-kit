@@ -1,8 +1,7 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import Header from "../components/Header";
 import Sidebar from "../components/Sidebar";
 import { useLeague } from "../leagues";
-import { setMyTeam } from "../auth/requests";
 import "./AllTeamsPage.css";
 
 const ROSTER_SLOTS = [
@@ -41,7 +40,9 @@ function playerLabel(player) {
 }
 
 function AllTeamsPage() {
-  const { leagues, selectedLeagueId, isLoadingLeagues } = useLeague();
+  const { leagues, selectedLeagueId, isLoadingLeagues, setMyTeam } = useLeague();
+  const [isSavingMyTeam, setIsSavingMyTeam] = useState(false);
+  const [saveMyTeamError, setSaveMyTeamError] = useState("");
 
   const activeLeague = useMemo(() => {
     if (leagues.length === 0) return null;
@@ -61,8 +62,6 @@ function AllTeamsPage() {
 
     try {
       await setMyTeam(activeLeague._id, nextMyTeamId);
-      const nextLeagues = await refreshLeagues();
-      setLeagues(Array.isArray(nextLeagues) ? nextLeagues : []);
     } catch (err) {
       setSaveMyTeamError(err.message || "Unable to save My Team.");
     } finally {
@@ -108,7 +107,7 @@ function AllTeamsPage() {
             <p className="muted">Select a league on the dashboard to see its team rosters here.</p>
           ) : null}
 
-          {!isLoading && activeLeague ? (
+          {!isLoadingLeagues && activeLeague ? (
             <>
               <div className="my-team-selector-row">
                 <label className="league-summary-label" htmlFor="my-team-selector">

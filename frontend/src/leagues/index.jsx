@@ -1,6 +1,10 @@
 import { createContext, useContext, useEffect, useMemo, useState } from "react";
 import { useAuth } from "../auth/index.jsx";
-import { createLeague as createLeagueRequest, getLeagues } from "./requests";
+import {
+  createLeague as createLeagueRequest,
+  getLeagues,
+  setMyTeam as setMyTeamRequest,
+} from "./requests";
 
 const STORAGE_KEY = "draft-kit:selected-league-id";
 const LeagueContext = createContext(null);
@@ -116,6 +120,12 @@ export function LeagueProvider({ children }) {
     return response;
   }
 
+  async function setMyTeam(leagueId, myTeamId) {
+    const response = await setMyTeamRequest(leagueId, myTeamId);
+    await refreshLeagues();
+    return response;
+  }
+
   function selectLeague(leagueOrId) {
     const nextId = typeof leagueOrId === "string" ? leagueOrId : leagueOrId?._id || "";
     setSelectedLeagueId(nextId);
@@ -133,6 +143,7 @@ export function LeagueProvider({ children }) {
       hasSelectedLeague: Boolean(selectedLeagueId),
       isLoadingLeagues,
       createLeague,
+      setMyTeam,
       refreshLeagues,
       selectLeague,
       clearSelectedLeague,
@@ -143,6 +154,7 @@ export function LeagueProvider({ children }) {
       selectedLeague,
       isLoadingLeagues,
       createLeague,
+      setMyTeam,
       refreshLeagues,
       selectLeague,
       clearSelectedLeague,
