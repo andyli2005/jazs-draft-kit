@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-
-const API_BASE = import.meta.env.VITE_API_BASE_URL || "http://localhost:4000";
+import { draftPlayer } from "../leagues/requests";
 
 const SLOT_DEFS = [
   { key: "catcher1", label: "C1" },
@@ -73,7 +72,10 @@ function DraftPlayerModal({ open, player, league, onClose, onDrafted }) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState("");
 
-  const rosters = Array.isArray(league?.rosterIds) ? league.rosterIds : [];
+  const rosters = useMemo(
+    () => (Array.isArray(league?.rosterIds) ? league.rosterIds : []),
+    [league?.rosterIds]
+  );
   const activeRoster =
     rosters.find((roster) => String(roster?._id) === String(draftedToRosterId)) || null;
 
@@ -149,23 +151,14 @@ function DraftPlayerModal({ open, player, league, onClose, onDrafted }) {
     setIsSubmitting(true);
     setError("");
     try {
-      const response = await fetch(`${API_BASE}/api/players/${player.APIplayerId}/draft`, {
-        method: "POST",
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          leagueId: league._id,
-          bidStartedById,
-          draftedToRosterId,
-          slotKey,
-          draftCost: numericDraftCost,
-          inactiveOverrideAccepted,
-        }),
+      const data = await draftPlayer(player.APIplayerId, {
+        leagueId: league._id,
+        bidStartedById,
+        draftedToRosterId,
+        slotKey,
+        draftCost: numericDraftCost,
+        inactiveOverrideAccepted,
       });
-      const data = await response.json();
-      if (!response.ok) {
-        throw new Error(data.errorMessage || "Failed to draft player.");
-      }
       await onDrafted?.(data);
       onClose();
     } catch (err) {

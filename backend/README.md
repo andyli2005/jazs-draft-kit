@@ -1,13 +1,15 @@
 # Draft Kit Backend
 
-This backend is an Express API backed by MongoDB. It handles user authentication, league creation, player note persistence, transaction history, and league-aware player valuation requests. It also proxies player data from an upstream players service so the frontend only needs to talk to one backend.
+This backend is an Express API backed by MongoDB. It handles user authentication, league creation and editing, roster ownership, draft/drop mutations, player note persistence, transaction history, and league-aware player valuation requests. It also proxies player data from an upstream players service so the frontend only needs to talk to one backend.
 
 ## Responsibilities
 
 - Issue and validate login sessions with a signed cookie
 - Persist users, leagues, rosters, transactions, and saved player documents in MongoDB
 - Create league records and default rosters when a new draft league is created
+- Edit league structure by renaming, adding, and deleting teams
 - Fetch and reshape player data from the upstream players API
+- Apply draft and drop mutations against league rosters and local player docs
 - Store personal notes for a player within a specific league
 - Expose transaction history for a league
 
@@ -25,8 +27,9 @@ Typical variables used by the backend:
 
 - `PORT`: Express port, defaults to `4000`
 - `FRONTEND_ORIGIN`: allowed frontend origin for CORS
-- `MONGODB_URI`: MongoDB connection string
+- `MONGO_URL`: MongoDB connection string
 - `JWT_SECRET`: secret used to sign auth tokens
+- `JWT_EXPIRES_IN`: optional JWT lifetime, defaults to `1d`
 - `API_ENDPOINT`: base URL for the upstream players service, defaults to `http://localhost:4001`
 - `API_TOKEN`: token forwarded to the upstream players service
 
@@ -116,9 +119,45 @@ Request body:
 {
   "sport": "MLB",
   "name": "Home League",
-  "draftType": "Auction",
+  "draftType": "Salary Cap",
   "teamCount": 12,
   "budgetCap": 260
+}
+```
+
+`PATCH /api/leagues/:id`
+
+- Requires authentication
+- Updates league metadata and team structure
+- Supports league renames, budget changes, team renames, team deletions, and adding new teams
+- Recomputes `teamCount` from the resulting roster list
+- Clears `myTeam` if the selected roster is deleted
+
+Request body shape:
+
+```json
+{
+  "name": "Updated League Name",
+  "budgetCap": 300,
+  "teamRenames": {
+    "ROSTER_ID_1": "Renamed Team"
+  },
+  "teamsToDelete": ["ROSTER_ID_2"],
+  "teamsToAdd": 2
+}
+```
+
+`PATCH /api/leagues/:id/my-team`
+
+- Requires authentication
+- Sets the current league's `myTeam` roster
+- Rejects roster ids that are not part of the target league
+
+Request body:
+
+```json
+{
+  "myTeamId": "ROSTER_ID"
 }
 ```
 
@@ -192,6 +231,46 @@ Request body shape used by the frontend:
 }
 ```
 
+`POST /api/players/:APIplayerId/draft`
+
+- Requires authentication
+- Drafts a player into a specific roster and slot within a league
+- Requires `leagueId`, `bidStartedById`, `draftedToRosterId`, `slotKey`, and `draftCost`
+- Rejects invalid slot names, illegal bids, occupied slots, and already-drafted players
+- Rejects non-active players unless `inactiveOverrideAccepted` is true
+- Tries to use a Mongo transaction and falls back when transactions are unsupported
+
+Request body:
+
+```json
+{
+  "leagueId": "LEAGUE_ID",
+  "bidStartedById": "ROSTER_ID",
+  "draftedToRosterId": "ROSTER_ID",
+  "slotKey": "outfielder1",
+  "draftCost": 24,
+  "inactiveOverrideAccepted": false
+}
+```
+
+`POST /api/players/:APIplayerId/drop`
+
+- Requires authentication
+- Drops a player from the selected roster in the selected league
+- Requires `leagueId` and `rosterId`
+- Refunds the player's draft cost to `budgetLeft`
+- Clears local roster ownership state from the corresponding `Player` document
+- Tries to use a Mongo transaction and falls back when transactions are unsupported
+
+Request body:
+
+```json
+{
+  "leagueId": "LEAGUE_ID",
+  "rosterId": "ROSTER_ID"
+}
+```
+
 ### Transactions
 
 `GET /api/transactions`
@@ -239,9 +318,13 @@ These are the routes actively called by the current frontend code:
 - `DELETE /api/auth/user`
 - `GET /api/leagues`
 - `POST /api/leagues`
+- `PATCH /api/leagues/:id`
+- `PATCH /api/leagues/:id/my-team`
 - `GET /api/players`
 - `GET /api/players/:APIplayerId/doc`
 - `PUT /api/players/:APIplayerId/doc`
+- `POST /api/players/:APIplayerId/draft`
+- `POST /api/players/:APIplayerId/drop`
 - `GET /api/transactions`
 
 `POST /api/transactions` and `GET /api/players/totalFantasyPoints` are implemented by the backend but are not currently called by the checked-in frontend code.

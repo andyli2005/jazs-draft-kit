@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useMemo, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import { useAuth } from "../auth/index.jsx";
 import {
   createLeague as createLeagueRequest,
@@ -108,39 +108,39 @@ export function LeagueProvider({ children }) {
     [leagues, selectedLeagueId]
   );
 
-  async function refreshLeagues() {
+  const refreshLeagues = useCallback(async () => {
     const response = await getLeagues();
     const nextLeagues = Array.isArray(response.leagues) ? response.leagues : [];
     setLeagues(nextLeagues);
     return nextLeagues;
-  }
+  }, []);
 
-  async function createLeague(payload) {
+  const createLeague = useCallback(async (payload) => {
     const response = await createLeagueRequest(payload);
     await refreshLeagues();
     return response;
-  }
+  }, [refreshLeagues]);
 
-  async function setMyTeam(leagueId, myTeamId) {
+  const setMyTeam = useCallback(async (leagueId, myTeamId) => {
     const response = await setMyTeamRequest(leagueId, myTeamId);
     await refreshLeagues();
     return response;
-  }
+  }, [refreshLeagues]);
 
-  async function editLeague(leagueId, payload) {
+  const editLeague = useCallback(async (leagueId, payload) => {
     const response = await updateLeagueRequest(leagueId, payload);
     await refreshLeagues();
     return response;
-  }
+  }, [refreshLeagues]);
 
-  function selectLeague(leagueOrId) {
+  const selectLeague = useCallback((leagueOrId) => {
     const nextId = typeof leagueOrId === "string" ? leagueOrId : leagueOrId?._id || "";
     setSelectedLeagueId(nextId);
-  }
+  }, []);
 
-  function clearSelectedLeague() {
+  const clearSelectedLeague = useCallback(() => {
     setSelectedLeagueId("");
-  }
+  }, []);
 
   const value = useMemo(
     () => ({

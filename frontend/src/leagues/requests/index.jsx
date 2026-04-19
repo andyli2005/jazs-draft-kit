@@ -51,3 +51,49 @@ export function updateLeague(leagueId, payload) {
     body: JSON.stringify(payload),
   });
 }
+
+export function getPlayers(query = {}) {
+  const params = new URLSearchParams();
+  Object.entries(query).forEach(([key, value]) => {
+    if (value != null && value !== "") {
+      params.set(key, String(value));
+    }
+  });
+
+  const queryString = params.toString();
+  const path = queryString ? `/api/players?${queryString}` : "/api/players";
+  return request(path, { method: "GET" });
+}
+
+export function dropPlayer(APIplayerId, payload) {
+  return request(`/api/players/${APIplayerId}/drop`, {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export function getPlayerDoc(APIplayerId, leagueId) {
+  const params = new URLSearchParams({ leagueId: String(leagueId) });
+  return request(`/api/players/${APIplayerId}/doc?${params.toString()}`, {
+    method: "GET",
+  });
+}
+
+export function updatePlayerDoc(APIplayerId, payload) {
+  return request(`/api/players/${APIplayerId}/doc`, {
+    method: "PUT",
+    body: JSON.stringify(payload),
+  });
+}
+
+export function draftPlayer(APIplayerId, payload) {
+  return request(`/api/players/${APIplayerId}/draft`, {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export function getTransactions(leagueId) {
+  const params = new URLSearchParams({ leagueId: String(leagueId) });
+  return request(`/api/transactions?${params.toString()}`, { method: "GET" });
+}

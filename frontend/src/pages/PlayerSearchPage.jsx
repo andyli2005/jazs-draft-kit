@@ -4,8 +4,7 @@ import DraftPlayerModal from "../components/DraftPlayerModal";
 import PlayerStatsPanel from "../components/PlayerStatsPanel";
 import Sidebar from "../components/Sidebar";
 import { useLeague } from "../leagues";
-
-const API_BASE = import.meta.env.VITE_API_BASE_URL || "http://localhost:4000";
+import { dropPlayer, getPlayers } from "../leagues/requests";
 const TABLE_COLUMNS = [
   { label: "Name", key: "name" },
   { label: "Status", key: "status" },
@@ -73,6 +72,15 @@ function isStatusActive(status) {
   return String(status || "").trim().toLowerCase() === "active";
 }
 
+function buildPlayersQuery({ sortBy, sortOrder, search, selectedLeagueId }) {
+  return {
+    rankBy: sortBy,
+    order: sortOrder,
+    name: search,
+    leagueId: selectedLeagueId,
+  };
+}
+
 function PlayerSearchPage() {
   const { selectedLeagueId, selectedLeague, refreshLeagues } = useLeague();
   const [players, setPlayers] = useState([]);
@@ -99,26 +107,7 @@ function PlayerSearchPage() {
       }
 
       try {
-        const params = new URLSearchParams();
-        params.set("rankBy", sortBy);
-        params.set("order", sortOrder);
-        if (search) params.set("name", search);
-        params.set("leagueId", selectedLeagueId);
-        const response = await fetch(`${API_BASE}/api/players?${params.toString()}`, {
-          method: "GET",
-          credentials: "include",
-        });
-
-        let data = {};
-        try {
-          data = await response.json();
-        } catch {
-          data = {};
-        }
-
-        if (!response.ok) {
-          throw new Error(data.errorMessage || data.message || "Failed to load players.");
-        }
+        const data = await getPlayers(buildPlayersQuery({ sortBy, sortOrder, search, selectedLeagueId }));
 
         if (!isMounted) return;
         const nextPlayers = Array.isArray(data.players) ? data.players : [];
@@ -164,19 +153,7 @@ function PlayerSearchPage() {
   }
 
   async function reloadPlayers() {
-    const params = new URLSearchParams();
-    params.set("rankBy", sortBy);
-    params.set("order", sortOrder);
-    if (search) params.set("name", search);
-    params.set("leagueId", selectedLeagueId);
-    const response = await fetch(`${API_BASE}/api/players?${params.toString()}`, {
-      method: "GET",
-      credentials: "include",
-    });
-    const data = await response.json();
-    if (!response.ok) {
-      throw new Error(data.errorMessage || data.message || "Failed to load players.");
-    }
+    const data = await getPlayers(buildPlayersQuery({ sortBy, sortOrder, search, selectedLeagueId }));
     const nextPlayers = Array.isArray(data.players) ? data.players : [];
     setPlayers(nextPlayers);
     setSelectedPlayer((prev) => {
@@ -196,19 +173,10 @@ function PlayerSearchPage() {
     if (!didConfirm) return;
 
     try {
-      const response = await fetch(`${API_BASE}/api/players/${player.APIplayerId}/drop`, {
-        method: "POST",
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          leagueId: selectedLeagueId,
-          rosterId: player.draftOwnerId,
-        }),
+      await dropPlayer(player.APIplayerId, {
+        leagueId: selectedLeagueId,
+        rosterId: player.draftOwnerId,
       });
-      const data = await response.json();
-      if (!response.ok) {
-        throw new Error(data.errorMessage || "Failed to drop player.");
-      }
       await refreshLeagues();
       await reloadPlayers();
     } catch (err) {
