@@ -17,23 +17,27 @@ function isDateLike(value) {
   return !Number.isNaN(parsed);
 }
 
-function renderMessage(transaction) {
-  switch(transaction.actionType) {
+function renderMessage(transaction, rosterMap) {
+  switch (transaction.actionType) {
     case "UpdatedNotes":
       return `You updated ${transaction.player}'s player notes.`;
-    case "UpdatedPosition": 
+    case "UpdatedPosition":
       return `You updated ${transaction.player}'s position.`;
-    case "Drafted":
-      return `${transaction.teamOwner} ${transaction.actionType.toLowerCase()} ${transaction.player} for $${transaction.draftCost}. ($${transaction.budgetLeft} left)`;
-    case "Dropped":
-      return `${transaction.teamOwner} ${transaction.actionType.toLowerCase()} ${transaction.player} for $${transaction.draftCost}. ($${transaction.budgetLeft} left)`;
+    default: {
+      const teamName = rosterMap[String(transaction.rosterId)] || transaction.teamOwner;
+      return `${teamName} ${transaction.actionType.toLowerCase()} ${transaction.player} for $${transaction.draftCost}. ($${transaction.budgetLeft} left)`;
+    }
   }
-  return "Error";
 }
 
-function renderCellValue(key, value, transaction) {
-  if (key === "teamOwner" && transaction.actionType === "UpdatedNotes") return "N/A";
-  if (key === "message") return renderMessage(transaction);
+function renderCellValue(key, value, transaction, rosterMap) {
+  // Use new roster map for any name changes
+  if (key === "teamOwner") {
+    if (transaction.actionType === "UpdatedNotes") return "N/A";
+    const teamName = rosterMap[String(transaction.rosterId)] || transaction.teamOwner;
+    return teamName;
+  }
+  if (key === "message") return renderMessage(transaction, rosterMap);
   // Safety string check with .startsWith method
   if (key === "actionType") {
     const actionType = typeof value === "string" ? value : "";
@@ -54,7 +58,7 @@ const TABLE_COLUMNS = [
 ];
 
 function TransactionsPage() {
-  const { selectedLeagueId } = useLeague();
+  const { selectedLeagueId, selectedLeague } = useLeague();
   const [transactions, setTransactions] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState("");
@@ -92,6 +96,14 @@ function TransactionsPage() {
 
   const hasTransactions = transactions.length > 0;
 
+  // stringify ids -> name, use reduce to return a single object/map
+  const rosterMap =
+    selectedLeague?.rosterIds?.reduce(
+      (accumulator, currentRoster) => {
+        accumulator[String(currentRoster._id)] = currentRoster.name;
+        return accumulator;
+      }, {}) || {};
+
   return (
     <main className="app-shell page-private">
       <Header />
@@ -128,7 +140,7 @@ function TransactionsPage() {
                         <tr key={rowKey}>
                           {TABLE_COLUMNS.map((column) => (
                             <td key={`${rowKey}-${column.key}`}>
-                              {renderCellValue(column.key, transaction[column.key], transaction)}
+                              {renderCellValue(column.key, transaction[column.key], transaction, rosterMap)}
                             </td>
                           ))}
                         </tr>
