@@ -83,7 +83,7 @@ class Database {
     return deletedUser;
   }
 
-  async createTransaction(transactionData)    { const newTransction = new Transaction(transactionData); return newTransction.save(); }
+  async createTransaction(transactionData, options={})    { const newTransction = new Transaction(transactionData); return newTransction.save(options); }
   async getTransactions(leagueId)             { return Transaction.find({ leagueId }).sort({ createdAt: -1 }).limit(50); }
 
   async createLeague(leagueData) {

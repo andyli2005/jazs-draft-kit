@@ -373,6 +373,15 @@ const getPlayerDoc = async (req, res) => {
       return res.status(400).json({ errorMessage: "leagueId query parameter is required." });
     }
 
+    const league = await League.findById(leagueId).select("user").lean();
+    if (!league) {
+      return res.status(404).json({ errorMessage: "League not found." });
+    }
+
+    if (String(league.user) !== String(req.userId)) {
+      return res.status(403).json({ errorMessage: "You do not have access to this league." });
+    }
+
     const playerDoc = await db.getPlayerDoc(APIplayerId, leagueId);
     return res.status(200).json({ playerDoc });
   } catch (err) {
@@ -392,6 +401,15 @@ const upsertPlayerDoc = async (req, res) => {
 
     if (!leagueId) {
       return res.status(400).json({ errorMessage: "leagueId is required." });
+    }
+
+    const league = await League.findById(leagueId).select("user").lean();
+    if (!league) {
+      return res.status(404).json({ errorMessage: "League not found." });
+    }
+
+    if (String(league.user) !== String(req.userId)) {
+      return res.status(403).json({ errorMessage: "You do not have access to this league." });
     }
 
     const prevDoc = await db.getPlayerDoc(APIplayerId, leagueId);
@@ -419,7 +437,7 @@ const upsertPlayerDoc = async (req, res) => {
     if (hasChangedNotes) {
       const user = await db.getUserById(req.userId);
       const data = {
-        teamOwner: user.userName,
+        teamOwner: user?.userName || "N/A",
         player: playerDoc.name,
         actionType: "UpdatedNotes",
         leagueId,
@@ -563,6 +581,16 @@ const draftPlayer = async (req, res) => {
       const updatedRosterQuery = MLBRoster.findById(draftedToRosterId);
       if (activeSession) updatedRosterQuery.session(activeSession);
       updatedRoster = await updatedRosterQuery;
+
+      const data = {
+        teamOwner: updatedRoster?.name || "Unknown Team",
+        player: updatedPlayerDoc?.name || "Unknown Player",
+        actionType: "Drafted",
+        draftCost: normalizedDraftCost,
+        budgetLeft: Number(updatedRoster?.budgetLeft ?? 0),
+        leagueId,
+      };
+      await db.createTransaction(data, queryOptions);
     };
 
     session = await mongoose.startSession();
@@ -668,6 +696,16 @@ const dropPlayer = async (req, res) => {
       const updatedRosterQuery = MLBRoster.findById(rosterId);
       if (activeSession) updatedRosterQuery.session(activeSession);
       updatedRoster = await updatedRosterQuery;
+
+      const data = {
+        teamOwner: updatedRoster?.name || "Unknown Team",
+        player: updatedPlayerDoc?.name || "Unknown Player",
+        actionType: "Dropped",
+        draftCost: refundAmount,
+        budgetLeft: Number(updatedRoster?.budgetLeft ?? 0),
+        leagueId,
+      };
+      await db.createTransaction(data, queryOptions);
     };
 
     session = await mongoose.startSession();

@@ -18,18 +18,27 @@ function isDateLike(value) {
 }
 
 function renderMessage(transaction) {
-  if (transaction.actionType === "UpdatedNotes") {
-    return `You updated ${transaction.player}'s player notes.`;
+  switch(transaction.actionType) {
+    case "UpdatedNotes":
+      return `You updated ${transaction.player}'s player notes.`;
+    case "UpdatedPosition": 
+      return `You updated ${transaction.player}'s position.`;
+    case "Drafted":
+      return `${transaction.teamOwner} ${transaction.actionType.toLowerCase()} ${transaction.player} for $${transaction.draftCost}. ($${transaction.budgetLeft} left)`;
+    case "Dropped":
+      return `${transaction.teamOwner} ${transaction.actionType.toLowerCase()} ${transaction.player} for $${transaction.draftCost}. ($${transaction.budgetLeft} left)`;
   }
-  if (transaction.actionType === "UpdatedPosition") {
-    return `You updated ${transaction.player}'s position.`;
-  }
-  return `${transaction.teamOwner} ${transaction.actionType.toLowerCase()} ${transaction.player} for $${transaction.draftCost}. ($${transaction.budgetLeft} left)`;
+  return "Error";
 }
 
 function renderCellValue(key, value, transaction) {
+  if (key === "teamOwner" && transaction.actionType === "UpdatedNotes") return "N/A";
   if (key === "message") return renderMessage(transaction);
-  if (key === "actionType" && value.startsWith("Updated")) return "Update";
+  // Safety string check with .startsWith method
+  if (key === "actionType") {
+    const actionType = typeof value === "string" ? value : "";
+    if (actionType.startsWith("Updated")) return "Updated";
+  }
   if ((key === "createdAt" || key === "updatedAt") && isDateLike(value)) {
     return new Date(value).toLocaleString();
   }
@@ -64,7 +73,6 @@ function TransactionsPage() {
 
       try {
         const data = await getTransactions(selectedLeagueId);
-
         if (!isMounted) return;
         setTransactions(Array.isArray(data.transactions) ? data.transactions : []);
       } catch (err) {
@@ -76,11 +84,9 @@ function TransactionsPage() {
     }
     setIsLoading(true);
     loadTransactions();
-    const polling = setInterval(loadTransactions, 3000);
 
     return () => {
       isMounted = false;
-      clearInterval(polling);
     };
   }, [selectedLeagueId]);
 
