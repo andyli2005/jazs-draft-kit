@@ -4,9 +4,8 @@ import PlayerStatsPanel from "../components/PlayerStatsPanel";
 import Sidebar from "../components/Sidebar";
 import { Link, useParams } from "react-router-dom";
 import { useLeague } from "../leagues";
+import { dropPlayer } from "../leagues/requests";
 import RosterPageContent from "./RosterPageContent";
-
-const API_BASE = import.meta.env.VITE_API_BASE_URL || "http://localhost:4000";
 
 function RostersPage() {
   const { rosterId } = useParams();
@@ -26,19 +25,10 @@ function RostersPage() {
 
     setActionError("");
     try {
-      const response = await fetch(`${API_BASE}/api/players/${player.APIplayerId}/drop`, {
-        method: "POST",
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          leagueId: selectedLeagueId,
-          rosterId: selectedRoster._id,
-        }),
+      await dropPlayer(player.APIplayerId, {
+        leagueId: selectedLeagueId,
+        rosterId: selectedRoster._id,
       });
-      const data = await response.json();
-      if (!response.ok) {
-        throw new Error(data.errorMessage || "Failed to drop player.");
-      }
       await refreshLeagues();
       setSelectedPlayer(null);
     } catch (err) {

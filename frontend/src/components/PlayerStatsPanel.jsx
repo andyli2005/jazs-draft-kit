@@ -1,6 +1,5 @@
 import { useEffect, useState } from "react";
-
-const API_BASE = import.meta.env.VITE_API_BASE_URL || "http://localhost:4000";
+import { getPlayerDoc, updatePlayerDoc } from "../leagues/requests";
 
 const BATTING_STATS = [
   { label: "At Bats", key: "atBats" },
@@ -47,11 +46,7 @@ function PlayerStatsPanel({
     let isMounted = true;
     async function fetchPlayerDoc() {
       try {
-        const res = await fetch(
-          `${API_BASE}/api/players/${player.APIplayerId}/doc?leagueId=${activeLeagueId}`,
-          { method: "GET", credentials: "include" }
-        );
-        const data = await res.json();
+        const data = await getPlayerDoc(player.APIplayerId, activeLeagueId);
         if (!isMounted) return;
         setPlayerDoc(data.playerDoc || null);
       } catch {
@@ -86,33 +81,21 @@ function PlayerStatsPanel({
     setIsSaving(true);
     setSaveError("");
     try {
-      const res = await fetch(
-        `${API_BASE}/api/players/${player.APIplayerId}/doc`,
-        {
-          method: "PUT",
-          credentials: "include",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            leagueId: activeLeagueId,
-            personalNotes: editDraft,
-            name: player.name,
-            status: player.status || "Active",
-            notes: player.notes || "",
-            positions: player.positions || "",
-            team: player.team || "",
-            pictureURL: player.pictureURL || "",
-            // Keep existing draft price for accurate drop refunds.
-            price: playerDoc?.price ?? player?.leaguePrice ?? 0,
-            currentStats: player.currentStats || {},
-            projectedStats: player.projectedStats || {},
-            threeYearAverageStats: player.threeYearAverageStats || {},
-          }),
-        }
-      );
-      const data = await res.json();
-      if (!res.ok) {
-        throw new Error(data.errorMessage || "Failed to save notes.");
-      }
+      const data = await updatePlayerDoc(player.APIplayerId, {
+        leagueId: activeLeagueId,
+        personalNotes: editDraft,
+        name: player.name,
+        status: player.status || "Active",
+        notes: player.notes || "",
+        positions: player.positions || "",
+        team: player.team || "",
+        pictureURL: player.pictureURL || "",
+        // Keep existing draft price for accurate drop refunds.
+        price: playerDoc?.price ?? player?.leaguePrice ?? 0,
+        currentStats: player.currentStats || {},
+        projectedStats: player.projectedStats || {},
+        threeYearAverageStats: player.threeYearAverageStats || {},
+      });
       setPlayerDoc(data.playerDoc);
       setIsEditing(false);
     } catch (err) {
