@@ -589,6 +589,7 @@ const draftPlayer = async (req, res) => {
         draftCost: normalizedDraftCost,
         budgetLeft: Number(updatedRoster?.budgetLeft ?? 0),
         leagueId,
+        rosterId: draftedToRosterId,
       };
       await db.createTransaction(data, queryOptions);
     };
@@ -704,6 +705,7 @@ const dropPlayer = async (req, res) => {
         draftCost: refundAmount,
         budgetLeft: Number(updatedRoster?.budgetLeft ?? 0),
         leagueId,
+        rosterId,
       };
       await db.createTransaction(data, queryOptions);
     };
