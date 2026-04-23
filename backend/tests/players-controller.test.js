@@ -22,6 +22,14 @@ const {
   normalizeStatBlock,
 } = playersController.__testables;
 
+const LEAGUE_ID = "507f1f77bcf86cd799439011";
+const ROSTER_ID = "507f191e810c19729de860ea";
+const OTHER_ROSTER_ID = "507f191e810c19729de860eb";
+const API_PLAYER_ID = "507f191e810c19729de860aa";
+const API_PLAYER_ID_TWO = "507f191e810c19729de860ab";
+const PLAYER_DOC_ID = "507f191e810c19729de860ac";
+const USER_ID = "507f191e810c19729de860ad";
+
 function createSession() {
   return {
     withTransaction: async (callback) => callback(),
@@ -42,6 +50,17 @@ function createQuery(result) {
     },
     then(resolve, reject) {
       return Promise.resolve(result).then(resolve, reject);
+    },
+  };
+}
+
+function createSelectLeanQuery(result) {
+  return {
+    select() {
+      return this;
+    },
+    lean() {
+      return Promise.resolve(result);
     },
   };
 }
@@ -401,26 +420,32 @@ describe("players-controller endpoints", () => {
 
   it("getPlayerDoc validates leagueId and returns the saved doc", async () => {
     const missingRes = createResponse();
-    await playersController.getPlayerDoc({ params: { APIplayerId: "api-1" }, query: {} }, missingRes);
+    await playersController.getPlayerDoc({ params: { APIplayerId: API_PLAYER_ID }, query: {} }, missingRes);
     expect(missingRes.statusCode).toBe(400);
 
-    vi.spyOn(db, "getPlayerDoc").mockResolvedValue({ APIplayerId: "api-1", leagueId: "league-1" });
+    vi.spyOn(League, "findById").mockReturnValue(
+      createSelectLeanQuery({ user: USER_ID })
+    );
+    vi.spyOn(db, "getPlayerDoc").mockResolvedValue({ APIplayerId: API_PLAYER_ID, leagueId: LEAGUE_ID });
     const res = createResponse();
     await playersController.getPlayerDoc(
-      { params: { APIplayerId: "api-1" }, query: { leagueId: "league-1" } },
+      { userId: USER_ID, params: { APIplayerId: API_PLAYER_ID }, query: { leagueId: LEAGUE_ID } },
       res
     );
 
     expect(res.statusCode).toBe(200);
-    expect(res.jsonPayload.playerDoc).toEqual({ APIplayerId: "api-1", leagueId: "league-1" });
+    expect(res.jsonPayload.playerDoc).toEqual({ APIplayerId: API_PLAYER_ID, leagueId: LEAGUE_ID });
   });
 
   it("getPlayerDoc returns 500 when the document lookup fails", async () => {
+    vi.spyOn(League, "findById").mockReturnValue(
+      createSelectLeanQuery({ user: USER_ID })
+    );
     vi.spyOn(db, "getPlayerDoc").mockRejectedValue(new Error("db down"));
     const res = createResponse();
 
     await playersController.getPlayerDoc(
-      { params: { APIplayerId: "api-1" }, query: { leagueId: "league-1" } },
+      { userId: USER_ID, params: { APIplayerId: API_PLAYER_ID }, query: { leagueId: LEAGUE_ID } },
       res
     );
 
@@ -431,11 +456,14 @@ describe("players-controller endpoints", () => {
   it("upsertPlayerDoc validates missing leagueId and skips transactions when notes are unchanged", async () => {
     const missingRes = createResponse();
     await playersController.upsertPlayerDoc(
-      { params: { APIplayerId: "api-1" }, body: {}, userId: "user-1" },
+      { params: { APIplayerId: API_PLAYER_ID }, body: {}, userId: USER_ID },
       missingRes
     );
     expect(missingRes.statusCode).toBe(400);
 
+    vi.spyOn(League, "findById").mockReturnValue(
+      createSelectLeanQuery({ user: USER_ID })
+    );
     vi.spyOn(db, "getPlayerDoc").mockResolvedValue({ personalNotes: "same", price: 12 });
     vi.spyOn(db, "upsertPlayerDoc").mockResolvedValue({ name: "Player One" });
     const createTransactionSpy = vi.spyOn(db, "createTransaction").mockResolvedValue({});
@@ -443,9 +471,9 @@ describe("players-controller endpoints", () => {
 
     await playersController.upsertPlayerDoc(
       {
-        params: { APIplayerId: "api-1" },
+        params: { APIplayerId: API_PLAYER_ID },
         body: {
-          leagueId: "league-1",
+          leagueId: LEAGUE_ID,
           personalNotes: "same",
           name: "Player One",
           status: "Active",
@@ -455,7 +483,7 @@ describe("players-controller endpoints", () => {
           projectedStats: {},
           threeYearAverageStats: {},
         },
-        userId: "user-1",
+        userId: USER_ID,
       },
       res
     );
@@ -465,16 +493,19 @@ describe("players-controller endpoints", () => {
   });
 
   it("upsertPlayerDoc records a transaction when personal notes change", async () => {
+    vi.spyOn(League, "findById").mockReturnValue(
+      createSelectLeanQuery({ user: USER_ID })
+    );
     vi.spyOn(db, "getPlayerDoc").mockResolvedValue({ personalNotes: "before", price: 12 });
     vi.spyOn(db, "upsertPlayerDoc").mockResolvedValue({ name: "Player One" });
     vi.spyOn(db, "getUserById").mockResolvedValue({ userName: "Owner" });
     const createTransactionSpy = vi.spyOn(db, "createTransaction").mockResolvedValue({});
 
     const req = {
-      userId: "user-1",
-      params: { APIplayerId: "api-1" },
+      userId: USER_ID,
+      params: { APIplayerId: API_PLAYER_ID },
       body: {
-        leagueId: "league-1",
+        leagueId: LEAGUE_ID,
         personalNotes: "after",
         name: "Player One",
         status: "Active",
@@ -494,19 +525,22 @@ describe("players-controller endpoints", () => {
       teamOwner: "Owner",
       player: "Player One",
       actionType: "UpdatedNotes",
-      leagueId: "league-1",
+      leagueId: LEAGUE_ID,
     });
   });
 
   it("upsertPlayerDoc returns 500 when persistence fails", async () => {
+    vi.spyOn(League, "findById").mockReturnValue(
+      createSelectLeanQuery({ user: USER_ID })
+    );
     vi.spyOn(db, "getPlayerDoc").mockRejectedValue(new Error("db down"));
     const res = createResponse();
 
     await playersController.upsertPlayerDoc(
       {
-        params: { APIplayerId: "api-1" },
-        body: { leagueId: "league-1" },
-        userId: "user-1",
+        params: { APIplayerId: API_PLAYER_ID },
+        body: { leagueId: LEAGUE_ID },
+        userId: USER_ID,
       },
       res
     );
@@ -619,7 +653,7 @@ describe("players-controller endpoints", () => {
       status: 200,
       json: async () => ({
         item: {
-          _id: "api-2",
+          _id: API_PLAYER_ID_TWO,
           name: "Healthy Player",
           status: "Active",
           positions: "SP",
@@ -638,27 +672,24 @@ describe("players-controller endpoints", () => {
       endSession: async () => {},
     };
     vi.spyOn(mongoose, "startSession").mockResolvedValue(session);
-    vi.spyOn(League, "findById").mockImplementation(() =>
-      createQuery({ _id: "league-1", user: "user-1", rosterIds: ["roster-1"] })
-    );
-    vi.spyOn(MLBRoster, "findById").mockImplementation(() =>
-      createQuery({ _id: "roster-1", budgetLeft: 100, pitcher1: null })
-    );
-    vi.spyOn(Player, "findOne").mockImplementation(() => createQuery(null));
-    vi.spyOn(Player, "findOneAndUpdate").mockResolvedValue({ _id: "player-doc-1" });
+    vi.spyOn(League, "findById").mockResolvedValue({ _id: LEAGUE_ID, user: USER_ID, rosterIds: [ROSTER_ID] });
+    vi.spyOn(MLBRoster, "findById").mockResolvedValue({ _id: ROSTER_ID, budgetLeft: 100, pitcher1: null });
+    vi.spyOn(Player, "findOne").mockResolvedValue(null);
+    vi.spyOn(Player, "findOneAndUpdate").mockResolvedValue({ _id: PLAYER_DOC_ID });
     vi.spyOn(Player, "updateOne")
       .mockResolvedValueOnce({ modifiedCount: 1 })
       .mockResolvedValueOnce({ modifiedCount: 1 });
-    vi.spyOn(Player, "findById").mockImplementation(() => createQuery({ _id: "player-doc-1", ownerId: "roster-1" }));
+    vi.spyOn(Player, "findById").mockResolvedValue({ _id: PLAYER_DOC_ID, ownerId: ROSTER_ID });
     vi.spyOn(MLBRoster, "updateOne").mockResolvedValue({ modifiedCount: 1 });
+    vi.spyOn(db, "createTransaction").mockResolvedValue({});
 
     const req = {
-      userId: "user-1",
-      params: { APIplayerId: "api-2" },
+      userId: USER_ID,
+      params: { APIplayerId: API_PLAYER_ID_TWO },
       body: {
-        leagueId: "league-1",
-        bidStartedById: "roster-1",
-        draftedToRosterId: "roster-1",
+        leagueId: LEAGUE_ID,
+        bidStartedById: ROSTER_ID,
+        draftedToRosterId: ROSTER_ID,
         slotKey: "pitcher1",
         draftCost: 10,
         inactiveOverrideAccepted: true,
@@ -669,8 +700,8 @@ describe("players-controller endpoints", () => {
     await playersController.draftPlayer(req, res);
 
     expect(res.statusCode).toBe(200);
-    expect(res.jsonPayload.playerDoc._id).toBe("player-doc-1");
-    expect(res.jsonPayload.roster._id).toBe("roster-1");
+    expect(res.jsonPayload.playerDoc._id).toBe(PLAYER_DOC_ID);
+    expect(res.jsonPayload.roster._id).toBe(ROSTER_ID);
   });
 
   it("draftPlayer rejects access to leagues owned by another user", async () => {
@@ -728,29 +759,27 @@ describe("players-controller endpoints", () => {
   });
 
   it("dropPlayer clears roster ownership and refunds budget", async () => {
-    const session = createSession();
+    const session = {
+      withTransaction: async () => {
+        throw new Error("Transaction numbers are only allowed on a replica set member or mongos");
+      },
+      endSession: async () => {},
+    };
     vi.spyOn(mongoose, "startSession").mockResolvedValue(session);
-    vi.spyOn(League, "findById").mockImplementation(() =>
-      createQuery({ _id: "league-1", user: "user-1", rosterIds: ["roster-1"] })
-    );
-    vi.spyOn(MLBRoster, "findById").mockImplementation(() =>
-      createQuery({ _id: "roster-1", budgetLeft: 80, pitcher1: "player-doc-1" })
-    );
-    vi.spyOn(Player, "findOne").mockImplementation(() =>
-      createQuery({ _id: "player-doc-1", ownerId: "roster-1", price: 12 })
-    );
+    vi.spyOn(League, "findById").mockResolvedValue({ _id: LEAGUE_ID, user: USER_ID, rosterIds: [ROSTER_ID] });
+    vi.spyOn(MLBRoster, "findById").mockResolvedValue({ _id: ROSTER_ID, budgetLeft: 80, pitcher1: PLAYER_DOC_ID });
+    vi.spyOn(Player, "findOne").mockResolvedValue({ _id: PLAYER_DOC_ID, ownerId: ROSTER_ID, price: 12 });
     vi.spyOn(MLBRoster, "updateOne").mockResolvedValue({ modifiedCount: 1 });
     vi.spyOn(Player, "updateOne").mockResolvedValue({ modifiedCount: 1 });
-    vi.spyOn(Player, "findById").mockImplementation(() =>
-      createQuery({ _id: "player-doc-1", ownerId: null, price: 0 })
-    );
+    vi.spyOn(Player, "findById").mockResolvedValue({ _id: PLAYER_DOC_ID, ownerId: null, price: 0 });
+    vi.spyOn(db, "createTransaction").mockResolvedValue({});
 
     const req = {
-      userId: "user-1",
-      params: { APIplayerId: "api-1" },
+      userId: USER_ID,
+      params: { APIplayerId: API_PLAYER_ID },
       body: {
-        leagueId: "league-1",
-        rosterId: "roster-1",
+        leagueId: LEAGUE_ID,
+        rosterId: ROSTER_ID,
       },
     };
     const res = createResponse();
@@ -759,7 +788,7 @@ describe("players-controller endpoints", () => {
 
     expect(res.statusCode).toBe(200);
     expect(res.jsonPayload.playerDoc.ownerId).toBeNull();
-    expect(res.jsonPayload.roster._id).toBe("roster-1");
+    expect(res.jsonPayload.roster._id).toBe(ROSTER_ID);
   });
 
   it("dropPlayer rejects rosters that are not part of the league", async () => {
