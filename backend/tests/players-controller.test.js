@@ -1,0 +1,814 @@
+"use strict";
+
+const mongoose = require("mongoose");
+const db = require("../db");
+const League = require("../db/models/League");
+const MLBRoster = require("../db/models/MLBRoster");
+const Player = require("../db/models/Player");
+const playersController = require("../controllers/players-controller");
+const { createResponse } = require("./test-helpers");
+
+const {
+  buildUpstreamUrl,
+  createHttpError,
+  extractPlayers,
+  fetchLicensedPlayerById,
+  fetchLicensedPlayerFromEvaluations,
+  getApiBase,
+  hasTruthyOverride,
+  isTransactionUnsupportedError,
+  mapPlayerToDocFields,
+  normalizeApiPlayer,
+  normalizeStatBlock,
+} = playersController.__testables;
+
+function createSession() {
+  return {
+    withTransaction: async (callback) => callback(),
+    endSession: async () => {},
+  };
+}
+
+function createQuery(result) {
+  return {
+    session() {
+      return this;
+    },
+    lean() {
+      return Promise.resolve(result);
+    },
+    select() {
+      return Promise.resolve(result);
+    },
+    then(resolve, reject) {
+      return Promise.resolve(result).then(resolve, reject);
+    },
+  };
+}
+
+describe("players-controller helpers", () => {
+  const originalFetch = global.fetch;
+  const originalApiToken = process.env.API_TOKEN;
+  const originalApiEndpoint = process.env.API_ENDPOINT;
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+    global.fetch = originalFetch;
+    process.env.API_TOKEN = originalApiToken;
+    process.env.API_ENDPOINT = originalApiEndpoint;
+  });
+
+  it("normalizeStatBlock converts invalid stat values to zero", () => {
+    expect(normalizeStatBlock({ runs: "7", hits: "bad" }).runs).toBe(7);
+    expect(normalizeStatBlock({ runs: "7", hits: "bad" }).hits).toBe(0);
+    expect(normalizeStatBlock({}).fantasyPoints).toBe(0);
+  });
+
+  it("normalizeApiPlayer maps licensed API payloads", () => {
+    const normalized = normalizeApiPlayer({
+      _id: "api-1",
+      name: "Player One",
+      status: "DTD",
+      note: "day-to-day",
+      positions: "1B",
+      team: "NYM",
+      currentStats: { runs: "3" },
+    });
+
+    expect(normalized).toMatchObject({
+      APIplayerId: "api-1",
+      name: "Player One",
+      status: "DTD",
+      notes: "day-to-day",
+      positions: "1B",
+      team: "NYM",
+      price: 0,
+    });
+    expect(normalized.currentStats.runs).toBe(3);
+    expect(normalizeApiPlayer(null)).toBeNull();
+  });
+
+  it("buildUpstreamUrl appends arrays and removes trailing slashes from the base url", () => {
+    process.env.API_ENDPOINT = "http://example.test///";
+
+    const url = buildUpstreamUrl({ leagueId: "ignored", foo: ["a", "b"], bar: 7 }, "/api/x");
+
+    expect(url).toBe("http://example.test/api/x?leagueId=ignored&foo=a&foo=b&bar=7");
+    expect(getApiBase()).toBe("http://example.test");
+  });
+
+  it("extractPlayers supports both array and nested payload shapes", () => {
+    const payload = {
+      items: [
+        {
+          _id: "api-1",
+          name: "Player One",
+          status: "Active",
+          pictureURL: "img",
+          positions: "SP",
+          team: "SEA",
+          cost: 12,
+          currentStats: { runs: 1 },
+        },
+      ],
+    };
+
+    expect(extractPlayers(payload)).toEqual([
+      expect.objectContaining({
+        APIplayerId: "api-1",
+        team: "SEA",
+        cost: 12,
+        runs: 1,
+      }),
+    ]);
+  });
+
+  it("mapPlayerToDocFields preserves local draft state from an existing document", () => {
+    const fields = mapPlayerToDocFields(
+      {
+        name: "Player One",
+        status: "Active",
+        notes: "Healthy",
+        positions: "SP",
+        team: "SEA",
+        pictureURL: "img",
+        currentStats: { runs: 1 },
+        projectedStats: { runs: 2 },
+        threeYearAverageStats: { runs: 3 },
+      },
+      {
+        price: 44,
+        personalNotes: "stash",
+      }
+    );
+
+    expect(fields.price).toBe(44);
+    expect(fields.personalNotes).toBe("stash");
+    expect(fields.notes).toBe("Healthy");
+  });
+
+  it("hasTruthyOverride only accepts boolean true or the string true", () => {
+    expect(hasTruthyOverride(true)).toBe(true);
+    expect(hasTruthyOverride("true")).toBe(true);
+    expect(hasTruthyOverride("TRUE")).toBe(false);
+    expect(hasTruthyOverride(1)).toBe(false);
+  });
+
+  it("createHttpError and transaction error detection preserve status information", () => {
+    const error = createHttpError(409, "bad state");
+
+    expect(error.status).toBe(409);
+    expect(error.message).toBe("bad state");
+    expect(
+      isTransactionUnsupportedError(
+        new Error("Transaction numbers are only allowed on a replica set member or mongos")
+      )
+    ).toBe(true);
+    expect(isTransactionUnsupportedError(new Error("other failure"))).toBe(false);
+  });
+
+  it("fetchLicensedPlayerById falls back to evaluations on a 404 detail lookup", async () => {
+    process.env.API_TOKEN = "token";
+    global.fetch = vi
+      .fn()
+      .mockResolvedValueOnce({
+        status: 404,
+        ok: false,
+        json: async () => ({}),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          items: [
+            {
+              _id: "api-7",
+              name: "Fallback Player",
+              status: "Active",
+              positions: "OF",
+              team: "ATL",
+              currentStats: {},
+              projectedStats: {},
+              threeYearAverageStats: {},
+            },
+          ],
+        }),
+      });
+
+    const player = await fetchLicensedPlayerById("api-7");
+
+    expect(player.APIplayerId).toBe("api-7");
+    expect(player.name).toBe("Fallback Player");
+  });
+
+  it("fetchLicensedPlayerFromEvaluations throws when the player is absent", async () => {
+    process.env.API_TOKEN = "token";
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ items: [] }),
+    });
+
+    await expect(fetchLicensedPlayerFromEvaluations("missing")).rejects.toMatchObject({
+      status: 404,
+      message: "Player not found.",
+    });
+  });
+
+  it("fetchLicensedPlayerById throws for invalid upstream payloads", async () => {
+    process.env.API_TOKEN = "token";
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({ item: { _id: "different-id" } }),
+    });
+
+    await expect(fetchLicensedPlayerById("api-9")).rejects.toMatchObject({
+      status: 502,
+      message: "Licensed API returned an invalid player payload.",
+    });
+  });
+});
+
+describe("players-controller endpoints", () => {
+  const originalFetch = global.fetch;
+  const originalApiToken = process.env.API_TOKEN;
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+    global.fetch = originalFetch;
+    process.env.API_TOKEN = originalApiToken;
+  });
+
+  it("getPlayers rejects requests when API_TOKEN is missing", async () => {
+    delete process.env.API_TOKEN;
+    const res = createResponse();
+
+    await playersController.getPlayers({ query: {} }, res);
+
+    expect(res.statusCode).toBe(500);
+    expect(res.jsonPayload.errorMessage).toBe("Server configuration is missing API_TOKEN.");
+  });
+
+  it("getPlayers validates the league id", async () => {
+    process.env.API_TOKEN = "token";
+    const res = createResponse();
+
+    await playersController.getPlayers({ query: {} }, res);
+
+    expect(res.statusCode).toBe(400);
+    expect(res.jsonPayload.errorMessage).toBe("leagueId query parameter is required.");
+  });
+
+  it("getPlayers returns merged local state and sorts by cost when requested", async () => {
+    process.env.API_TOKEN = "token";
+    vi.spyOn(db, "getLeagueById").mockResolvedValue({
+      _id: "league-1",
+      rosterIds: ["roster-1", "roster-2"],
+    });
+    vi.spyOn(db, "getMLBRosterById")
+      .mockResolvedValueOnce({ budgetLeft: 100, catcher1: null })
+      .mockResolvedValueOnce({ budgetLeft: 90, catcher1: "x" });
+    vi.spyOn(Player, "find").mockReturnValue(
+      createQuery([
+        {
+          APIplayerId: "api-2",
+          ownerId: "roster-1",
+          bidStartedById: "roster-1",
+          price: 25,
+        },
+      ])
+    );
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        items: [
+          {
+            _id: "api-1",
+            name: "Low Cost",
+            status: "Active",
+            positions: "SP",
+            team: "SEA",
+            cost: 5,
+            currentStats: {},
+            projectedStats: {},
+            threeYearAverageStats: {},
+          },
+          {
+            _id: "api-2",
+            name: "High Cost",
+            status: "Active",
+            positions: "OF",
+            team: "ATL",
+            cost: 15,
+            currentStats: {},
+            projectedStats: {},
+            threeYearAverageStats: {},
+          },
+        ],
+      }),
+    });
+
+    const req = { query: { leagueId: "league-1", rankBy: "cost", order: "asc" } };
+    const res = createResponse();
+
+    await playersController.getPlayers(req, res);
+
+    expect(res.statusCode).toBe(200);
+    expect(res.jsonPayload.success).toBe(true);
+    expect(res.jsonPayload.players.map((player) => player.APIplayerId)).toEqual(["api-1", "api-2"]);
+    expect(res.jsonPayload.players[1]).toMatchObject({
+      isDrafted: true,
+      draftOwnerId: "roster-1",
+      bidStartedById: "roster-1",
+      leaguePrice: 25,
+    });
+    expect(res.jsonPayload.leagueState.moneyAboveMinimum).toBeGreaterThanOrEqual(0);
+  });
+
+  it("getPlayers returns upstream errors", async () => {
+    process.env.API_TOKEN = "token";
+    vi.spyOn(db, "getLeagueById").mockResolvedValue({ _id: "league-1", rosterIds: [] });
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: false,
+      status: 422,
+      json: async () => ({ errorMessage: "Bad query" }),
+    });
+
+    const res = createResponse();
+    await playersController.getPlayers({ query: { leagueId: "league-1" } }, res);
+
+    expect(res.statusCode).toBe(422);
+    expect(res.jsonPayload.errorMessage).toBe("Bad query");
+  });
+
+  it("getPlayers returns 404 when the league does not exist", async () => {
+    process.env.API_TOKEN = "token";
+    vi.spyOn(db, "getLeagueById").mockResolvedValue(null);
+
+    const res = createResponse();
+    await playersController.getPlayers({ query: { leagueId: "league-1" } }, res);
+
+    expect(res.statusCode).toBe(404);
+    expect(res.jsonPayload.errorMessage).toBe("League not found. ");
+  });
+
+  it("getPlayers returns a 502 when the upstream request throws", async () => {
+    process.env.API_TOKEN = "token";
+    vi.spyOn(db, "getLeagueById").mockResolvedValue({ _id: "league-1", rosterIds: [] });
+    global.fetch = vi.fn().mockRejectedValue(new Error("offline"));
+
+    const res = createResponse();
+    await playersController.getPlayers({ query: { leagueId: "league-1" } }, res);
+
+    expect(res.statusCode).toBe(502);
+    expect(res.jsonPayload.errorMessage).toContain("Unable to reach players service");
+  });
+
+  it("getTotalFantasyPoints validates API configuration and upstream failures", async () => {
+    delete process.env.API_TOKEN;
+    const missingRes = createResponse();
+    await playersController.getTotalFantasyPoints({}, missingRes);
+    expect(missingRes.statusCode).toBe(500);
+
+    process.env.API_TOKEN = "token";
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: false,
+      status: 503,
+      json: async () => ({ message: "Unavailable" }),
+    });
+    const upstreamRes = createResponse();
+    await playersController.getTotalFantasyPoints({}, upstreamRes);
+    expect(upstreamRes.statusCode).toBe(503);
+
+    global.fetch = vi.fn().mockRejectedValue(new Error("offline"));
+    const networkRes = createResponse();
+    await playersController.getTotalFantasyPoints({}, networkRes);
+    expect(networkRes.statusCode).toBe(502);
+  });
+
+  it("getTotalFantasyPoints returns the upstream total", async () => {
+    process.env.API_TOKEN = "token";
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ totalPoints: 987 }),
+    });
+    const res = createResponse();
+
+    await playersController.getTotalFantasyPoints({}, res);
+
+    expect(res.statusCode).toBe(200);
+    expect(res.jsonPayload).toEqual({ success: true, totalPoints: 987 });
+  });
+
+  it("getPlayerDoc validates leagueId and returns the saved doc", async () => {
+    const missingRes = createResponse();
+    await playersController.getPlayerDoc({ params: { APIplayerId: "api-1" }, query: {} }, missingRes);
+    expect(missingRes.statusCode).toBe(400);
+
+    vi.spyOn(db, "getPlayerDoc").mockResolvedValue({ APIplayerId: "api-1", leagueId: "league-1" });
+    const res = createResponse();
+    await playersController.getPlayerDoc(
+      { params: { APIplayerId: "api-1" }, query: { leagueId: "league-1" } },
+      res
+    );
+
+    expect(res.statusCode).toBe(200);
+    expect(res.jsonPayload.playerDoc).toEqual({ APIplayerId: "api-1", leagueId: "league-1" });
+  });
+
+  it("getPlayerDoc returns 500 when the document lookup fails", async () => {
+    vi.spyOn(db, "getPlayerDoc").mockRejectedValue(new Error("db down"));
+    const res = createResponse();
+
+    await playersController.getPlayerDoc(
+      { params: { APIplayerId: "api-1" }, query: { leagueId: "league-1" } },
+      res
+    );
+
+    expect(res.statusCode).toBe(500);
+    expect(res.jsonPayload.errorMessage).toBe("Error fetching player document.");
+  });
+
+  it("upsertPlayerDoc validates missing leagueId and skips transactions when notes are unchanged", async () => {
+    const missingRes = createResponse();
+    await playersController.upsertPlayerDoc(
+      { params: { APIplayerId: "api-1" }, body: {}, userId: "user-1" },
+      missingRes
+    );
+    expect(missingRes.statusCode).toBe(400);
+
+    vi.spyOn(db, "getPlayerDoc").mockResolvedValue({ personalNotes: "same", price: 12 });
+    vi.spyOn(db, "upsertPlayerDoc").mockResolvedValue({ name: "Player One" });
+    const createTransactionSpy = vi.spyOn(db, "createTransaction").mockResolvedValue({});
+    const res = createResponse();
+
+    await playersController.upsertPlayerDoc(
+      {
+        params: { APIplayerId: "api-1" },
+        body: {
+          leagueId: "league-1",
+          personalNotes: "same",
+          name: "Player One",
+          status: "Active",
+          positions: "SP",
+          team: "SEA",
+          currentStats: {},
+          projectedStats: {},
+          threeYearAverageStats: {},
+        },
+        userId: "user-1",
+      },
+      res
+    );
+
+    expect(res.statusCode).toBe(200);
+    expect(createTransactionSpy).not.toHaveBeenCalled();
+  });
+
+  it("upsertPlayerDoc records a transaction when personal notes change", async () => {
+    vi.spyOn(db, "getPlayerDoc").mockResolvedValue({ personalNotes: "before", price: 12 });
+    vi.spyOn(db, "upsertPlayerDoc").mockResolvedValue({ name: "Player One" });
+    vi.spyOn(db, "getUserById").mockResolvedValue({ userName: "Owner" });
+    const createTransactionSpy = vi.spyOn(db, "createTransaction").mockResolvedValue({});
+
+    const req = {
+      userId: "user-1",
+      params: { APIplayerId: "api-1" },
+      body: {
+        leagueId: "league-1",
+        personalNotes: "after",
+        name: "Player One",
+        status: "Active",
+        positions: "SP",
+        team: "SEA",
+        currentStats: {},
+        projectedStats: {},
+        threeYearAverageStats: {},
+      },
+    };
+    const res = createResponse();
+
+    await playersController.upsertPlayerDoc(req, res);
+
+    expect(res.statusCode).toBe(200);
+    expect(createTransactionSpy).toHaveBeenCalledWith({
+      teamOwner: "Owner",
+      player: "Player One",
+      actionType: "UpdatedNotes",
+      leagueId: "league-1",
+    });
+  });
+
+  it("upsertPlayerDoc returns 500 when persistence fails", async () => {
+    vi.spyOn(db, "getPlayerDoc").mockRejectedValue(new Error("db down"));
+    const res = createResponse();
+
+    await playersController.upsertPlayerDoc(
+      {
+        params: { APIplayerId: "api-1" },
+        body: { leagueId: "league-1" },
+        userId: "user-1",
+      },
+      res
+    );
+
+    expect(res.statusCode).toBe(500);
+    expect(res.jsonPayload.errorMessage).toBe("Error saving player document.");
+  });
+
+  it("draftPlayer validates missing required fields before touching persistence", async () => {
+    const res = createResponse();
+
+    await playersController.draftPlayer({ params: { APIplayerId: "api-1" }, body: {} }, res);
+
+    expect(res.statusCode).toBe(400);
+    expect(res.jsonPayload.errorMessage).toContain("leagueId, bidStartedById");
+  });
+
+  it("draftPlayer rejects invalid slot keys and draft costs", async () => {
+    const invalidSlotRes = createResponse();
+    await playersController.draftPlayer(
+      {
+        params: { APIplayerId: "api-1" },
+        body: {
+          leagueId: "league-1",
+          bidStartedById: "roster-1",
+          draftedToRosterId: "roster-1",
+          slotKey: "bench",
+          draftCost: 10,
+        },
+      },
+      invalidSlotRes
+    );
+    expect(invalidSlotRes.statusCode).toBe(400);
+
+    const invalidCostRes = createResponse();
+    await playersController.draftPlayer(
+      {
+        params: { APIplayerId: "api-1" },
+        body: {
+          leagueId: "league-1",
+          bidStartedById: "roster-1",
+          draftedToRosterId: "roster-1",
+          slotKey: "pitcher1",
+          draftCost: "NaN",
+        },
+      },
+      invalidCostRes
+    );
+    expect(invalidCostRes.statusCode).toBe(400);
+
+    const negativeCostRes = createResponse();
+    await playersController.draftPlayer(
+      {
+        params: { APIplayerId: "api-1" },
+        body: {
+          leagueId: "league-1",
+          bidStartedById: "roster-1",
+          draftedToRosterId: "roster-1",
+          slotKey: "pitcher1",
+          draftCost: -1,
+        },
+      },
+      negativeCostRes
+    );
+    expect(negativeCostRes.statusCode).toBe(400);
+  });
+
+  it("draftPlayer requires explicit inactive override for inactive players", async () => {
+    process.env.API_TOKEN = "token";
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        item: {
+          _id: "api-1",
+          name: "Injured Player",
+          status: "Out",
+          positions: "SP",
+          team: "SEA",
+          currentStats: {},
+          projectedStats: {},
+          threeYearAverageStats: {},
+        },
+      }),
+    });
+
+    const req = {
+      userId: "user-1",
+      params: { APIplayerId: "api-1" },
+      body: {
+        leagueId: "league-1",
+        bidStartedById: "roster-1",
+        draftedToRosterId: "roster-1",
+        slotKey: "pitcher1",
+        draftCost: 10,
+      },
+    };
+    const res = createResponse();
+
+    await playersController.draftPlayer(req, res);
+
+    expect(res.statusCode).toBe(400);
+    expect(res.jsonPayload.errorMessage).toContain("Player is not currently active");
+  });
+
+  it("draftPlayer applies the draft mutation and falls back when transactions are unsupported", async () => {
+    process.env.API_TOKEN = "token";
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        item: {
+          _id: "api-2",
+          name: "Healthy Player",
+          status: "Active",
+          positions: "SP",
+          team: "SEA",
+          currentStats: {},
+          projectedStats: {},
+          threeYearAverageStats: {},
+        },
+      }),
+    });
+
+    const session = {
+      withTransaction: async () => {
+        throw new Error("Transaction numbers are only allowed on a replica set member or mongos");
+      },
+      endSession: async () => {},
+    };
+    vi.spyOn(mongoose, "startSession").mockResolvedValue(session);
+    vi.spyOn(League, "findById").mockImplementation(() =>
+      createQuery({ _id: "league-1", user: "user-1", rosterIds: ["roster-1"] })
+    );
+    vi.spyOn(MLBRoster, "findById").mockImplementation(() =>
+      createQuery({ _id: "roster-1", budgetLeft: 100, pitcher1: null })
+    );
+    vi.spyOn(Player, "findOne").mockImplementation(() => createQuery(null));
+    vi.spyOn(Player, "findOneAndUpdate").mockResolvedValue({ _id: "player-doc-1" });
+    vi.spyOn(Player, "updateOne")
+      .mockResolvedValueOnce({ modifiedCount: 1 })
+      .mockResolvedValueOnce({ modifiedCount: 1 });
+    vi.spyOn(Player, "findById").mockImplementation(() => createQuery({ _id: "player-doc-1", ownerId: "roster-1" }));
+    vi.spyOn(MLBRoster, "updateOne").mockResolvedValue({ modifiedCount: 1 });
+
+    const req = {
+      userId: "user-1",
+      params: { APIplayerId: "api-2" },
+      body: {
+        leagueId: "league-1",
+        bidStartedById: "roster-1",
+        draftedToRosterId: "roster-1",
+        slotKey: "pitcher1",
+        draftCost: 10,
+        inactiveOverrideAccepted: true,
+      },
+    };
+    const res = createResponse();
+
+    await playersController.draftPlayer(req, res);
+
+    expect(res.statusCode).toBe(200);
+    expect(res.jsonPayload.playerDoc._id).toBe("player-doc-1");
+    expect(res.jsonPayload.roster._id).toBe("roster-1");
+  });
+
+  it("draftPlayer rejects access to leagues owned by another user", async () => {
+    process.env.API_TOKEN = "token";
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        item: {
+          _id: "api-2",
+          name: "Healthy Player",
+          status: "Active",
+          positions: "SP",
+          team: "SEA",
+          currentStats: {},
+          projectedStats: {},
+          threeYearAverageStats: {},
+        },
+      }),
+    });
+
+    const session = createSession();
+    vi.spyOn(mongoose, "startSession").mockResolvedValue(session);
+    vi.spyOn(League, "findById").mockImplementation(() =>
+      createQuery({ _id: "league-1", user: "other-user", rosterIds: ["roster-1"] })
+    );
+
+    const req = {
+      userId: "user-1",
+      params: { APIplayerId: "api-2" },
+      body: {
+        leagueId: "league-1",
+        bidStartedById: "roster-1",
+        draftedToRosterId: "roster-1",
+        slotKey: "pitcher1",
+        draftCost: 10,
+        inactiveOverrideAccepted: true,
+      },
+    };
+    const res = createResponse();
+
+    await playersController.draftPlayer(req, res);
+
+    expect(res.statusCode).toBe(403);
+    expect(res.jsonPayload.errorMessage).toBe("You do not have access to this league.");
+  });
+
+  it("dropPlayer validates required fields", async () => {
+    const res = createResponse();
+
+    await playersController.dropPlayer({ params: { APIplayerId: "api-1" }, body: {} }, res);
+
+    expect(res.statusCode).toBe(400);
+    expect(res.jsonPayload.errorMessage).toBe("leagueId and rosterId are required.");
+  });
+
+  it("dropPlayer clears roster ownership and refunds budget", async () => {
+    const session = createSession();
+    vi.spyOn(mongoose, "startSession").mockResolvedValue(session);
+    vi.spyOn(League, "findById").mockImplementation(() =>
+      createQuery({ _id: "league-1", user: "user-1", rosterIds: ["roster-1"] })
+    );
+    vi.spyOn(MLBRoster, "findById").mockImplementation(() =>
+      createQuery({ _id: "roster-1", budgetLeft: 80, pitcher1: "player-doc-1" })
+    );
+    vi.spyOn(Player, "findOne").mockImplementation(() =>
+      createQuery({ _id: "player-doc-1", ownerId: "roster-1", price: 12 })
+    );
+    vi.spyOn(MLBRoster, "updateOne").mockResolvedValue({ modifiedCount: 1 });
+    vi.spyOn(Player, "updateOne").mockResolvedValue({ modifiedCount: 1 });
+    vi.spyOn(Player, "findById").mockImplementation(() =>
+      createQuery({ _id: "player-doc-1", ownerId: null, price: 0 })
+    );
+
+    const req = {
+      userId: "user-1",
+      params: { APIplayerId: "api-1" },
+      body: {
+        leagueId: "league-1",
+        rosterId: "roster-1",
+      },
+    };
+    const res = createResponse();
+
+    await playersController.dropPlayer(req, res);
+
+    expect(res.statusCode).toBe(200);
+    expect(res.jsonPayload.playerDoc.ownerId).toBeNull();
+    expect(res.jsonPayload.roster._id).toBe("roster-1");
+  });
+
+  it("dropPlayer rejects rosters that are not part of the league", async () => {
+    const session = createSession();
+    vi.spyOn(mongoose, "startSession").mockResolvedValue(session);
+    vi.spyOn(League, "findById").mockImplementation(() =>
+      createQuery({ _id: "league-1", user: "user-1", rosterIds: ["roster-2"] })
+    );
+
+    const req = {
+      userId: "user-1",
+      params: { APIplayerId: "api-1" },
+      body: {
+        leagueId: "league-1",
+        rosterId: "roster-1",
+      },
+    };
+    const res = createResponse();
+
+    await playersController.dropPlayer(req, res);
+
+    expect(res.statusCode).toBe(400);
+    expect(res.jsonPayload.errorMessage).toBe("Selected roster does not belong to this league.");
+  });
+
+  it("dropPlayer returns 404 when the player document does not exist", async () => {
+    const session = createSession();
+    vi.spyOn(mongoose, "startSession").mockResolvedValue(session);
+    vi.spyOn(League, "findById").mockImplementation(() =>
+      createQuery({ _id: "league-1", user: "user-1", rosterIds: ["roster-1"] })
+    );
+    vi.spyOn(MLBRoster, "findById").mockImplementation(() =>
+      createQuery({ _id: "roster-1", budgetLeft: 80, pitcher1: null })
+    );
+    vi.spyOn(Player, "findOne").mockImplementation(() => createQuery(null));
+
+    const req = {
+      userId: "user-1",
+      params: { APIplayerId: "api-1" },
+      body: {
+        leagueId: "league-1",
+        rosterId: "roster-1",
+      },
+    };
+    const res = createResponse();
+
+    await playersController.dropPlayer(req, res);
+
+    expect(res.statusCode).toBe(404);
+    expect(res.jsonPayload.errorMessage).toBe("Player document not found for this league.");
+  });
+});
