@@ -9,6 +9,7 @@ const transactionSchema = new mongoose.Schema(
     draftCost:  { type: Number, default: 0 },
     budgetLeft: { type: Number, default: 260 },
     leagueId:   { type: ObjectId, ref: "League", required: true },
+    rosterId:   { type: ObjectId, ref: "MLBRoster", default: null },
   },
   { timestamps: true }
 );
