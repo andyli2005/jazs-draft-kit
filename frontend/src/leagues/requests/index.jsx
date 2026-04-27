@@ -72,6 +72,13 @@ export function dropPlayer(APIplayerId, payload) {
   });
 }
 
+export function movePlayer(APIplayerId, payload) {
+  return request(`/api/players/${APIplayerId}/move`, {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
 export function getPlayerDoc(APIplayerId, leagueId) {
   const params = new URLSearchParams({ leagueId: String(leagueId) });
   return request(`/api/players/${APIplayerId}/doc?${params.toString()}`, {
