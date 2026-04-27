@@ -180,10 +180,70 @@ const editLeague = async (req, res) => {
     }
 
     if (deleteSet.size > 0) {
+      // Turn set to array since $in operations require array 
+      const deleteArray = Array.from(deleteSet);
+
+      // Before deletion of a roster, retrieve the necessary information to create 
+      // drop transactions for each player, using select and lean for optimized reads
+      const [rostersToDelete, playersToDrop] = await Promise.all([
+        MLBRoster.find({ _id: { $in: deleteArray } }).select("name budgetLeft").lean(),
+        Player.find({
+          leagueId: league._id,
+          ownerId: { $in: deleteArray },
+        })
+          .select("name price ownerId")
+          .lean(),
+      ]);
+
+      const rosterIdsToRoster = new Map(
+        rostersToDelete.map((roster) => [String(roster._id), roster])
+      );
+
+      const rosterIdToPlayers = new Map();
+      playersToDrop.forEach((player) => {
+        const owner = String(player.ownerId || "");
+        if (!owner) return;
+        const currPlayers = rosterIdToPlayers.get(owner) || [];
+        currPlayers.push(player);
+        rosterIdToPlayers.set(owner, currPlayers);
+      });
+
+      // Idea: Collect all the data/bodies for every drop transaction then delete later 
+      // 1) Go through all the rosterIds that are mapped to at least one player to delete
+      // 2) For each id, collect name and budgetLeft of that roster 
+      // 3) For each id, collect all the players sorted by name 
+      // 4) For each player collected, create the transaction data 
+      const dropTransactionsBody = [];
+      const rosterIdsToForDropTransactions = Array.from(rosterIdToPlayers.keys()).sort();
+      for (const rosterId of rosterIdsToForDropTransactions) {
+        const roster = rosterIdsToRoster.get(rosterId);
+        const teamName = typeof roster?.name === "string" ? roster.name : "Unknown Team";
+        let runningBudgetLeft = Number(roster?.budgetLeft ?? 0);
+
+        const players = rosterIdToPlayers.get(rosterId) || [];
+        const sortedPlayers = players
+          .slice()
+          .sort((a, b) => String(a?.name || "").localeCompare(String(b?.name || "")));
+
+        for (const player of sortedPlayers) {
+          const refundAmount = Number(player?.price) || 0;
+          runningBudgetLeft += refundAmount;
+          dropTransactionsBody.push({
+            teamOwner: teamName,
+            player: player?.name || "Unknown Player",
+            actionType: "Dropped",
+            draftCost: refundAmount,
+            budgetLeft: runningBudgetLeft,
+            leagueId: league._id,
+            rosterId: roster?._id || null,
+          });
+        }
+      }
+
       await Player.updateMany(
         {
           leagueId: league._id,
-          ownerId: { $in: Array.from(deleteSet) },
+          ownerId: { $in: deleteArray },
         },
         {
           $set: { ownerId: null, bidStartedById: null, price: 0 },
@@ -193,12 +253,16 @@ const editLeague = async (req, res) => {
       await Player.updateMany(
         {
           leagueId: league._id,
-          bidStartedById: { $in: Array.from(deleteSet) },
+          bidStartedById: { $in: deleteArray },
         },
         {
           $set: { bidStartedById: null },
         }
       );
+
+      for (const body of dropTransactionsBody) {
+        await db.createTransaction(body);
+      }
 
       const filteredRosterIds = (league.rosterIds || []).filter(
         (rosterId) => !deleteSet.has(String(rosterId))
@@ -209,7 +273,7 @@ const editLeague = async (req, res) => {
         league.myTeam = null;
       }
 
-      await MLBRoster.deleteMany({ _id: { $in: Array.from(deleteSet) } });
+      await MLBRoster.deleteMany({ _id: { $in: deleteArray } });
     }
 
     if (normalizedTeamsToAdd > 0) {
