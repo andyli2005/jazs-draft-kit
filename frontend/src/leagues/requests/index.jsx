@@ -65,6 +65,32 @@ export function getPlayers(query = {}) {
   return request(path, { method: "GET" });
 }
 
+export function getCustomPlayers(leagueId) {
+  const params = new URLSearchParams({ leagueId: String(leagueId) });
+  return request(`/api/players/custom?${params.toString()}`, { method: "GET" });
+}
+
+export function createCustomPlayer(payload) {
+  return request("/api/players/custom", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export function updateCustomPlayer(playerId, payload) {
+  return request(`/api/players/custom/${playerId}`, {
+    method: "PATCH",
+    body: JSON.stringify(payload),
+  });
+}
+
+export function deleteCustomPlayer(playerId, payload) {
+  return request(`/api/players/custom/${playerId}`, {
+    method: "DELETE",
+    body: JSON.stringify(payload),
+  });
+}
+
 export function dropPlayer(APIplayerId, payload) {
   return request(`/api/players/${APIplayerId}/drop`, {
     method: "POST",
@@ -95,6 +121,27 @@ export function updatePlayerDoc(APIplayerId, payload) {
 
 export function draftPlayer(APIplayerId, payload) {
   return request(`/api/players/${APIplayerId}/draft`, {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export function draftCustomPlayer(playerId, payload) {
+  return request(`/api/players/custom/${playerId}/draft`, {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export function dropCustomPlayer(playerId, payload) {
+  return request(`/api/players/custom/${playerId}/drop`, {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export function moveCustomPlayer(playerId, payload) {
+  return request(`/api/players/custom/${playerId}/move`, {
     method: "POST",
     body: JSON.stringify(payload),
   });
