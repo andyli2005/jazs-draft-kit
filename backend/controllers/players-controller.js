@@ -510,7 +510,7 @@ const getPlayers = async (req, res) => {
     let localPlayerMap = new Map();
     if (apiPlayerIds.length > 0) {
       const localPlayerDocs = await Player.find(
-        { leagueId, APIplayerId: { $in: apiPlayerIds } },
+        { leagueId, APIplayerId: { $in: apiPlayerIds }, isCustom: false },
         "APIplayerId ownerId bidStartedById price"
       ).lean();
       localPlayerMap = new Map(
@@ -760,7 +760,7 @@ const draftPlayer = async (req, res) => {
         throw createHttpError(400, "Draft cost exceeds legal budget based on remaining slots.");
       }
 
-      const existingDocQuery = Player.findOne({ APIplayerId, leagueId });
+      const existingDocQuery = Player.findOne({ APIplayerId, leagueId, isCustom: false });
       if (activeSession) existingDocQuery.session(activeSession);
       const existingDoc = await existingDocQuery;
       if (existingDoc?.ownerId) {
@@ -772,8 +772,8 @@ const draftPlayer = async (req, res) => {
 
       const docFields = mapPlayerToDocFields(licensedPlayer, existingDoc);
       const playerDoc = await Player.findOneAndUpdate(
-        { APIplayerId, leagueId },
-        { $set: { APIplayerId, leagueId, ...docFields } },
+        { APIplayerId, leagueId, isCustom: false },
+        { $set: { APIplayerId, leagueId, isCustom: false, ...docFields } },
         { upsert: true, new: true, runValidators: true, ...queryOptions }
       );
 
@@ -881,7 +881,7 @@ const dropPlayer = async (req, res) => {
         throw createHttpError(404, "Roster not found.");
       }
 
-      const playerDocQuery = Player.findOne({ APIplayerId, leagueId });
+      const playerDocQuery = Player.findOne({ APIplayerId, leagueId, isCustom: false });
       if (activeSession) playerDocQuery.session(activeSession);
       const playerDoc = await playerDocQuery;
       if (!playerDoc) {
@@ -1003,7 +1003,7 @@ const movePlayer = async (req, res) => {
         throw createHttpError(404, "Roster not found.");
       }
 
-      const playerDocQuery = Player.findOne({ APIplayerId, leagueId });
+      const playerDocQuery = Player.findOne({ APIplayerId, leagueId, isCustom: false });
       if (activeSession) playerDocQuery.session(activeSession);
       const playerDoc = await playerDocQuery;
       if (!playerDoc) {
