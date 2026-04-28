@@ -75,6 +75,10 @@ function MyTeamPage() {
             cost={selectedPlayer?.price ?? 0}
             activeLeagueId={selectedLeagueId}
             onDropClick={handleDropClick}
+            onMoved={async () => {
+              await refreshLeagues();
+              setSelectedPlayer(null);
+            }}
             scrollWithPage
             onClose={() => setSelectedPlayer(null)}
           />
