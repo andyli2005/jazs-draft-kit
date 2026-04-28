@@ -4,6 +4,10 @@ const PlayersController = require("../controllers/players-controller");
 const auth = require("../auth");
 
 router.get("/totalFantasyPoints", auth.verify, PlayersController.getTotalFantasyPoints);
+router.get("/custom", auth.verify, PlayersController.getCustomPlayers);
+router.post("/custom", auth.verify, PlayersController.createCustomPlayer);
+router.patch("/custom/:playerId", auth.verify, PlayersController.updateCustomPlayer);
+router.delete("/custom/:playerId", auth.verify, PlayersController.deleteCustomPlayer);
 router.get("/:APIplayerId/doc", auth.verify, PlayersController.getPlayerDoc);
 router.put("/:APIplayerId/doc", auth.verify, PlayersController.upsertPlayerDoc);
 router.post("/:APIplayerId/draft", auth.verify, PlayersController.draftPlayer);

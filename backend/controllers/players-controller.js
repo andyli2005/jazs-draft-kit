@@ -92,6 +92,31 @@ function hasTruthyOverride(value) {
   return value === true || value === "true";
 }
 
+function buildEmptyStatBlock() {
+  return STAT_KEYS.reduce((acc, key) => {
+    acc[key] = 0;
+    return acc;
+  }, {});
+}
+
+async function getAuthorizedLeague(leagueId, userId, activeSession = null) {
+  const leagueQuery = League.findById(leagueId);
+  if (activeSession) {
+    leagueQuery.session(activeSession);
+  }
+
+  const league = await leagueQuery;
+  if (!league) {
+    throw createHttpError(404, "League not found.");
+  }
+
+  if (String(league.user) !== String(userId)) {
+    throw createHttpError(403, "You do not have access to this league.");
+  }
+
+  return league;
+}
+
 function mapPlayerToDocFields(licensedPlayer, existingDoc) {
   return {
     name: licensedPlayer.name,
@@ -219,6 +244,207 @@ function buildUpstreamUrl(query, path="/api/players") {
   const base = `${getApiBase()}${path}`;
   return queryString ? `${base}?${queryString}` : base;
 }
+
+const getCustomPlayers = async (req, res) => {
+  try {
+    const { leagueId } = req.query;
+    if (!leagueId) {
+      return res.status(400).json({ errorMessage: "leagueId query parameter is required." });
+    }
+
+    await getAuthorizedLeague(leagueId, req.userId);
+    const players = await Player.find({ leagueId, isCustom: true }).sort({ name: 1, createdAt: -1 });
+    return res.status(200).json({ success: true, players });
+  } catch (err) {
+    console.error(err);
+    return res.status(err.status || 500).json({ errorMessage: err.message || "Error fetching custom players." });
+  }
+};
+
+const createCustomPlayer = async (req, res) => {
+  try {
+    const {
+      leagueId,
+      name,
+      status,
+      notes,
+      positions,
+      team,
+      pictureURL,
+      personalNotes,
+    } = req.body || {};
+
+    if (!leagueId) {
+      return res.status(400).json({ errorMessage: "leagueId is required." });
+    }
+    if (!name || !status || !positions || !team) {
+      return res.status(400).json({
+        errorMessage: "name, status, positions, and team are required to create a custom player.",
+      });
+    }
+
+    await getAuthorizedLeague(leagueId, req.userId);
+
+    const emptyStats = buildEmptyStatBlock();
+    const playerDoc = await Player.create({
+      leagueId,
+      isCustom: true,
+      APIplayerId: null,
+      name: String(name).trim(),
+      status: String(status).trim(),
+      notes: (notes || status || "").trim(),
+      positions: String(positions).trim(),
+      team: String(team).trim(),
+      pictureURL: pictureURL || "",
+      personalNotes: personalNotes || "",
+      price: 0,
+      currentStats: emptyStats,
+      projectedStats: emptyStats,
+      threeYearAverageStats: emptyStats,
+      ownerId: null,
+      bidStartedById: null,
+    });
+
+    return res.status(201).json({ playerDoc });
+  } catch (err) {
+    console.error(err);
+    return res.status(err.status || 500).json({ errorMessage: err.message || "Error creating custom player." });
+  }
+};
+
+const updateCustomPlayer = async (req, res) => {
+  try {
+    const { playerId } = req.params;
+    const { leagueId } = req.body || {};
+    if (!leagueId) {
+      return res.status(400).json({ errorMessage: "leagueId is required." });
+    }
+
+    await getAuthorizedLeague(leagueId, req.userId);
+
+    const playerDoc = await Player.findOne({ _id: playerId, leagueId, isCustom: true });
+    if (!playerDoc) {
+      return res.status(404).json({ errorMessage: "Custom player not found in this league." });
+    }
+
+    const editableStringFields = ["name", "status", "notes", "positions", "team", "pictureURL", "personalNotes"];
+    editableStringFields.forEach((field) => {
+      if (req.body[field] != null) {
+        playerDoc[field] = String(req.body[field]).trim();
+      }
+    });
+
+    if (req.body.currentStats != null) {
+      playerDoc.currentStats = normalizeStatBlock(req.body.currentStats);
+    }
+    if (req.body.projectedStats != null) {
+      playerDoc.projectedStats = normalizeStatBlock(req.body.projectedStats);
+    }
+    if (req.body.threeYearAverageStats != null) {
+      playerDoc.threeYearAverageStats = normalizeStatBlock(req.body.threeYearAverageStats);
+    }
+
+    if (!playerDoc.notes) {
+      playerDoc.notes = playerDoc.status || "";
+    }
+
+    await playerDoc.save();
+    return res.status(200).json({ playerDoc });
+  } catch (err) {
+    console.error(err);
+    return res.status(err.status || 500).json({ errorMessage: err.message || "Error updating custom player." });
+  }
+};
+
+const deleteCustomPlayer = async (req, res) => {
+  let session = null;
+  try {
+    const { playerId } = req.params;
+    const { leagueId } = req.body || {};
+
+    if (!leagueId) {
+      return res.status(400).json({ errorMessage: "leagueId is required." });
+    }
+
+    const applyDeleteMutation = async (activeSession = null) => {
+      const queryOptions = activeSession ? { session: activeSession } : {};
+      await getAuthorizedLeague(leagueId, req.userId, activeSession);
+
+      const playerDocQuery = Player.findOne({ _id: playerId, leagueId, isCustom: true });
+      if (activeSession) {
+        playerDocQuery.session(activeSession);
+      }
+      const playerDoc = await playerDocQuery;
+      if (!playerDoc) {
+        throw createHttpError(404, "Custom player not found in this league.");
+      }
+
+      if (playerDoc.ownerId) {
+        const rosterId = String(playerDoc.ownerId);
+        const rosterQuery = MLBRoster.findById(rosterId);
+        if (activeSession) {
+          rosterQuery.session(activeSession);
+        }
+        const roster = await rosterQuery;
+        if (!roster) {
+          throw createHttpError(409, "Drafted custom player is assigned to a missing roster.");
+        }
+
+        const slotKey = ROSTER_SLOT_KEYS.find((key) => String(roster[key] || "") === String(playerDoc._id));
+        if (!slotKey) {
+          throw createHttpError(409, "Roster/player assignment is inconsistent.");
+        }
+
+        const refundAmount = Number(playerDoc.price) || 0;
+        const rosterUpdate = await MLBRoster.updateOne(
+          { _id: rosterId, [slotKey]: playerDoc._id },
+          { $set: { [slotKey]: null }, $inc: { budgetLeft: refundAmount } },
+          queryOptions
+        );
+        if (rosterUpdate.modifiedCount !== 1) {
+          throw createHttpError(409, "Roster changed before custom player drop could be applied.");
+        }
+
+        const data = {
+          teamOwner: roster?.name || "Unknown Team",
+          player: playerDoc?.name || "Unknown Player",
+          actionType: "Dropped",
+          draftCost: refundAmount,
+          budgetLeft: Number((roster.budgetLeft || 0) + refundAmount),
+          leagueId,
+          rosterId,
+        };
+        await db.createTransaction(data, queryOptions);
+      }
+
+      const deleteResult = await Player.deleteOne({ _id: playerDoc._id, leagueId, isCustom: true }, queryOptions);
+      if (deleteResult.deletedCount !== 1) {
+        throw createHttpError(409, "Custom player changed before delete could be applied.");
+      }
+    };
+
+    session = await mongoose.startSession();
+    try {
+      await session.withTransaction(async () => {
+        await applyDeleteMutation(session);
+      });
+    } catch (error) {
+      if (!isTransactionUnsupportedError(error)) {
+        throw error;
+      }
+      await applyDeleteMutation(null);
+    }
+
+    return res.status(200).json({ success: true });
+  } catch (err) {
+    console.error(err);
+    return res.status(err.status || 500).json({ errorMessage: err.message || "Error deleting custom player." });
+  } finally {
+    if (session) {
+      await session.endSession();
+    }
+  }
+};
 
 const getPlayers = async (req, res) => {
   if (!process.env.API_TOKEN) {
@@ -857,6 +1083,10 @@ const movePlayer = async (req, res) => {
 
 module.exports = {
   getPlayers,
+  getCustomPlayers,
+  createCustomPlayer,
+  updateCustomPlayer,
+  deleteCustomPlayer,
   getTotalFantasyPoints,
   getPlayerDoc,
   upsertPlayerDoc,
@@ -869,6 +1099,8 @@ module.exports = {
     normalizeStatBlock,
     normalizeApiPlayer,
     hasTruthyOverride,
+    buildEmptyStatBlock,
+    getAuthorizedLeague,
     mapPlayerToDocFields,
     fetchUpstreamJson,
     fetchLicensedPlayerById,
