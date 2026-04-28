@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import ChangePositionMenu from "./ChangePositionMenu";
+import { useLeague } from "../leagues";
 import { getPlayerDoc, updatePlayerDoc } from "../leagues/requests";
 
 const BATTING_STATS = [
@@ -25,7 +26,6 @@ function PlayerStatsPanel({
   fantasyPoints,
   cost,
   activeLeagueId,
-  league,
   onClose,
   onDraftClick,
   onDropClick,
@@ -33,6 +33,7 @@ function PlayerStatsPanel({
   refreshKey = 0,
   scrollWithPage = false,
 }) {
+  const { selectedLeague } = useLeague();
   const [playerDoc, setPlayerDoc] = useState(null);
   const [isEditing, setIsEditing] = useState(false);
   const [editDraft, setEditDraft] = useState("");
@@ -118,7 +119,7 @@ function PlayerStatsPanel({
   const actionDisabled = !activeLeagueId || !hasActionHandler;
   const actionLabel = isDrafted ? "Drop" : "Draft";
   const canChangePosition = Boolean(
-    isDrafted && activeLeagueId && league && player?.APIplayerId && playerDoc?.ownerId
+    isDrafted && activeLeagueId && selectedLeague && player?.APIplayerId && playerDoc?.ownerId
   );
   const actionClassName = `btn ${
     isDrafted ? "btn-danger" : "btn-primary"
@@ -219,7 +220,7 @@ function PlayerStatsPanel({
           <ChangePositionMenu
             player={player}
             playerDoc={playerDoc}
-            league={league}
+            league={selectedLeague}
             activeLeagueId={activeLeagueId}
             onMoved={onMoved}
             onClose={() => setShowChangePositionMenu(false)}
