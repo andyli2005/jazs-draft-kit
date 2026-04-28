@@ -1081,6 +1081,373 @@ const movePlayer = async (req, res) => {
   }
 };
 
+const draftCustomPlayer = async (req, res) => {
+  let session = null;
+  try {
+    const { playerId } = req.params;
+    const {
+      leagueId,
+      bidStartedById,
+      draftedToRosterId,
+      slotKey,
+      draftCost,
+      inactiveOverrideAccepted,
+    } = req.body || {};
+
+    if (!leagueId || !bidStartedById || !draftedToRosterId || !slotKey || draftCost == null) {
+      return res.status(400).json({
+        errorMessage: "leagueId, bidStartedById, draftedToRosterId, slotKey, and draftCost are required.",
+      });
+    }
+
+    if (!ROSTER_SLOT_KEYS.includes(slotKey)) {
+      return res.status(400).json({ errorMessage: "Invalid roster slot selected." });
+    }
+
+    if (!Number.isFinite(Number(draftCost))) {
+      return res.status(400).json({ errorMessage: "draftCost must be a valid number." });
+    }
+
+    const normalizedDraftCost = Number(draftCost);
+    if (normalizedDraftCost < 0) {
+      return res.status(400).json({ errorMessage: "draftCost must be zero or greater." });
+    }
+
+    let updatedPlayerDoc = null;
+    let updatedRoster = null;
+
+    const applyDraftMutation = async (activeSession = null) => {
+      const queryOptions = activeSession ? { session: activeSession } : {};
+      const league = await getAuthorizedLeague(leagueId, req.userId, activeSession);
+      const rosterIdsInLeague = new Set((league.rosterIds || []).map((id) => String(id)));
+      if (!rosterIdsInLeague.has(String(bidStartedById)) || !rosterIdsInLeague.has(String(draftedToRosterId))) {
+        throw createHttpError(400, "Selected roster does not belong to this league.");
+      }
+
+      const rosterQuery = MLBRoster.findById(draftedToRosterId);
+      if (activeSession) rosterQuery.session(activeSession);
+      const draftedToRoster = await rosterQuery;
+      if (!draftedToRoster) {
+        throw createHttpError(404, "Draft destination roster not found.");
+      }
+
+      if (draftedToRoster[slotKey]) {
+        throw createHttpError(409, "Selected slot is already occupied.");
+      }
+
+      const openSlotsRemaining = ROSTER_SLOT_KEYS.reduce(
+        (count, key) => count + (draftedToRoster[key] ? 0 : 1),
+        0
+      );
+      const maxSpendable = draftedToRoster.budgetLeft - (openSlotsRemaining - 1);
+      if (normalizedDraftCost > maxSpendable) {
+        throw createHttpError(400, "Draft cost exceeds legal budget based on remaining slots.");
+      }
+
+      const playerDocQuery = Player.findOne({ _id: playerId, leagueId, isCustom: true });
+      if (activeSession) playerDocQuery.session(activeSession);
+      const playerDoc = await playerDocQuery;
+      if (!playerDoc) {
+        throw createHttpError(404, "Custom player not found for this league.");
+      }
+
+      const normalizedStatus = String(playerDoc.status || "").trim().toLowerCase();
+      const isActive = normalizedStatus === "active";
+      if (!isActive && !hasTruthyOverride(inactiveOverrideAccepted)) {
+        throw createHttpError(400, "Player is not currently active. Confirm inactive override to continue.");
+      }
+
+      if (playerDoc.ownerId) {
+        if (String(playerDoc.ownerId) === String(draftedToRosterId)) {
+          throw createHttpError(409, "Player is already drafted to the selected roster.");
+        }
+        throw createHttpError(409, "Player is already drafted in this league.");
+      }
+
+      const claimResult = await Player.updateOne(
+        { _id: playerDoc._id, $or: [{ ownerId: null }, { ownerId: { $exists: false } }] },
+        { $set: { ownerId: draftedToRosterId, bidStartedById, price: normalizedDraftCost } },
+        queryOptions
+      );
+      if (claimResult.modifiedCount !== 1) {
+        throw createHttpError(409, "Player was drafted by another request.");
+      }
+
+      const minReserve = openSlotsRemaining - 1;
+      const rosterUpdate = await MLBRoster.updateOne(
+        {
+          _id: draftedToRosterId,
+          [slotKey]: null,
+          budgetLeft: { $gte: normalizedDraftCost + minReserve },
+        },
+        { $set: { [slotKey]: playerDoc._id }, $inc: { budgetLeft: -normalizedDraftCost } },
+        queryOptions
+      );
+      if (rosterUpdate.modifiedCount !== 1) {
+        throw createHttpError(409, "Roster changed before draft could be applied.");
+      }
+
+      const updatedPlayerQuery = Player.findById(playerDoc._id);
+      if (activeSession) updatedPlayerQuery.session(activeSession);
+      updatedPlayerDoc = await updatedPlayerQuery;
+
+      const updatedRosterQuery = MLBRoster.findById(draftedToRosterId);
+      if (activeSession) updatedRosterQuery.session(activeSession);
+      updatedRoster = await updatedRosterQuery;
+
+      const data = {
+        teamOwner: updatedRoster?.name || "Unknown Team",
+        player: updatedPlayerDoc?.name || "Unknown Player",
+        actionType: "Drafted",
+        draftCost: normalizedDraftCost,
+        budgetLeft: Number(updatedRoster?.budgetLeft ?? 0),
+        leagueId,
+        rosterId: draftedToRosterId,
+      };
+      await db.createTransaction(data, queryOptions);
+    };
+
+    session = await mongoose.startSession();
+    try {
+      await session.withTransaction(async () => {
+        await applyDraftMutation(session);
+      });
+    } catch (error) {
+      if (!isTransactionUnsupportedError(error)) {
+        throw error;
+      }
+      await applyDraftMutation(null);
+    }
+
+    return res.status(200).json({ playerDoc: updatedPlayerDoc, roster: updatedRoster });
+  } catch (err) {
+    console.error(err);
+    return res.status(err.status || 500).json({ errorMessage: err.message || "Error drafting custom player." });
+  } finally {
+    if (session) {
+      await session.endSession();
+    }
+  }
+};
+
+const dropCustomPlayer = async (req, res) => {
+  let session = null;
+  try {
+    const { playerId } = req.params;
+    const { leagueId, rosterId } = req.body || {};
+
+    if (!leagueId || !rosterId) {
+      return res.status(400).json({ errorMessage: "leagueId and rosterId are required." });
+    }
+
+    let updatedPlayerDoc = null;
+    let updatedRoster = null;
+
+    const applyDropMutation = async (activeSession = null) => {
+      const queryOptions = activeSession ? { session: activeSession } : {};
+      const league = await getAuthorizedLeague(leagueId, req.userId, activeSession);
+      const rosterIdsInLeague = new Set((league.rosterIds || []).map((id) => String(id)));
+      if (!rosterIdsInLeague.has(String(rosterId))) {
+        throw createHttpError(400, "Selected roster does not belong to this league.");
+      }
+
+      const rosterQuery = MLBRoster.findById(rosterId);
+      if (activeSession) rosterQuery.session(activeSession);
+      const roster = await rosterQuery;
+      if (!roster) {
+        throw createHttpError(404, "Roster not found.");
+      }
+
+      const playerDocQuery = Player.findOne({ _id: playerId, leagueId, isCustom: true });
+      if (activeSession) playerDocQuery.session(activeSession);
+      const playerDoc = await playerDocQuery;
+      if (!playerDoc) {
+        throw createHttpError(404, "Custom player document not found for this league.");
+      }
+
+      if (!playerDoc.ownerId || String(playerDoc.ownerId) !== String(rosterId)) {
+        throw createHttpError(400, "Player is not owned by the selected roster.");
+      }
+
+      const slotKey = ROSTER_SLOT_KEYS.find((key) => String(roster[key] || "") === String(playerDoc._id));
+      if (!slotKey) {
+        throw createHttpError(409, "Roster/player assignment is inconsistent.");
+      }
+
+      const refundAmount = Number(playerDoc.price) || 0;
+      const rosterUpdate = await MLBRoster.updateOne(
+        { _id: rosterId, [slotKey]: playerDoc._id },
+        { $set: { [slotKey]: null }, $inc: { budgetLeft: refundAmount } },
+        queryOptions
+      );
+      if (rosterUpdate.modifiedCount !== 1) {
+        throw createHttpError(409, "Roster changed before drop could be applied.");
+      }
+
+      const playerUpdate = await Player.updateOne(
+        { _id: playerDoc._id, ownerId: rosterId },
+        { $set: { ownerId: null, bidStartedById: null, price: 0 } },
+        queryOptions
+      );
+      if (playerUpdate.modifiedCount !== 1) {
+        throw createHttpError(409, "Player ownership changed before drop could be applied.");
+      }
+
+      const updatedPlayerQuery = Player.findById(playerDoc._id);
+      if (activeSession) updatedPlayerQuery.session(activeSession);
+      updatedPlayerDoc = await updatedPlayerQuery;
+
+      const updatedRosterQuery = MLBRoster.findById(rosterId);
+      if (activeSession) updatedRosterQuery.session(activeSession);
+      updatedRoster = await updatedRosterQuery;
+
+      const data = {
+        teamOwner: updatedRoster?.name || "Unknown Team",
+        player: updatedPlayerDoc?.name || "Unknown Player",
+        actionType: "Dropped",
+        draftCost: refundAmount,
+        budgetLeft: Number(updatedRoster?.budgetLeft ?? 0),
+        leagueId,
+        rosterId,
+      };
+      await db.createTransaction(data, queryOptions);
+    };
+
+    session = await mongoose.startSession();
+    try {
+      await session.withTransaction(async () => {
+        await applyDropMutation(session);
+      });
+    } catch (error) {
+      if (!isTransactionUnsupportedError(error)) {
+        throw error;
+      }
+      await applyDropMutation(null);
+    }
+
+    return res.status(200).json({ playerDoc: updatedPlayerDoc, roster: updatedRoster });
+  } catch (err) {
+    console.error(err);
+    return res.status(err.status || 500).json({ errorMessage: err.message || "Error dropping custom player." });
+  } finally {
+    if (session) {
+      await session.endSession();
+    }
+  }
+};
+
+const moveCustomPlayer = async (req, res) => {
+  let session = null;
+  try {
+    const { playerId } = req.params;
+    const { leagueId, rosterId, newSlotKey } = req.body || {};
+
+    if (!leagueId || !rosterId || !newSlotKey) {
+      return res.status(400).json({
+        errorMessage: "leagueId, rosterId, and newSlotKey are required.",
+      });
+    }
+
+    if (!ROSTER_SLOT_KEYS.includes(newSlotKey)) {
+      return res.status(400).json({ errorMessage: "Invalid roster slot selected." });
+    }
+
+    let updatedPlayerDoc = null;
+    let updatedRoster = null;
+
+    const applyMoveMutation = async (activeSession = null) => {
+      const queryOptions = activeSession ? { session: activeSession } : {};
+      const league = await getAuthorizedLeague(leagueId, req.userId, activeSession);
+      const rosterIdsInLeague = new Set((league.rosterIds || []).map((id) => String(id)));
+      if (!rosterIdsInLeague.has(String(rosterId))) {
+        throw createHttpError(400, "Selected roster does not belong to this league.");
+      }
+
+      const rosterQuery = MLBRoster.findById(rosterId);
+      if (activeSession) rosterQuery.session(activeSession);
+      const roster = await rosterQuery;
+      if (!roster) {
+        throw createHttpError(404, "Roster not found.");
+      }
+
+      const playerDocQuery = Player.findOne({ _id: playerId, leagueId, isCustom: true });
+      if (activeSession) playerDocQuery.session(activeSession);
+      const playerDoc = await playerDocQuery;
+      if (!playerDoc) {
+        throw createHttpError(404, "Custom player document not found for this league.");
+      }
+
+      if (!playerDoc.ownerId || String(playerDoc.ownerId) !== String(rosterId)) {
+        throw createHttpError(400, "Player is not owned by the selected roster.");
+      }
+
+      const currentSlotKey = ROSTER_SLOT_KEYS.find(
+        (key) => String(roster[key] || "") === String(playerDoc._id)
+      );
+      if (!currentSlotKey) {
+        throw createHttpError(409, "Roster/player assignment is inconsistent.");
+      }
+
+      if (currentSlotKey === newSlotKey) {
+        throw createHttpError(400, "Player is already assigned to that slot.");
+      }
+
+      if (roster[newSlotKey]) {
+        throw createHttpError(409, "Selected destination slot is already occupied.");
+      }
+
+      const rosterUpdate = await MLBRoster.updateOne(
+        { _id: rosterId, [currentSlotKey]: playerDoc._id, [newSlotKey]: null },
+        { $set: { [currentSlotKey]: null, [newSlotKey]: playerDoc._id } },
+        queryOptions
+      );
+      if (rosterUpdate.modifiedCount !== 1) {
+        throw createHttpError(409, "Roster changed before move could be applied.");
+      }
+
+      const updatedPlayerQuery = Player.findById(playerDoc._id);
+      if (activeSession) updatedPlayerQuery.session(activeSession);
+      updatedPlayerDoc = await updatedPlayerQuery;
+
+      const updatedRosterQuery = MLBRoster.findById(rosterId);
+      if (activeSession) updatedRosterQuery.session(activeSession);
+      updatedRoster = await updatedRosterQuery;
+
+      const data = {
+        teamOwner: updatedRoster?.name || "Unknown Team",
+        player: updatedPlayerDoc?.name || "Unknown Player",
+        actionType: "ChangedPosition",
+        draftCost: Number(updatedPlayerDoc?.price) || 0,
+        budgetLeft: Number(updatedRoster?.budgetLeft ?? 0),
+        leagueId,
+        rosterId,
+      };
+      await db.createTransaction(data, queryOptions);
+    };
+
+    session = await mongoose.startSession();
+    try {
+      await session.withTransaction(async () => {
+        await applyMoveMutation(session);
+      });
+    } catch (error) {
+      if (!isTransactionUnsupportedError(error)) {
+        throw error;
+      }
+      await applyMoveMutation(null);
+    }
+
+    return res.status(200).json({ playerDoc: updatedPlayerDoc, roster: updatedRoster });
+  } catch (err) {
+    console.error(err);
+    return res.status(err.status || 500).json({ errorMessage: err.message || "Error moving custom player." });
+  } finally {
+    if (session) {
+      await session.endSession();
+    }
+  }
+};
+
 module.exports = {
   getPlayers,
   getCustomPlayers,
@@ -1091,8 +1458,11 @@ module.exports = {
   getPlayerDoc,
   upsertPlayerDoc,
   draftPlayer,
+  draftCustomPlayer,
   dropPlayer,
+  dropCustomPlayer,
   movePlayer,
+  moveCustomPlayer,
   __testables: {
     createHttpError,
     isTransactionUnsupportedError,
