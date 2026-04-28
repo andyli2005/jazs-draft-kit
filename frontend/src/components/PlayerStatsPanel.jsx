@@ -193,13 +193,25 @@ function PlayerStatsPanel({
           <h3>Player Action</h3>
           <div className="player-stats-notes-actions">
             {canChangePosition ? (
-              <button
-                className="btn btn-secondary player-stats-edit-btn"
-                type="button"
-                onClick={() => setShowChangePositionMenu(true)}
-              >
-                Change Position
-              </button>
+              <div className="change-position-anchor">
+                <button
+                  className="btn btn-secondary player-stats-edit-btn"
+                  type="button"
+                  onClick={() => setShowChangePositionMenu(true)}
+                >
+                  Change Position
+                </button>
+                {showChangePositionMenu && canChangePosition ? (
+                  <ChangePositionMenu
+                    player={player}
+                    playerDoc={playerDoc}
+                    league={selectedLeague}
+                    activeLeagueId={activeLeagueId}
+                    onMoved={onMoved}
+                    onClose={() => setShowChangePositionMenu(false)}
+                  />
+                ) : null}
+              </div>
             ) : null}
             <button
               className={actionClassName}
@@ -215,16 +227,6 @@ function PlayerStatsPanel({
           <p className="muted">Select a league to manage draft actions.</p>
         ) : !hasActionHandler ? (
           <p className="muted">Draft actions are only available from player search.</p>
-        ) : null}
-        {showChangePositionMenu && canChangePosition ? (
-          <ChangePositionMenu
-            player={player}
-            playerDoc={playerDoc}
-            league={selectedLeague}
-            activeLeagueId={activeLeagueId}
-            onMoved={onMoved}
-            onClose={() => setShowChangePositionMenu(false)}
-          />
         ) : null}
       </div>
 

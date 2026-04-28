@@ -48,8 +48,9 @@ function ChangePositionMenu({
     return SLOT_DEFS.filter((slot) => !activeRoster[slot.key]);
   }, [activeRoster]);
 
-  const eligiblePositionTokens = parseEligiblePositions(
-    player?.positions || playerDoc?.positions
+  const eligiblePositionTokens = useMemo(
+    () => parseEligiblePositions(player?.positions || playerDoc?.positions),
+    [player?.positions, playerDoc?.positions]
   );
   const eligibleSlotKeySet = useMemo(
     () => getEligibleSlotKeySet(eligiblePositionTokens),
@@ -61,11 +62,16 @@ function ChangePositionMenu({
     [openSlots, eligibleSlotKeySet]
   );
 
-  const displayedSlots = positionOverrideEnabled ? openSlots : eligibleOpenSlots;
+  const displayedSlots = useMemo(
+    () => (positionOverrideEnabled ? openSlots : eligibleOpenSlots),
+    [positionOverrideEnabled, openSlots, eligibleOpenSlots]
+  );
 
   useEffect(() => {
-    setSlotKey(displayedSlots[0]?.key || "");
-  }, [displayedSlots]);
+    if (!slotKey || !displayedSlots.some((slot) => slot.key === slotKey)) {
+      setSlotKey(displayedSlots[0]?.key || "");
+    }
+  }, [displayedSlots, slotKey]);
 
   useEffect(() => {
     function handleDocumentClick(event) {
