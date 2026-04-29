@@ -254,13 +254,24 @@ const getPlayers = async (req, res) => {
     
   // Similarly, leagueId is not necessary for the query
   delete upstreamQuery.leagueId;
-
   upstreamQuery.moneyAboveMinimum = moneyAboveMinimum;
-
+  
   const url = buildUpstreamUrl(upstreamQuery, "/api/players/evaluations");
+  const draftedPlayers = await db.getDraftedPlayers(leagueId);
+  const draftHistory = draftedPlayers.map((player) => ({
+    playerId: String(player.APIplayerId),
+    draftCost: Number(player.price),
+  }));
 
   try {
-    const response = await fetch(url, { headers: { "x-api-token": process.env.API_TOKEN } });
+    const response = await fetch(url, { 
+      method: 'POST',
+      headers: { 
+        "Content-Type": "application/json",
+        "x-api-token": process.env.API_TOKEN 
+      },
+      body: JSON.stringify({ draftHistory }),
+    });
 
     let data = {};
     try {

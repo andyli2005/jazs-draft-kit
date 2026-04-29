@@ -155,6 +155,8 @@ class Database {
       { upsert: true, new: true, runValidators: true }
     );
   }
-}
+
+  async getDraftedPlayers(leagueId) { return Player.find({ leagueId, ownerId: { $ne: null } }).lean(); }
+} 
 
 module.exports = new Database();
