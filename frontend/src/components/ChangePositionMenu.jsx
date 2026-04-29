@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { movePlayer } from "../leagues/requests";
+import { moveCustomPlayer, movePlayer } from "../leagues/requests";
 import {
   SLOT_DEFS,
   parseEligiblePositions,
@@ -9,6 +9,7 @@ import {
 function ChangePositionMenu({
   player,
   playerDoc,
+  isCustom = false,
   league,
   activeLeagueId,
   onMoved,
@@ -36,11 +37,16 @@ function ChangePositionMenu({
   const currentSlot = useMemo(
     () =>
       SLOT_DEFS.find(
-        (slot) =>
-          String(activeRoster?.[slot.key]?.APIplayerId || "") ===
-          String(player?.APIplayerId || "")
+        (slot) => {
+          const rosterPlayer = activeRoster?.[slot.key];
+          if (!rosterPlayer) return false;
+          if (isCustom) {
+            return String(rosterPlayer?._id || "") === String(player?._id || "");
+          }
+          return String(rosterPlayer?.APIplayerId || "") === String(player?.APIplayerId || "");
+        }
       ) || null,
-    [activeRoster, player?.APIplayerId]
+    [activeRoster, isCustom, player?._id, player?.APIplayerId]
   );
 
   const openSlots = useMemo(() => {
@@ -88,7 +94,7 @@ function ChangePositionMenu({
 
   const canSubmit =
     Boolean(activeLeagueId) &&
-    Boolean(player?.APIplayerId) &&
+    Boolean(isCustom ? player?._id : player?.APIplayerId) &&
     Boolean(activeRoster?._id) &&
     Boolean(currentSlot?.key) &&
     Boolean(slotKey) &&
@@ -101,7 +107,9 @@ function ChangePositionMenu({
     setError("");
 
     try {
-      await movePlayer(player.APIplayerId, {
+      const requestFn = isCustom ? moveCustomPlayer : movePlayer;
+      const playerActionId = isCustom ? player._id : player.APIplayerId;
+      await requestFn(playerActionId, {
         leagueId: activeLeagueId,
         rosterId: activeRoster._id,
         newSlotKey: slotKey,
