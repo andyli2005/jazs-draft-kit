@@ -270,7 +270,12 @@ const getPlayers = async (req, res) => {
         "Content-Type": "application/json",
         "x-api-token": process.env.API_TOKEN 
       },
-      body: JSON.stringify({ draftHistory }),
+      body: JSON.stringify({ 
+        draftHistory,
+        leagueState: {
+          spotsRemaining,
+        }
+      }),
     });
 
     let data = {};
