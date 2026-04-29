@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
 import ChangePositionMenu from "./ChangePositionMenu";
+import PositionChecklistDropdown from "./PositionChecklistDropdown";
 import { useLeague } from "../leagues";
+import { formatPositionsString, parsePositionsString } from "../leagues/positions";
 import { getPlayerDoc, updateCustomPlayer, updatePlayerDoc } from "../leagues/requests";
 
 const BATTING_STATS = [
@@ -26,6 +28,7 @@ function PlayerStatsPanel({
   fantasyPoints,
   cost,
   activeLeagueId,
+  ownerRosterId = null,
   onClose,
   onDraftClick,
   onDropClick,
@@ -87,6 +90,7 @@ function PlayerStatsPanel({
   const hasDoc = playerDoc != null;
   const displayData = hasDoc ? playerDoc : player;
   const stats = hasDoc ? (playerDoc.currentStats || {}) : (player.currentStats || {});
+  const effectiveOwnerId = playerDoc?.ownerId || player?.ownerId || ownerRosterId || null;
 
   function handleEdit() {
     if (isCustomPlayer) {
@@ -94,7 +98,7 @@ function PlayerStatsPanel({
         name: displayData?.name || "",
         status: displayData?.status || "Active",
         notes: displayData?.notes || "",
-        positions: displayData?.positions || "",
+        positions: parsePositionsString(displayData?.positions),
         team: displayData?.team || "",
         pictureURL: displayData?.pictureURL || "",
         personalNotes: displayData?.personalNotes || "",
@@ -144,7 +148,7 @@ function PlayerStatsPanel({
           name: customDraft.name || "",
           status: customDraft.status || "Active",
           notes: customDraft.notes || customDraft.status || "",
-          positions: customDraft.positions || "",
+          positions: formatPositionsString(customDraft.positions),
           team: customDraft.team || "",
           pictureURL: customDraft.pictureURL || "",
           personalNotes: customDraft.personalNotes || "",
@@ -183,7 +187,7 @@ function PlayerStatsPanel({
 
   const notesDisabled = !activeLeagueId;
   const personalNotes = displayData?.personalNotes || "";
-  const isDrafted = Boolean(player?.isDrafted ?? playerDoc?.ownerId);
+  const isDrafted = Boolean(player?.isDrafted ?? effectiveOwnerId ?? (onDropClick && !onDraftClick));
   const hasActionHandler = isDrafted ? Boolean(onDropClick) : Boolean(onDraftClick);
   const actionDisabled = !activeLeagueId || !hasActionHandler;
   const actionLabel = isDrafted ? "Drop" : "Draft";
@@ -191,7 +195,7 @@ function PlayerStatsPanel({
     isDrafted &&
     activeLeagueId &&
     selectedLeague &&
-    playerDoc?.ownerId &&
+    effectiveOwnerId &&
     (isCustomPlayer ? player?._id : player?.APIplayerId)
   );
   const actionClassName = `btn ${
@@ -277,7 +281,10 @@ function PlayerStatsPanel({
                 {showChangePositionMenu && canChangePosition ? (
                   <ChangePositionMenu
                     player={player}
-                    playerDoc={playerDoc}
+                    playerDoc={{
+                      ...(playerDoc || {}),
+                      ownerId: effectiveOwnerId,
+                    }}
                     isCustom={isCustomPlayer}
                     league={selectedLeague}
                     activeLeagueId={activeLeagueId}
@@ -343,11 +350,10 @@ function PlayerStatsPanel({
                 </label>
                 <label className="modal-label">
                   <span>Positions</span>
-                  <input
-                    className="modal-input"
-                    type="text"
-                    value={customDraft?.positions || ""}
-                    onChange={(event) => updateCustomDraftField("positions", event.target.value)}
+                  <PositionChecklistDropdown
+                    selected={customDraft?.positions || []}
+                    onChange={(value) => updateCustomDraftField("positions", value)}
+                    disabled={isSaving}
                   />
                 </label>
                 <label className="modal-label">

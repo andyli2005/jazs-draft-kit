@@ -1,9 +1,11 @@
 import { useEffect, useState } from "react";
 import Header from "../components/Header";
 import DraftPlayerModal from "../components/DraftPlayerModal";
+import PositionChecklistDropdown from "../components/PositionChecklistDropdown";
 import PlayerStatsPanel from "../components/PlayerStatsPanel";
 import Sidebar from "../components/Sidebar";
 import { useLeague } from "../leagues";
+import { formatPositionsString } from "../leagues/positions";
 import {
   createCustomPlayer,
   deleteCustomPlayer,
@@ -39,8 +41,6 @@ const TABLE_COLUMNS = [
 const CREATE_FIELDS = [
   { key: "name", label: "Name" },
   { key: "status", label: "Status" },
-  { key: "positions", label: "Positions" },
-  { key: "team", label: "Team" },
 ];
 
 function renderValue(value) {
@@ -95,7 +95,10 @@ function flattenPlayerForTable(playerDoc) {
 
 function CreateCustomPlayerModal({ open, formState, onChange, onCancel, onConfirm, isSubmitting, errorMessage }) {
   if (!open) return null;
-  const canSubmit = CREATE_FIELDS.every((field) => String(formState[field.key] || "").trim().length > 0);
+  const canSubmit =
+    CREATE_FIELDS.every((field) => String(formState[field.key] || "").trim().length > 0) &&
+    Array.isArray(formState.positions) &&
+    formState.positions.length > 0;
 
   return (
     <div className="modal-overlay">
@@ -118,6 +121,23 @@ function CreateCustomPlayerModal({ open, formState, onChange, onCancel, onConfir
               />
             </label>
           ))}
+          <label className="modal-label">
+            <span>Positions</span>
+            <PositionChecklistDropdown
+              selected={formState.positions || []}
+              onChange={(value) => onChange("positions", value)}
+              disabled={isSubmitting}
+            />
+          </label>
+          <label className="modal-label">
+            <span>Team</span>
+            <input
+              className="modal-input"
+              type="text"
+              value={formState.team}
+              onChange={(event) => onChange("team", event.target.value)}
+            />
+          </label>
           {errorMessage ? <p className="error">{errorMessage}</p> : null}
         </div>
         <div className="modal-footer">
@@ -150,7 +170,7 @@ function CustomPlayersPage() {
   const [createForm, setCreateForm] = useState({
     name: "",
     status: "Active",
-    positions: "",
+    positions: [],
     team: "",
   });
 
@@ -284,7 +304,7 @@ function CustomPlayersPage() {
     setCreateForm({
       name: "",
       status: "Active",
-      positions: "",
+      positions: [],
       team: "",
     });
     setCreateError("");
@@ -307,10 +327,12 @@ function CustomPlayersPage() {
       leagueId: selectedLeagueId,
       name: createForm.name.trim(),
       status: createForm.status.trim(),
-      positions: createForm.positions.trim(),
+      positions: formatPositionsString(createForm.positions),
       team: createForm.team.trim(),
     };
-    const hasAllRequired = CREATE_FIELDS.every((field) => payload[field.key].length > 0);
+    const hasAllRequired =
+      CREATE_FIELDS.every((field) => payload[field.key].length > 0) &&
+      payload.positions.length > 0;
     if (!hasAllRequired) {
       setCreateError("All fields are required.");
       return;
@@ -437,7 +459,10 @@ function CustomPlayersPage() {
             activeLeagueId={selectedLeagueId}
             onDraftClick={handleDraftClick}
             onDropClick={handleDropClick}
-            onMoved={reloadPlayers}
+            onMoved={async () => {
+              await refreshLeagues();
+              await reloadPlayers();
+            }}
             refreshKey={panelRefreshKey}
             onClose={() => setSelectedPlayer(null)}
           />

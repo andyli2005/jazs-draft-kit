@@ -117,6 +117,19 @@ async function getAuthorizedLeague(leagueId, userId, activeSession = null) {
   return league;
 }
 
+function buildLicensedPlayerIdentifierQuery(playerIdentifier, leagueId) {
+  const identifier = String(playerIdentifier || "").trim();
+  const orClauses = [{ APIplayerId: identifier }];
+  if (mongoose.Types.ObjectId.isValid(identifier)) {
+    orClauses.push({ _id: identifier });
+  }
+  return {
+    leagueId,
+    isCustom: false,
+    $or: orClauses,
+  };
+}
+
 function mapPlayerToDocFields(licensedPlayer, existingDoc) {
   return {
     name: licensedPlayer.name,
@@ -881,7 +894,7 @@ const dropPlayer = async (req, res) => {
         throw createHttpError(404, "Roster not found.");
       }
 
-      const playerDocQuery = Player.findOne({ APIplayerId, leagueId, isCustom: false });
+      const playerDocQuery = Player.findOne(buildLicensedPlayerIdentifierQuery(APIplayerId, leagueId));
       if (activeSession) playerDocQuery.session(activeSession);
       const playerDoc = await playerDocQuery;
       if (!playerDoc) {
@@ -1003,7 +1016,7 @@ const movePlayer = async (req, res) => {
         throw createHttpError(404, "Roster not found.");
       }
 
-      const playerDocQuery = Player.findOne({ APIplayerId, leagueId, isCustom: false });
+      const playerDocQuery = Player.findOne(buildLicensedPlayerIdentifierQuery(APIplayerId, leagueId));
       if (activeSession) playerDocQuery.session(activeSession);
       const playerDoc = await playerDocQuery;
       if (!playerDoc) {
@@ -1471,6 +1484,7 @@ module.exports = {
     hasTruthyOverride,
     buildEmptyStatBlock,
     getAuthorizedLeague,
+    buildLicensedPlayerIdentifierQuery,
     mapPlayerToDocFields,
     fetchUpstreamJson,
     fetchLicensedPlayerById,

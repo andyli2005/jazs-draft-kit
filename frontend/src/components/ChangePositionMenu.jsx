@@ -94,7 +94,7 @@ function ChangePositionMenu({
 
   const canSubmit =
     Boolean(activeLeagueId) &&
-    Boolean(isCustom ? player?._id : player?.APIplayerId) &&
+    Boolean(isCustom ? (player?._id || playerDoc?._id) : (player?.APIplayerId || playerDoc?.APIplayerId)) &&
     Boolean(activeRoster?._id) &&
     Boolean(currentSlot?.key) &&
     Boolean(slotKey) &&
@@ -108,7 +108,15 @@ function ChangePositionMenu({
 
     try {
       const requestFn = isCustom ? moveCustomPlayer : movePlayer;
-      const playerActionId = isCustom ? player._id : player.APIplayerId;
+      const playerActionId = isCustom
+        ? (player?._id || playerDoc?._id)
+        : (player?.APIplayerId || playerDoc?.APIplayerId);
+      if (!playerActionId) {
+        throw new Error(isCustom
+          ? "Custom player id missing."
+          : "Licensed player APIplayerId missing."
+        );
+      }
       await requestFn(playerActionId, {
         leagueId: activeLeagueId,
         rosterId: activeRoster._id,

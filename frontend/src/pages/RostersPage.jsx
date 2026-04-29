@@ -4,7 +4,7 @@ import PlayerStatsPanel from "../components/PlayerStatsPanel";
 import Sidebar from "../components/Sidebar";
 import { Link, useParams } from "react-router-dom";
 import { useLeague } from "../leagues";
-import { dropPlayer } from "../leagues/requests";
+import { dropCustomPlayer, dropPlayer } from "../leagues/requests";
 import RosterPageContent from "./RosterPageContent";
 
 function RostersPage() {
@@ -19,13 +19,17 @@ function RostersPage() {
     : null;
 
   async function handleDropClick(player) {
-    if (!selectedLeagueId || !selectedRoster?._id || !player?.APIplayerId) return;
+    if (!selectedLeagueId || !selectedRoster?._id) return;
     const didConfirm = window.confirm(`Drop ${player.name || "this player"} from ${selectedRoster.name || "this roster"}?`);
     if (!didConfirm) return;
 
     setActionError("");
     try {
-      await dropPlayer(player.APIplayerId, {
+      const isCustomPlayer = Boolean(player?.isCustom || !player?.APIplayerId);
+      const dropActionId = isCustomPlayer ? player?._id : player?.APIplayerId;
+      if (!dropActionId) return;
+      const requestFn = isCustomPlayer ? dropCustomPlayer : dropPlayer;
+      await requestFn(dropActionId, {
         leagueId: selectedLeagueId,
         rosterId: selectedRoster._id,
       });
@@ -76,7 +80,12 @@ function RostersPage() {
             fantasyPoints={selectedPlayer?.currentStats?.fantasyPoints ?? 0}
             cost={selectedPlayer?.price ?? 0}
             activeLeagueId={selectedLeagueId}
+            ownerRosterId={selectedRoster?._id || null}
             onDropClick={handleDropClick}
+            onMoved={async () => {
+              await refreshLeagues();
+              setSelectedPlayer(null);
+            }}
             scrollWithPage
             onClose={() => setSelectedPlayer(null)}
           />
