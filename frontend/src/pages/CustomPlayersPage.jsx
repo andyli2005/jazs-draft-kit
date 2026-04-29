@@ -138,6 +138,8 @@ function CustomPlayersPage() {
   const [players, setPlayers] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState("");
+  const [sortBy, setSortBy] = useState("fantasyPoints");
+  const [sortOrder, setSortOrder] = useState("desc");
   const [search, setSearch] = useState("");
   const [selectedPlayer, setSelectedPlayer] = useState(null);
   const [showDraftModal, setShowDraftModal] = useState(false);
@@ -202,13 +204,43 @@ function CustomPlayersPage() {
   }
 
   const normalizedSearch = search.trim().toLowerCase();
-  const filteredPlayers = normalizedSearch
+  const searchedPlayers = normalizedSearch
     ? players.filter((player) =>
         [player.name, player.team, player.positions, player.status]
           .some((value) => String(value || "").toLowerCase().includes(normalizedSearch))
       )
     : players;
+
+  function compareValues(a, b, key) {
+    const aValue = a?.[key];
+    const bValue = b?.[key];
+    const aNumber = Number(aValue);
+    const bNumber = Number(bValue);
+    const bothNumeric = Number.isFinite(aNumber) && Number.isFinite(bNumber);
+
+    if (bothNumeric) return aNumber - bNumber;
+    return String(aValue || "").localeCompare(String(bValue || ""), undefined, { sensitivity: "base" });
+  }
+
+  const filteredPlayers = [...searchedPlayers].sort((a, b) => {
+    const base = compareValues(a, b, sortBy);
+    return sortOrder === "asc" ? base : -base;
+  });
   const hasPlayers = filteredPlayers.length > 0;
+
+  function handleSort(columnKey) {
+    if (sortBy === columnKey) {
+      setSortOrder((prev) => (prev === "asc" ? "desc" : "asc"));
+      return;
+    }
+    setSortBy(columnKey);
+    setSortOrder("asc");
+  }
+
+  function sortIndicator(columnKey) {
+    if (sortBy !== columnKey) return "";
+    return sortOrder === "asc" ? " ▲" : " ▼";
+  }
 
   function handleDraftClick() {
     setShowDraftModal(true);
@@ -341,7 +373,20 @@ function CustomPlayersPage() {
                   <thead>
                     <tr>
                       {TABLE_COLUMNS.map((column) => (
-                        <th key={column.key} scope="col">{column.label}</th>
+                        column.key !== "pictureURL" ? (
+                          <th key={column.key} scope="col">
+                            <button
+                              className="table-sort-button"
+                              type="button"
+                              onClick={() => handleSort(column.key)}
+                            >
+                              {column.label}
+                              {sortIndicator(column.key)}
+                            </button>
+                          </th>
+                        ) : (
+                          <th key={column.key} scope="col">{column.label}</th>
+                        )
                       ))}
                       <th scope="col">Actions</th>
                     </tr>
