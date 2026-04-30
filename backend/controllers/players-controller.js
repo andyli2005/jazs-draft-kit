@@ -3,7 +3,7 @@ const mongoose = require("mongoose");
 const League = require("../db/models/League");
 const MLBRoster = require("../db/models/MLBRoster");
 const Player = require("../db/models/Player");
-const { computeTotalMoneyRemaining, computeRosterSpotsRemaining, computeMoneyAboveMinimum } = require("../services/league-valuation");
+const { computeTotalMoneyRemaining, computeRosterSpotsRemaining, computeMoneyAboveMinimum, computeRemainingSlotsPerPosition } = require("../services/league-valuation");
 
 const DEFAULT_API_ENDPOINT = "http://localhost:4001";
 const ROSTER_SLOT_KEYS = [
@@ -244,8 +244,9 @@ const getPlayers = async (req, res) => {
     (sum, roster) => sum + computeRosterSpotsRemaining(roster),
     0
   );
+  const remainingSlotsPerPosition = computeRemainingSlotsPerPosition(rosters);
   const moneyAboveMinimum = computeMoneyAboveMinimum(totalMoneyRemaining, spotsRemaining);
-  leagueState = { totalMoneyRemaining, spotsRemaining, moneyAboveMinimum };
+  leagueState = { totalMoneyRemaining, spotsRemaining, moneyAboveMinimum, remainingSlotsPerPosition };
 
   // Cost is NOT part of API Licensing database, so if user wants to sort by cost,
   // temporarily change rankBy to a valid data column
@@ -272,9 +273,7 @@ const getPlayers = async (req, res) => {
       },
       body: JSON.stringify({ 
         draftHistory,
-        leagueState: {
-          spotsRemaining,
-        }
+        leagueState,
       }),
     });
 
