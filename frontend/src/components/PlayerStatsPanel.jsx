@@ -1,4 +1,6 @@
 import { useEffect, useState } from "react";
+import ChangePositionMenu from "./ChangePositionMenu";
+import { useLeague } from "../leagues";
 import { getPlayerDoc, updatePlayerDoc } from "../leagues/requests";
 
 const BATTING_STATS = [
@@ -27,19 +29,23 @@ function PlayerStatsPanel({
   onClose,
   onDraftClick,
   onDropClick,
+  onMoved,
   refreshKey = 0,
   scrollWithPage = false,
 }) {
+  const { selectedLeague } = useLeague();
   const [playerDoc, setPlayerDoc] = useState(null);
   const [isEditing, setIsEditing] = useState(false);
   const [editDraft, setEditDraft] = useState("");
   const [isSaving, setIsSaving] = useState(false);
   const [saveError, setSaveError] = useState("");
+  const [showChangePositionMenu, setShowChangePositionMenu] = useState(false);
 
   useEffect(() => {
     if (!player?.APIplayerId || !activeLeagueId) {
       setPlayerDoc(null);
       setIsEditing(false);
+      setShowChangePositionMenu(false);
       return;
     }
 
@@ -56,6 +62,7 @@ function PlayerStatsPanel({
 
     setIsEditing(false);
     setSaveError("");
+    setShowChangePositionMenu(false);
     fetchPlayerDoc();
     return () => { isMounted = false; };
   }, [player?.APIplayerId, activeLeagueId, refreshKey]);
@@ -111,12 +118,16 @@ function PlayerStatsPanel({
   const hasActionHandler = isDrafted ? Boolean(onDropClick) : Boolean(onDraftClick);
   const actionDisabled = !activeLeagueId || !hasActionHandler;
   const actionLabel = isDrafted ? "Drop" : "Draft";
+  const canChangePosition = Boolean(
+    isDrafted && activeLeagueId && selectedLeague && player?.APIplayerId && playerDoc?.ownerId
+  );
   const actionClassName = `btn ${
     isDrafted ? "btn-danger" : "btn-primary"
   } player-stats-edit-btn player-stats-draft-btn`;
 
   function handlePrimaryAction() {
     if (actionDisabled) return;
+    setShowChangePositionMenu(false);
     if (isDrafted) {
       onDropClick?.(player);
       return;
@@ -180,14 +191,37 @@ function PlayerStatsPanel({
       <div className="player-stats-section">
         <div className="player-stats-section-head">
           <h3>Player Action</h3>
-          <button
-            className={actionClassName}
-            type="button"
-            onClick={handlePrimaryAction}
-            disabled={actionDisabled}
-          >
-            {actionLabel}
-          </button>
+          <div className="player-stats-notes-actions">
+            {canChangePosition ? (
+              <div className="change-position-anchor">
+                <button
+                  className="btn btn-secondary player-stats-edit-btn"
+                  type="button"
+                  onClick={() => setShowChangePositionMenu(true)}
+                >
+                  Change Position
+                </button>
+                {showChangePositionMenu && canChangePosition ? (
+                  <ChangePositionMenu
+                    player={player}
+                    playerDoc={playerDoc}
+                    league={selectedLeague}
+                    activeLeagueId={activeLeagueId}
+                    onMoved={onMoved}
+                    onClose={() => setShowChangePositionMenu(false)}
+                  />
+                ) : null}
+              </div>
+            ) : null}
+            <button
+              className={actionClassName}
+              type="button"
+              onClick={handlePrimaryAction}
+              disabled={actionDisabled}
+            >
+              {actionLabel}
+            </button>
+          </div>
         </div>
         {!activeLeagueId ? (
           <p className="muted">Select a league to manage draft actions.</p>

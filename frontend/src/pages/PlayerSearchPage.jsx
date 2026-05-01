@@ -278,6 +278,7 @@ function PlayerSearchPage() {
             activeLeagueId={selectedLeagueId}
             onDraftClick={handleDraftClick}
             onDropClick={handleDropClick}
+            onMoved={reloadPlayers}
             refreshKey={panelRefreshKey}
             onClose={() => setSelectedPlayer(null)}
           />
