@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { draftPlayer } from "../leagues/requests";
+import { draftCustomPlayer, draftPlayer } from "../leagues/requests";
 import {
   SLOT_DEFS,
   parseEligiblePositions,
@@ -10,7 +10,7 @@ function normalizeStatus(status) {
   return String(status || "").trim().toLowerCase();
 }
 
-function DraftPlayerModal({ open, player, league, onClose, onDrafted }) {
+function DraftPlayerModal({ open, player, league, onClose, onDrafted, isCustom = false }) {
   const overlayRef = useRef(null);
   const [bidStartedById, setBidStartedById] = useState("");
   const [draftedToRosterId, setDraftedToRosterId] = useState("");
@@ -53,6 +53,7 @@ function DraftPlayerModal({ open, player, league, onClose, onDrafted }) {
 
   const normalizedStatus = normalizeStatus(player?.status);
   const requiresInactiveOverride = normalizedStatus !== "active";
+  const playerActionId = isCustom ? player?._id : player?.APIplayerId;
 
   useEffect(() => {
     if (!open) return;
@@ -66,7 +67,7 @@ function DraftPlayerModal({ open, player, league, onClose, onDrafted }) {
     setError("");
     const defaultCost = Number.isFinite(Number(player?.cost)) ? Number(player.cost) : 0;
     setDraftCost(String(defaultCost));
-  }, [open, player?.APIplayerId, player?.cost, rosters]);
+  }, [open, player?.APIplayerId, player?._id, player?.cost, rosters]);
 
   useEffect(() => {
     if (!displayedSlots.some((slot) => slot.key === slotKey)) {
@@ -86,7 +87,7 @@ function DraftPlayerModal({ open, player, league, onClose, onDrafted }) {
   if (!open) return null;
 
   const canSubmit =
-    Boolean(player?.APIplayerId) &&
+    Boolean(playerActionId) &&
     Boolean(league?._id) &&
     Boolean(bidStartedById) &&
     Boolean(draftedToRosterId) &&
@@ -100,7 +101,8 @@ function DraftPlayerModal({ open, player, league, onClose, onDrafted }) {
     setIsSubmitting(true);
     setError("");
     try {
-      const data = await draftPlayer(player.APIplayerId, {
+      const requestFn = isCustom ? draftCustomPlayer : draftPlayer;
+      const data = await requestFn(playerActionId, {
         leagueId: league._id,
         bidStartedById,
         draftedToRosterId,

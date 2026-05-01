@@ -92,6 +92,44 @@ function hasTruthyOverride(value) {
   return value === true || value === "true";
 }
 
+function buildEmptyStatBlock() {
+  return STAT_KEYS.reduce((acc, key) => {
+    acc[key] = 0;
+    return acc;
+  }, {});
+}
+
+async function getAuthorizedLeague(leagueId, userId, activeSession = null) {
+  const leagueQuery = League.findById(leagueId);
+  if (activeSession) {
+    leagueQuery.session(activeSession);
+  }
+
+  const league = await leagueQuery;
+  if (!league) {
+    throw createHttpError(404, "League not found.");
+  }
+
+  if (String(league.user) !== String(userId)) {
+    throw createHttpError(403, "You do not have access to this league.");
+  }
+
+  return league;
+}
+
+function buildLicensedPlayerIdentifierQuery(playerIdentifier, leagueId) {
+  const identifier = String(playerIdentifier || "").trim();
+  const orClauses = [{ APIplayerId: identifier }];
+  if (mongoose.Types.ObjectId.isValid(identifier)) {
+    orClauses.push({ _id: identifier });
+  }
+  return {
+    leagueId,
+    isCustom: false,
+    $or: orClauses,
+  };
+}
+
 function mapPlayerToDocFields(licensedPlayer, existingDoc) {
   return {
     name: licensedPlayer.name,
@@ -220,6 +258,207 @@ function buildUpstreamUrl(query, path="/api/players") {
   return queryString ? `${base}?${queryString}` : base;
 }
 
+const getCustomPlayers = async (req, res) => {
+  try {
+    const { leagueId } = req.query;
+    if (!leagueId) {
+      return res.status(400).json({ errorMessage: "leagueId query parameter is required." });
+    }
+
+    await getAuthorizedLeague(leagueId, req.userId);
+    const players = await Player.find({ leagueId, isCustom: true }).sort({ name: 1, createdAt: -1 });
+    return res.status(200).json({ success: true, players });
+  } catch (err) {
+    console.error(err);
+    return res.status(err.status || 500).json({ errorMessage: err.message || "Error fetching custom players." });
+  }
+};
+
+const createCustomPlayer = async (req, res) => {
+  try {
+    const {
+      leagueId,
+      name,
+      status,
+      notes,
+      positions,
+      team,
+      pictureURL,
+      personalNotes,
+    } = req.body || {};
+
+    if (!leagueId) {
+      return res.status(400).json({ errorMessage: "leagueId is required." });
+    }
+    if (!name || !status || !positions || !team) {
+      return res.status(400).json({
+        errorMessage: "name, status, positions, and team are required to create a custom player.",
+      });
+    }
+
+    await getAuthorizedLeague(leagueId, req.userId);
+
+    const emptyStats = buildEmptyStatBlock();
+    const playerDoc = await Player.create({
+      leagueId,
+      isCustom: true,
+      APIplayerId: null,
+      name: String(name).trim(),
+      status: String(status).trim(),
+      notes: (notes || status || "").trim(),
+      positions: String(positions).trim(),
+      team: String(team).trim(),
+      pictureURL: pictureURL || "",
+      personalNotes: personalNotes || "",
+      price: 0,
+      currentStats: emptyStats,
+      projectedStats: emptyStats,
+      threeYearAverageStats: emptyStats,
+      ownerId: null,
+      bidStartedById: null,
+    });
+
+    return res.status(201).json({ playerDoc });
+  } catch (err) {
+    console.error(err);
+    return res.status(err.status || 500).json({ errorMessage: err.message || "Error creating custom player." });
+  }
+};
+
+const updateCustomPlayer = async (req, res) => {
+  try {
+    const { playerId } = req.params;
+    const { leagueId } = req.body || {};
+    if (!leagueId) {
+      return res.status(400).json({ errorMessage: "leagueId is required." });
+    }
+
+    await getAuthorizedLeague(leagueId, req.userId);
+
+    const playerDoc = await Player.findOne({ _id: playerId, leagueId, isCustom: true });
+    if (!playerDoc) {
+      return res.status(404).json({ errorMessage: "Custom player not found in this league." });
+    }
+
+    const editableStringFields = ["name", "status", "notes", "positions", "team", "pictureURL", "personalNotes"];
+    editableStringFields.forEach((field) => {
+      if (req.body[field] != null) {
+        playerDoc[field] = String(req.body[field]).trim();
+      }
+    });
+
+    if (req.body.currentStats != null) {
+      playerDoc.currentStats = normalizeStatBlock(req.body.currentStats);
+    }
+    if (req.body.projectedStats != null) {
+      playerDoc.projectedStats = normalizeStatBlock(req.body.projectedStats);
+    }
+    if (req.body.threeYearAverageStats != null) {
+      playerDoc.threeYearAverageStats = normalizeStatBlock(req.body.threeYearAverageStats);
+    }
+
+    if (!playerDoc.notes) {
+      playerDoc.notes = playerDoc.status || "";
+    }
+
+    await playerDoc.save();
+    return res.status(200).json({ playerDoc });
+  } catch (err) {
+    console.error(err);
+    return res.status(err.status || 500).json({ errorMessage: err.message || "Error updating custom player." });
+  }
+};
+
+const deleteCustomPlayer = async (req, res) => {
+  let session = null;
+  try {
+    const { playerId } = req.params;
+    const { leagueId } = req.body || {};
+
+    if (!leagueId) {
+      return res.status(400).json({ errorMessage: "leagueId is required." });
+    }
+
+    const applyDeleteMutation = async (activeSession = null) => {
+      const queryOptions = activeSession ? { session: activeSession } : {};
+      await getAuthorizedLeague(leagueId, req.userId, activeSession);
+
+      const playerDocQuery = Player.findOne({ _id: playerId, leagueId, isCustom: true });
+      if (activeSession) {
+        playerDocQuery.session(activeSession);
+      }
+      const playerDoc = await playerDocQuery;
+      if (!playerDoc) {
+        throw createHttpError(404, "Custom player not found in this league.");
+      }
+
+      if (playerDoc.ownerId) {
+        const rosterId = String(playerDoc.ownerId);
+        const rosterQuery = MLBRoster.findById(rosterId);
+        if (activeSession) {
+          rosterQuery.session(activeSession);
+        }
+        const roster = await rosterQuery;
+        if (!roster) {
+          throw createHttpError(409, "Drafted custom player is assigned to a missing roster.");
+        }
+
+        const slotKey = ROSTER_SLOT_KEYS.find((key) => String(roster[key] || "") === String(playerDoc._id));
+        if (!slotKey) {
+          throw createHttpError(409, "Roster/player assignment is inconsistent.");
+        }
+
+        const refundAmount = Number(playerDoc.price) || 0;
+        const rosterUpdate = await MLBRoster.updateOne(
+          { _id: rosterId, [slotKey]: playerDoc._id },
+          { $set: { [slotKey]: null }, $inc: { budgetLeft: refundAmount } },
+          queryOptions
+        );
+        if (rosterUpdate.modifiedCount !== 1) {
+          throw createHttpError(409, "Roster changed before custom player drop could be applied.");
+        }
+
+        const data = {
+          teamOwner: roster?.name || "Unknown Team",
+          player: playerDoc?.name || "Unknown Player",
+          actionType: "Dropped",
+          draftCost: refundAmount,
+          budgetLeft: Number((roster.budgetLeft || 0) + refundAmount),
+          leagueId,
+          rosterId,
+        };
+        await db.createTransaction(data, queryOptions);
+      }
+
+      const deleteResult = await Player.deleteOne({ _id: playerDoc._id, leagueId, isCustom: true }, queryOptions);
+      if (deleteResult.deletedCount !== 1) {
+        throw createHttpError(409, "Custom player changed before delete could be applied.");
+      }
+    };
+
+    session = await mongoose.startSession();
+    try {
+      await session.withTransaction(async () => {
+        await applyDeleteMutation(session);
+      });
+    } catch (error) {
+      if (!isTransactionUnsupportedError(error)) {
+        throw error;
+      }
+      await applyDeleteMutation(null);
+    }
+
+    return res.status(200).json({ success: true });
+  } catch (err) {
+    console.error(err);
+    return res.status(err.status || 500).json({ errorMessage: err.message || "Error deleting custom player." });
+  } finally {
+    if (session) {
+      await session.endSession();
+    }
+  }
+};
+
 const getPlayers = async (req, res) => {
   if (!process.env.API_TOKEN) {
     return res.status(500).json({
@@ -284,7 +523,7 @@ const getPlayers = async (req, res) => {
     let localPlayerMap = new Map();
     if (apiPlayerIds.length > 0) {
       const localPlayerDocs = await Player.find(
-        { leagueId, APIplayerId: { $in: apiPlayerIds } },
+        { leagueId, APIplayerId: { $in: apiPlayerIds }, isCustom: false },
         "APIplayerId ownerId bidStartedById price"
       ).lean();
       localPlayerMap = new Map(
@@ -534,7 +773,7 @@ const draftPlayer = async (req, res) => {
         throw createHttpError(400, "Draft cost exceeds legal budget based on remaining slots.");
       }
 
-      const existingDocQuery = Player.findOne({ APIplayerId, leagueId });
+      const existingDocQuery = Player.findOne({ APIplayerId, leagueId, isCustom: false });
       if (activeSession) existingDocQuery.session(activeSession);
       const existingDoc = await existingDocQuery;
       if (existingDoc?.ownerId) {
@@ -546,8 +785,8 @@ const draftPlayer = async (req, res) => {
 
       const docFields = mapPlayerToDocFields(licensedPlayer, existingDoc);
       const playerDoc = await Player.findOneAndUpdate(
-        { APIplayerId, leagueId },
-        { $set: { APIplayerId, leagueId, ...docFields } },
+        { APIplayerId, leagueId, isCustom: false },
+        { $set: { APIplayerId, leagueId, isCustom: false, ...docFields } },
         { upsert: true, new: true, runValidators: true, ...queryOptions }
       );
 
@@ -655,7 +894,7 @@ const dropPlayer = async (req, res) => {
         throw createHttpError(404, "Roster not found.");
       }
 
-      const playerDocQuery = Player.findOne({ APIplayerId, leagueId });
+      const playerDocQuery = Player.findOne(buildLicensedPlayerIdentifierQuery(APIplayerId, leagueId));
       if (activeSession) playerDocQuery.session(activeSession);
       const playerDoc = await playerDocQuery;
       if (!playerDoc) {
@@ -777,7 +1016,7 @@ const movePlayer = async (req, res) => {
         throw createHttpError(404, "Roster not found.");
       }
 
-      const playerDocQuery = Player.findOne({ APIplayerId, leagueId });
+      const playerDocQuery = Player.findOne(buildLicensedPlayerIdentifierQuery(APIplayerId, leagueId));
       if (activeSession) playerDocQuery.session(activeSession);
       const playerDoc = await playerDocQuery;
       if (!playerDoc) {
@@ -855,20 +1094,397 @@ const movePlayer = async (req, res) => {
   }
 };
 
+const draftCustomPlayer = async (req, res) => {
+  let session = null;
+  try {
+    const { playerId } = req.params;
+    const {
+      leagueId,
+      bidStartedById,
+      draftedToRosterId,
+      slotKey,
+      draftCost,
+      inactiveOverrideAccepted,
+    } = req.body || {};
+
+    if (!leagueId || !bidStartedById || !draftedToRosterId || !slotKey || draftCost == null) {
+      return res.status(400).json({
+        errorMessage: "leagueId, bidStartedById, draftedToRosterId, slotKey, and draftCost are required.",
+      });
+    }
+
+    if (!ROSTER_SLOT_KEYS.includes(slotKey)) {
+      return res.status(400).json({ errorMessage: "Invalid roster slot selected." });
+    }
+
+    if (!Number.isFinite(Number(draftCost))) {
+      return res.status(400).json({ errorMessage: "draftCost must be a valid number." });
+    }
+
+    const normalizedDraftCost = Number(draftCost);
+    if (normalizedDraftCost < 0) {
+      return res.status(400).json({ errorMessage: "draftCost must be zero or greater." });
+    }
+
+    let updatedPlayerDoc = null;
+    let updatedRoster = null;
+
+    const applyDraftMutation = async (activeSession = null) => {
+      const queryOptions = activeSession ? { session: activeSession } : {};
+      const league = await getAuthorizedLeague(leagueId, req.userId, activeSession);
+      const rosterIdsInLeague = new Set((league.rosterIds || []).map((id) => String(id)));
+      if (!rosterIdsInLeague.has(String(bidStartedById)) || !rosterIdsInLeague.has(String(draftedToRosterId))) {
+        throw createHttpError(400, "Selected roster does not belong to this league.");
+      }
+
+      const rosterQuery = MLBRoster.findById(draftedToRosterId);
+      if (activeSession) rosterQuery.session(activeSession);
+      const draftedToRoster = await rosterQuery;
+      if (!draftedToRoster) {
+        throw createHttpError(404, "Draft destination roster not found.");
+      }
+
+      if (draftedToRoster[slotKey]) {
+        throw createHttpError(409, "Selected slot is already occupied.");
+      }
+
+      const openSlotsRemaining = ROSTER_SLOT_KEYS.reduce(
+        (count, key) => count + (draftedToRoster[key] ? 0 : 1),
+        0
+      );
+      const maxSpendable = draftedToRoster.budgetLeft - (openSlotsRemaining - 1);
+      if (normalizedDraftCost > maxSpendable) {
+        throw createHttpError(400, "Draft cost exceeds legal budget based on remaining slots.");
+      }
+
+      const playerDocQuery = Player.findOne({ _id: playerId, leagueId, isCustom: true });
+      if (activeSession) playerDocQuery.session(activeSession);
+      const playerDoc = await playerDocQuery;
+      if (!playerDoc) {
+        throw createHttpError(404, "Custom player not found for this league.");
+      }
+
+      const normalizedStatus = String(playerDoc.status || "").trim().toLowerCase();
+      const isActive = normalizedStatus === "active";
+      if (!isActive && !hasTruthyOverride(inactiveOverrideAccepted)) {
+        throw createHttpError(400, "Player is not currently active. Confirm inactive override to continue.");
+      }
+
+      if (playerDoc.ownerId) {
+        if (String(playerDoc.ownerId) === String(draftedToRosterId)) {
+          throw createHttpError(409, "Player is already drafted to the selected roster.");
+        }
+        throw createHttpError(409, "Player is already drafted in this league.");
+      }
+
+      const claimResult = await Player.updateOne(
+        { _id: playerDoc._id, $or: [{ ownerId: null }, { ownerId: { $exists: false } }] },
+        { $set: { ownerId: draftedToRosterId, bidStartedById, price: normalizedDraftCost } },
+        queryOptions
+      );
+      if (claimResult.modifiedCount !== 1) {
+        throw createHttpError(409, "Player was drafted by another request.");
+      }
+
+      const minReserve = openSlotsRemaining - 1;
+      const rosterUpdate = await MLBRoster.updateOne(
+        {
+          _id: draftedToRosterId,
+          [slotKey]: null,
+          budgetLeft: { $gte: normalizedDraftCost + minReserve },
+        },
+        { $set: { [slotKey]: playerDoc._id }, $inc: { budgetLeft: -normalizedDraftCost } },
+        queryOptions
+      );
+      if (rosterUpdate.modifiedCount !== 1) {
+        throw createHttpError(409, "Roster changed before draft could be applied.");
+      }
+
+      const updatedPlayerQuery = Player.findById(playerDoc._id);
+      if (activeSession) updatedPlayerQuery.session(activeSession);
+      updatedPlayerDoc = await updatedPlayerQuery;
+
+      const updatedRosterQuery = MLBRoster.findById(draftedToRosterId);
+      if (activeSession) updatedRosterQuery.session(activeSession);
+      updatedRoster = await updatedRosterQuery;
+
+      const data = {
+        teamOwner: updatedRoster?.name || "Unknown Team",
+        player: updatedPlayerDoc?.name || "Unknown Player",
+        actionType: "Drafted",
+        draftCost: normalizedDraftCost,
+        budgetLeft: Number(updatedRoster?.budgetLeft ?? 0),
+        leagueId,
+        rosterId: draftedToRosterId,
+      };
+      await db.createTransaction(data, queryOptions);
+    };
+
+    session = await mongoose.startSession();
+    try {
+      await session.withTransaction(async () => {
+        await applyDraftMutation(session);
+      });
+    } catch (error) {
+      if (!isTransactionUnsupportedError(error)) {
+        throw error;
+      }
+      await applyDraftMutation(null);
+    }
+
+    return res.status(200).json({ playerDoc: updatedPlayerDoc, roster: updatedRoster });
+  } catch (err) {
+    console.error(err);
+    return res.status(err.status || 500).json({ errorMessage: err.message || "Error drafting custom player." });
+  } finally {
+    if (session) {
+      await session.endSession();
+    }
+  }
+};
+
+const dropCustomPlayer = async (req, res) => {
+  let session = null;
+  try {
+    const { playerId } = req.params;
+    const { leagueId, rosterId } = req.body || {};
+
+    if (!leagueId || !rosterId) {
+      return res.status(400).json({ errorMessage: "leagueId and rosterId are required." });
+    }
+
+    let updatedPlayerDoc = null;
+    let updatedRoster = null;
+
+    const applyDropMutation = async (activeSession = null) => {
+      const queryOptions = activeSession ? { session: activeSession } : {};
+      const league = await getAuthorizedLeague(leagueId, req.userId, activeSession);
+      const rosterIdsInLeague = new Set((league.rosterIds || []).map((id) => String(id)));
+      if (!rosterIdsInLeague.has(String(rosterId))) {
+        throw createHttpError(400, "Selected roster does not belong to this league.");
+      }
+
+      const rosterQuery = MLBRoster.findById(rosterId);
+      if (activeSession) rosterQuery.session(activeSession);
+      const roster = await rosterQuery;
+      if (!roster) {
+        throw createHttpError(404, "Roster not found.");
+      }
+
+      const playerDocQuery = Player.findOne({ _id: playerId, leagueId, isCustom: true });
+      if (activeSession) playerDocQuery.session(activeSession);
+      const playerDoc = await playerDocQuery;
+      if (!playerDoc) {
+        throw createHttpError(404, "Custom player document not found for this league.");
+      }
+
+      if (!playerDoc.ownerId || String(playerDoc.ownerId) !== String(rosterId)) {
+        throw createHttpError(400, "Player is not owned by the selected roster.");
+      }
+
+      const slotKey = ROSTER_SLOT_KEYS.find((key) => String(roster[key] || "") === String(playerDoc._id));
+      if (!slotKey) {
+        throw createHttpError(409, "Roster/player assignment is inconsistent.");
+      }
+
+      const refundAmount = Number(playerDoc.price) || 0;
+      const rosterUpdate = await MLBRoster.updateOne(
+        { _id: rosterId, [slotKey]: playerDoc._id },
+        { $set: { [slotKey]: null }, $inc: { budgetLeft: refundAmount } },
+        queryOptions
+      );
+      if (rosterUpdate.modifiedCount !== 1) {
+        throw createHttpError(409, "Roster changed before drop could be applied.");
+      }
+
+      const playerUpdate = await Player.updateOne(
+        { _id: playerDoc._id, ownerId: rosterId },
+        { $set: { ownerId: null, bidStartedById: null, price: 0 } },
+        queryOptions
+      );
+      if (playerUpdate.modifiedCount !== 1) {
+        throw createHttpError(409, "Player ownership changed before drop could be applied.");
+      }
+
+      const updatedPlayerQuery = Player.findById(playerDoc._id);
+      if (activeSession) updatedPlayerQuery.session(activeSession);
+      updatedPlayerDoc = await updatedPlayerQuery;
+
+      const updatedRosterQuery = MLBRoster.findById(rosterId);
+      if (activeSession) updatedRosterQuery.session(activeSession);
+      updatedRoster = await updatedRosterQuery;
+
+      const data = {
+        teamOwner: updatedRoster?.name || "Unknown Team",
+        player: updatedPlayerDoc?.name || "Unknown Player",
+        actionType: "Dropped",
+        draftCost: refundAmount,
+        budgetLeft: Number(updatedRoster?.budgetLeft ?? 0),
+        leagueId,
+        rosterId,
+      };
+      await db.createTransaction(data, queryOptions);
+    };
+
+    session = await mongoose.startSession();
+    try {
+      await session.withTransaction(async () => {
+        await applyDropMutation(session);
+      });
+    } catch (error) {
+      if (!isTransactionUnsupportedError(error)) {
+        throw error;
+      }
+      await applyDropMutation(null);
+    }
+
+    return res.status(200).json({ playerDoc: updatedPlayerDoc, roster: updatedRoster });
+  } catch (err) {
+    console.error(err);
+    return res.status(err.status || 500).json({ errorMessage: err.message || "Error dropping custom player." });
+  } finally {
+    if (session) {
+      await session.endSession();
+    }
+  }
+};
+
+const moveCustomPlayer = async (req, res) => {
+  let session = null;
+  try {
+    const { playerId } = req.params;
+    const { leagueId, rosterId, newSlotKey } = req.body || {};
+
+    if (!leagueId || !rosterId || !newSlotKey) {
+      return res.status(400).json({
+        errorMessage: "leagueId, rosterId, and newSlotKey are required.",
+      });
+    }
+
+    if (!ROSTER_SLOT_KEYS.includes(newSlotKey)) {
+      return res.status(400).json({ errorMessage: "Invalid roster slot selected." });
+    }
+
+    let updatedPlayerDoc = null;
+    let updatedRoster = null;
+
+    const applyMoveMutation = async (activeSession = null) => {
+      const queryOptions = activeSession ? { session: activeSession } : {};
+      const league = await getAuthorizedLeague(leagueId, req.userId, activeSession);
+      const rosterIdsInLeague = new Set((league.rosterIds || []).map((id) => String(id)));
+      if (!rosterIdsInLeague.has(String(rosterId))) {
+        throw createHttpError(400, "Selected roster does not belong to this league.");
+      }
+
+      const rosterQuery = MLBRoster.findById(rosterId);
+      if (activeSession) rosterQuery.session(activeSession);
+      const roster = await rosterQuery;
+      if (!roster) {
+        throw createHttpError(404, "Roster not found.");
+      }
+
+      const playerDocQuery = Player.findOne({ _id: playerId, leagueId, isCustom: true });
+      if (activeSession) playerDocQuery.session(activeSession);
+      const playerDoc = await playerDocQuery;
+      if (!playerDoc) {
+        throw createHttpError(404, "Custom player document not found for this league.");
+      }
+
+      if (!playerDoc.ownerId || String(playerDoc.ownerId) !== String(rosterId)) {
+        throw createHttpError(400, "Player is not owned by the selected roster.");
+      }
+
+      const currentSlotKey = ROSTER_SLOT_KEYS.find(
+        (key) => String(roster[key] || "") === String(playerDoc._id)
+      );
+      if (!currentSlotKey) {
+        throw createHttpError(409, "Roster/player assignment is inconsistent.");
+      }
+
+      if (currentSlotKey === newSlotKey) {
+        throw createHttpError(400, "Player is already assigned to that slot.");
+      }
+
+      if (roster[newSlotKey]) {
+        throw createHttpError(409, "Selected destination slot is already occupied.");
+      }
+
+      const rosterUpdate = await MLBRoster.updateOne(
+        { _id: rosterId, [currentSlotKey]: playerDoc._id, [newSlotKey]: null },
+        { $set: { [currentSlotKey]: null, [newSlotKey]: playerDoc._id } },
+        queryOptions
+      );
+      if (rosterUpdate.modifiedCount !== 1) {
+        throw createHttpError(409, "Roster changed before move could be applied.");
+      }
+
+      const updatedPlayerQuery = Player.findById(playerDoc._id);
+      if (activeSession) updatedPlayerQuery.session(activeSession);
+      updatedPlayerDoc = await updatedPlayerQuery;
+
+      const updatedRosterQuery = MLBRoster.findById(rosterId);
+      if (activeSession) updatedRosterQuery.session(activeSession);
+      updatedRoster = await updatedRosterQuery;
+
+      const data = {
+        teamOwner: updatedRoster?.name || "Unknown Team",
+        player: updatedPlayerDoc?.name || "Unknown Player",
+        actionType: "ChangedPosition",
+        draftCost: Number(updatedPlayerDoc?.price) || 0,
+        budgetLeft: Number(updatedRoster?.budgetLeft ?? 0),
+        leagueId,
+        rosterId,
+      };
+      await db.createTransaction(data, queryOptions);
+    };
+
+    session = await mongoose.startSession();
+    try {
+      await session.withTransaction(async () => {
+        await applyMoveMutation(session);
+      });
+    } catch (error) {
+      if (!isTransactionUnsupportedError(error)) {
+        throw error;
+      }
+      await applyMoveMutation(null);
+    }
+
+    return res.status(200).json({ playerDoc: updatedPlayerDoc, roster: updatedRoster });
+  } catch (err) {
+    console.error(err);
+    return res.status(err.status || 500).json({ errorMessage: err.message || "Error moving custom player." });
+  } finally {
+    if (session) {
+      await session.endSession();
+    }
+  }
+};
+
 module.exports = {
   getPlayers,
+  getCustomPlayers,
+  createCustomPlayer,
+  updateCustomPlayer,
+  deleteCustomPlayer,
   getTotalFantasyPoints,
   getPlayerDoc,
   upsertPlayerDoc,
   draftPlayer,
+  draftCustomPlayer,
   dropPlayer,
+  dropCustomPlayer,
   movePlayer,
+  moveCustomPlayer,
   __testables: {
     createHttpError,
     isTransactionUnsupportedError,
     normalizeStatBlock,
     normalizeApiPlayer,
     hasTruthyOverride,
+    buildEmptyStatBlock,
+    getAuthorizedLeague,
+    buildLicensedPlayerIdentifierQuery,
     mapPlayerToDocFields,
     fetchUpstreamJson,
     fetchLicensedPlayerById,

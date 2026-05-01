@@ -5,6 +5,7 @@ import { useAuth } from "./auth/index.jsx";
 import { useLeague } from "./leagues";
 import AllTeamsPage from "./pages/AllTeamsPage";
 import ApiDashboardPage from "./pages/ApiDashboardPage";
+import CustomPlayersPage from "./pages/CustomPlayersPage";
 import LoggedInHomePage from "./pages/LoggedInHomePage";
 import LoginPage from "./pages/LoginPage";
 import MyTeamPage from "./pages/MyTeamPage";
@@ -78,6 +79,14 @@ function App() {
         element={
           <LeagueProtectedRoute isLoggedIn={isLoggedIn} hasSelectedLeague={hasSelectedLeague}>
             <PlayerSearchPage />
+          </LeagueProtectedRoute>
+        }
+      />
+      <Route
+        path="/custom-players"
+        element={
+          <LeagueProtectedRoute isLoggedIn={isLoggedIn} hasSelectedLeague={hasSelectedLeague}>
+            <CustomPlayersPage />
           </LeagueProtectedRoute>
         }
       />
