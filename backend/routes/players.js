@@ -16,6 +16,7 @@ router.put("/:APIplayerId/doc", auth.verify, PlayersController.upsertPlayerDoc);
 router.post("/:APIplayerId/draft", auth.verify, PlayersController.draftPlayer);
 router.post("/:APIplayerId/drop", auth.verify, PlayersController.dropPlayer);
 router.post("/:APIplayerId/move", auth.verify, PlayersController.movePlayer);
+router.post("/:APIplayerId/taxi", auth.verify, PlayersController.draftTaxiPlayer);
 router.get("/", auth.verify, PlayersController.getPlayers);
 
 module.exports = router;
