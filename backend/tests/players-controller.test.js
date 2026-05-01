@@ -346,6 +346,7 @@ describe("players-controller endpoints", () => {
   it("getPlayers returns upstream errors", async () => {
     process.env.API_TOKEN = "token";
     vi.spyOn(db, "getLeagueById").mockResolvedValue({ _id: "league-1", rosterIds: [] });
+    vi.spyOn(db, "getDraftedPlayers").mockResolvedValue([]);
     global.fetch = vi.fn().mockResolvedValue({
       ok: false,
       status: 422,
@@ -373,6 +374,7 @@ describe("players-controller endpoints", () => {
   it("getPlayers returns a 502 when the upstream request throws", async () => {
     process.env.API_TOKEN = "token";
     vi.spyOn(db, "getLeagueById").mockResolvedValue({ _id: "league-1", rosterIds: [] });
+    vi.spyOn(db, "getDraftedPlayers").mockResolvedValue([]);
     global.fetch = vi.fn().mockRejectedValue(new Error("offline"));
 
     const res = createResponse();
