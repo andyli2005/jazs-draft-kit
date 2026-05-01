@@ -7,6 +7,7 @@ const NAV_ITEMS = [
   { to: "/all-teams", label: "All Teams", requiresLeague: true },
   { to: "/my-team", label: "My Team", requiresLeague: true },
   { to: "/player-search", label: "Player Search", requiresLeague: true },
+  { to: "/custom-players", label: "Custom Players", requiresLeague: true },
   { to: "/transactions", label: "Transactions", requiresLeague: true },
   { to: "/api-dashboard", label: "API Dashboard" },
   { to: "/settings", label: "Settings" },

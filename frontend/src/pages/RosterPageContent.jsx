@@ -29,6 +29,17 @@ function RosterPageContent({ roster, budgetCap, showBudget = true, onPlayerSelec
     return null;
   }
 
+  function normalizeSelectedPlayer(player) {
+    if (!player) return player;
+    return {
+      ...player,
+      _id: player?._id ? String(player._id) : undefined,
+      APIplayerId: player?.APIplayerId ? String(player.APIplayerId) : undefined,
+      ownerId: roster?._id ? String(roster._id) : player?.ownerId,
+      isCustom: Boolean(player?.isCustom || !player?.APIplayerId),
+    };
+  }
+
   return (
     <>
       {showBudget ? <p className="muted">Budget Left: ${roster.budgetLeft ?? budgetCap ?? 0}</p> : null}
@@ -45,7 +56,7 @@ function RosterPageContent({ roster, budgetCap, showBudget = true, onPlayerSelec
                     <button
                       className="roster-player-button"
                       type="button"
-                      onClick={() => onPlayerSelect?.(player)}
+                      onClick={() => onPlayerSelect?.(normalizeSelectedPlayer(player))}
                     >
                       <strong>{player.name || "Rostered Player"}</strong>
                     </button>
