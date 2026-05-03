@@ -23,6 +23,17 @@ const statBlockSchema = new mongoose.Schema(
   { _id: false }
 );
 
+const depthChartSchema = new mongoose.Schema(
+  {
+    position: { type: String, default: "" },
+    rank:     { type: Number, default: null },
+    role:     { type: String, default: "" },
+    section:  { type: String, default: "" },
+    status:   { type: String, default: "" },
+  },
+  { _id: false }
+);
+
 const playerSchema = new mongoose.Schema(
   {
     name:                  { type: String, required: true, trim: true },
@@ -33,12 +44,17 @@ const playerSchema = new mongoose.Schema(
     pictureURL:            { type: String, default: "" },
     price:                 { type: Number, required: true },
     team:                  { type: String, required: true },
+    age:                   { type: Number, default: null },
+    injury:                { type: Boolean, default: false },
+    injuryStatus:          { type: String, default: "" },
+    injuryNote:            { type: String, default: "" },
+    depthChart:            { type: depthChartSchema, default: () => ({}) },
     weight:                { type: Number, default: null },
     height:                { type: Number, default: null },
     bidStartedById:        { type: ObjectId, ref: "MLBRoster", default: null },
     ownerId:               { type: ObjectId, ref: "MLBRoster", default: null },
     leagueId:              { type: ObjectId, ref: "League", required: true },
-    APIplayerId:           { type: ObjectId, default: null },
+    APIplayerId:           { type: String, default: null },
     isCustom:              { type: Boolean, default: false },
     currentStats:          { type: statBlockSchema, required: true },
     projectedStats:        { type: statBlockSchema, required: true },

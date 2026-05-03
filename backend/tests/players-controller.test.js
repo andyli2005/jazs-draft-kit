@@ -85,12 +85,20 @@ describe("players-controller helpers", () => {
 
   it("normalizeApiPlayer maps licensed API payloads", () => {
     const normalized = normalizeApiPlayer({
-      _id: "api-1",
+      _id: "mongo-id",
+      playerId: "api-1",
       name: "Player One",
       status: "DTD",
       note: "day-to-day",
       positions: "1B",
       team: "NYM",
+      age: 28,
+      injury: true,
+      injuryStatus: "Day-to-day",
+      injuryNote: "Hamstring tightness",
+      depthChart: { position: "1B", rank: 2, role: "Reserve", section: "Infield", status: "Backup" },
+      height: 74,
+      weight: 224,
       currentStats: { runs: "3" },
     });
 
@@ -101,6 +109,13 @@ describe("players-controller helpers", () => {
       notes: "day-to-day",
       positions: "1B",
       team: "NYM",
+      age: 28,
+      injury: true,
+      injuryStatus: "Day-to-day",
+      injuryNote: "Hamstring tightness",
+      depthChart: { position: "1B", rank: 2, role: "Reserve", section: "Infield", status: "Backup" },
+      height: 74,
+      weight: 224,
       price: 0,
     });
     expect(normalized.currentStats.runs).toBe(3);
@@ -120,13 +135,21 @@ describe("players-controller helpers", () => {
     const payload = {
       items: [
         {
-          _id: "api-1",
+          _id: "mongo-id-1",
+          playerId: "api-1",
           name: "Player One",
           status: "Active",
           pictureURL: "img",
           positions: "SP",
           team: "SEA",
           cost: 12,
+          age: 29,
+          injury: true,
+          injuryStatus: "IL",
+          injuryNote: "Shoulder",
+          depthChart: { position: "SP", rank: 3, role: "Starter", section: "Pitchers", status: "Rotation" },
+          height: 76,
+          weight: 230,
           currentStats: { runs: 1 },
         },
       ],
@@ -137,6 +160,12 @@ describe("players-controller helpers", () => {
         APIplayerId: "api-1",
         team: "SEA",
         cost: 12,
+        age: 29,
+        injuryStatus: "IL",
+        injuryNote: "Shoulder",
+        depthChart: { position: "SP", rank: 3, role: "Starter", section: "Pitchers", status: "Rotation" },
+        height: 76,
+        weight: 230,
         runs: 1,
       }),
     ]);
@@ -151,6 +180,13 @@ describe("players-controller helpers", () => {
         positions: "SP",
         team: "SEA",
         pictureURL: "img",
+        age: 31,
+        injury: false,
+        injuryStatus: "",
+        injuryNote: "",
+        depthChart: { position: "SP", rank: 1, role: "Ace", section: "Pitchers", status: "Starter" },
+        height: 77,
+        weight: 225,
         currentStats: { runs: 1 },
         projectedStats: { runs: 2 },
         threeYearAverageStats: { runs: 3 },
@@ -164,6 +200,11 @@ describe("players-controller helpers", () => {
     expect(fields.price).toBe(44);
     expect(fields.personalNotes).toBe("stash");
     expect(fields.notes).toBe("Healthy");
+    expect(fields.depthChart.status).toBe("Starter");
+    expect(fields.depthChart.role).toBe("Ace");
+    expect(fields.depthChart.section).toBe("Pitchers");
+    expect(fields.height).toBe(77);
+    expect(fields.weight).toBe(225);
   });
 
   it("hasTruthyOverride only accepts boolean true or the string true", () => {
@@ -186,14 +227,14 @@ describe("players-controller helpers", () => {
     expect(isTransactionUnsupportedError(new Error("other failure"))).toBe(false);
   });
 
-  it("fetchLicensedPlayerById falls back to evaluations on a 404 detail lookup", async () => {
+  it("fetchLicensedPlayerById falls back to evaluations when detail lookup fails", async () => {
     process.env.API_TOKEN = "token";
     global.fetch = vi
       .fn()
       .mockResolvedValueOnce({
-        status: 404,
+        status: 500,
         ok: false,
-        json: async () => ({}),
+        json: async () => ({ errorMessage: "Failed to fetch player." }),
       })
       .mockResolvedValueOnce({
         ok: true,
@@ -205,6 +246,9 @@ describe("players-controller helpers", () => {
               status: "Active",
               positions: "OF",
               team: "ATL",
+              depthChart: { position: "OF", rank: 1, role: "Starter", section: "Outfield", status: "First String" },
+              height: 75,
+              weight: 210,
               currentStats: {},
               projectedStats: {},
               threeYearAverageStats: {},
@@ -217,6 +261,54 @@ describe("players-controller helpers", () => {
 
     expect(player.APIplayerId).toBe("api-7");
     expect(player.name).toBe("Fallback Player");
+    expect(player.depthChart.status).toBe("First String");
+    expect(player.height).toBe(75);
+    expect(player.weight).toBe(210);
+  });
+
+  it("fetchLicensedPlayerById accepts player response shape and preserves depth chart", async () => {
+    process.env.API_TOKEN = "token";
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        player: {
+          _id: "mongo-id",
+          playerId: "api-10",
+          name: "Depth Player",
+          status: "Active",
+          note: "Healthy",
+          pictureURL: "img",
+          positions: "2B",
+          team: "SEA",
+          depthChart: {
+            position: "2B",
+            rank: 1,
+            role: "Starter",
+            section: "Infield",
+            status: "First String",
+          },
+          height: 72,
+          weight: 205,
+          currentStats: {},
+          projectedStats: {},
+          threeYearAverageStats: {},
+        },
+      }),
+    });
+
+    const player = await fetchLicensedPlayerById("api-10");
+
+    expect(player.APIplayerId).toBe("api-10");
+    expect(player.depthChart).toEqual({
+      position: "2B",
+      rank: 1,
+      role: "Starter",
+      section: "Infield",
+      status: "First String",
+    });
+    expect(player.height).toBe(72);
+    expect(player.weight).toBe(205);
   });
 
   it("fetchLicensedPlayerFromEvaluations throws when the player is absent", async () => {
@@ -437,6 +529,58 @@ describe("players-controller endpoints", () => {
 
     expect(res.statusCode).toBe(200);
     expect(res.jsonPayload.playerDoc).toEqual({ APIplayerId: API_PLAYER_ID, leagueId: LEAGUE_ID });
+  });
+
+  it("getPlayerDoc returns depth chart data from the upstream player API", async () => {
+    process.env.API_TOKEN = "token";
+    vi.spyOn(League, "findById").mockReturnValue(
+      createSelectLeanQuery({ user: USER_ID })
+    );
+    vi.spyOn(db, "getPlayerDoc").mockResolvedValue(null);
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        player: {
+          _id: "mongo-id",
+          playerId: API_PLAYER_ID,
+          name: "Depth Player",
+          status: "Active",
+          note: "Healthy",
+          pictureURL: "img",
+          positions: "2B",
+          team: "SEA",
+          depthChart: {
+            position: "2B",
+            rank: 1,
+            role: "Starter",
+            section: "Infield",
+            status: "First String",
+          },
+          currentStats: {},
+          projectedStats: {},
+          threeYearAverageStats: {},
+        },
+      }),
+    });
+
+    const res = createResponse();
+    await playersController.getPlayerDoc(
+      { userId: USER_ID, params: { APIplayerId: API_PLAYER_ID }, query: { leagueId: LEAGUE_ID } },
+      res
+    );
+
+    expect(res.statusCode).toBe(200);
+    expect(res.jsonPayload.playerDoc).toMatchObject({
+      APIplayerId: API_PLAYER_ID,
+      depthChart: {
+        position: "2B",
+        rank: 1,
+        role: "Starter",
+        section: "Infield",
+        status: "First String",
+      },
+    });
   });
 
   it("getPlayerDoc returns 500 when the document lookup fails", async () => {
