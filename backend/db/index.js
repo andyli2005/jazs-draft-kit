@@ -147,14 +147,16 @@ class Database {
   async createMLBRoster(rosterData)           { const newRoster = new MLBRoster(rosterData); return newRoster.save(); }
   async getMLBRosterById(id)                  { return MLBRoster.findById(id); }
 
-  async getPlayerDoc(APIplayerId, leagueId)   { return Player.findOne({ APIplayerId, leagueId }); }
+  async getPlayerDoc(APIplayerId, leagueId)   { return Player.findOne({ APIplayerId, leagueId, isCustom: false }); }
   async upsertPlayerDoc(APIplayerId, leagueId, fields) {
     return Player.findOneAndUpdate(
-      { APIplayerId, leagueId },
-      { $set: { APIplayerId, leagueId, ...fields } },
+      { APIplayerId, leagueId, isCustom: false },
+      { $set: { APIplayerId, leagueId, isCustom: false, ...fields } },
       { upsert: true, new: true, runValidators: true }
     );
   }
-}
+
+  async getDraftedPlayers(leagueId) { return Player.find({ leagueId, ownerId: { $ne: null } }).lean(); }
+} 
 
 module.exports = new Database();

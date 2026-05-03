@@ -1,5 +1,23 @@
 const API_BASE = import.meta.env.VITE_API_BASE_URL || "http://localhost:4000";
 
+function normalizePathId(value) {
+  if (value == null) return "";
+  if (typeof value === "string" || typeof value === "number") {
+    return encodeURIComponent(String(value));
+  }
+
+  if (typeof value === "object") {
+    if (typeof value.$oid === "string") {
+      return encodeURIComponent(value.$oid);
+    }
+    if (typeof value.toString === "function") {
+      return encodeURIComponent(String(value.toString()));
+    }
+  }
+
+  return encodeURIComponent(String(value));
+}
+
 async function request(path, options = {}) {
   let response;
   try {
@@ -65,8 +83,41 @@ export function getPlayers(query = {}) {
   return request(path, { method: "GET" });
 }
 
+export function getCustomPlayers(leagueId) {
+  const params = new URLSearchParams({ leagueId: String(leagueId) });
+  return request(`/api/players/custom?${params.toString()}`, { method: "GET" });
+}
+
+export function createCustomPlayer(payload) {
+  return request("/api/players/custom", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export function updateCustomPlayer(playerId, payload) {
+  return request(`/api/players/custom/${normalizePathId(playerId)}`, {
+    method: "PATCH",
+    body: JSON.stringify(payload),
+  });
+}
+
+export function deleteCustomPlayer(playerId, payload) {
+  return request(`/api/players/custom/${normalizePathId(playerId)}`, {
+    method: "DELETE",
+    body: JSON.stringify(payload),
+  });
+}
+
 export function dropPlayer(APIplayerId, payload) {
-  return request(`/api/players/${APIplayerId}/drop`, {
+  return request(`/api/players/${normalizePathId(APIplayerId)}/drop`, {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export function movePlayer(APIplayerId, payload) {
+  return request(`/api/players/${normalizePathId(APIplayerId)}/move`, {
     method: "POST",
     body: JSON.stringify(payload),
   });
@@ -74,20 +125,41 @@ export function dropPlayer(APIplayerId, payload) {
 
 export function getPlayerDoc(APIplayerId, leagueId) {
   const params = new URLSearchParams({ leagueId: String(leagueId) });
-  return request(`/api/players/${APIplayerId}/doc?${params.toString()}`, {
+  return request(`/api/players/${normalizePathId(APIplayerId)}/doc?${params.toString()}`, {
     method: "GET",
   });
 }
 
 export function updatePlayerDoc(APIplayerId, payload) {
-  return request(`/api/players/${APIplayerId}/doc`, {
+  return request(`/api/players/${normalizePathId(APIplayerId)}/doc`, {
     method: "PUT",
     body: JSON.stringify(payload),
   });
 }
 
 export function draftPlayer(APIplayerId, payload) {
-  return request(`/api/players/${APIplayerId}/draft`, {
+  return request(`/api/players/${normalizePathId(APIplayerId)}/draft`, {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export function draftCustomPlayer(playerId, payload) {
+  return request(`/api/players/custom/${normalizePathId(playerId)}/draft`, {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export function dropCustomPlayer(playerId, payload) {
+  return request(`/api/players/custom/${normalizePathId(playerId)}/drop`, {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export function moveCustomPlayer(playerId, payload) {
+  return request(`/api/players/custom/${normalizePathId(playerId)}/move`, {
     method: "POST",
     body: JSON.stringify(payload),
   });

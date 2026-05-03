@@ -54,7 +54,8 @@ const playerSchema = new mongoose.Schema(
     bidStartedById:        { type: ObjectId, ref: "MLBRoster", default: null },
     ownerId:               { type: ObjectId, ref: "MLBRoster", default: null },
     leagueId:              { type: ObjectId, ref: "League", required: true },
-    APIplayerId:           { type: String, required: true },
+    APIplayerId:           { type: String, default: null },
+    isCustom:              { type: Boolean, default: false },
     currentStats:          { type: statBlockSchema, required: true },
     projectedStats:        { type: statBlockSchema, required: true },
     threeYearAverageStats: { type: statBlockSchema, required: true },
@@ -62,6 +63,14 @@ const playerSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-playerSchema.index({ APIplayerId: 1, leagueId: 1 }, { unique: true });
+playerSchema.index(
+  { APIplayerId: 1, leagueId: 1 },
+  {
+    unique: true,
+    partialFilterExpression: {
+      APIplayerId: { $exists: true, $ne: null },
+    },
+  }
+);
 
 module.exports = mongoose.model("Player", playerSchema);
