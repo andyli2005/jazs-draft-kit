@@ -49,6 +49,13 @@ const STAT_KEYS = [
   "sluggingPercentage",
   "fantasyPoints",
 ];
+const EMPTY_DEPTH_CHART = Object.freeze({
+  position: "",
+  rank: null,
+  role: "",
+  section: "",
+  status: "",
+});
 
 function createHttpError(status, message) {
   const error = new Error(message);
@@ -70,16 +77,49 @@ function normalizeStatBlock(block) {
   }, {});
 }
 
+function normalizeNumberField(value) {
+  const number = Number(value);
+  return Number.isFinite(number) ? number : null;
+}
+
+function normalizeTextField(value) {
+  if (value == null) return "";
+  if (typeof value === "object") return JSON.stringify(value);
+  return String(value);
+}
+
+function normalizeDepthChart(value) {
+  if (!value || typeof value !== "object") {
+    return { ...EMPTY_DEPTH_CHART };
+  }
+
+  return {
+    position: normalizeTextField(value.position),
+    rank: normalizeNumberField(value.rank),
+    role: normalizeTextField(value.role),
+    section: normalizeTextField(value.section),
+    status: normalizeTextField(value.status),
+  };
+}
+
 function normalizeApiPlayer(rawPlayer) {
   if (!rawPlayer) return null;
+  const depthChart = normalizeDepthChart(rawPlayer.depthChart);
   return {
-    APIplayerId: rawPlayer._id || rawPlayer.APIplayerId,
+    APIplayerId: rawPlayer.playerId || rawPlayer.APIplayerId || rawPlayer._id,
     name: rawPlayer.name || "",
     status: rawPlayer.status || "",
     notes: rawPlayer.note || rawPlayer.notes || rawPlayer.status || "",
     positions: rawPlayer.positions || "",
     team: rawPlayer.team || "",
     pictureURL: rawPlayer.pictureURL || "",
+    age: normalizeNumberField(rawPlayer.age),
+    injury: Boolean(rawPlayer.injury),
+    injuryStatus: normalizeTextField(rawPlayer.injuryStatus),
+    injuryNote: normalizeTextField(rawPlayer.injuryNote),
+    depthChart,
+    height: normalizeNumberField(rawPlayer.height),
+    weight: normalizeNumberField(rawPlayer.weight),
     // Single-player licensed payload does not include recommended cost.
     price: 0,
     currentStats: normalizeStatBlock(rawPlayer.currentStats),
@@ -100,6 +140,13 @@ function mapPlayerToDocFields(licensedPlayer, existingDoc) {
     positions: licensedPlayer.positions,
     team: licensedPlayer.team,
     pictureURL: licensedPlayer.pictureURL || "",
+    age: licensedPlayer.age ?? null,
+    injury: Boolean(licensedPlayer.injury),
+    injuryStatus: licensedPlayer.injuryStatus || "",
+    injuryNote: licensedPlayer.injuryNote || "",
+    depthChart: normalizeDepthChart(licensedPlayer.depthChart),
+    height: licensedPlayer.height ?? null,
+    weight: licensedPlayer.weight ?? null,
     // Preserve local draft/dropped state; this should not be overwritten by recommended API cost.
     price: existingDoc?.price ?? 0,
     personalNotes: existingDoc?.personalNotes || "",
@@ -125,15 +172,20 @@ async function fetchLicensedPlayerById(APIplayerId) {
     throw createHttpError(500, "Server configuration is missing API_TOKEN.");
   }
 
-  const url = `${getApiBase()}/api/players/${APIplayerId}`;
+  const url = `${getApiBase()}/api/players/${encodeURIComponent(APIplayerId)}`;
   const { response, data } = await fetchUpstreamJson(url);
-  if (response.status === 404) {
-    return fetchLicensedPlayerFromEvaluations(APIplayerId);
-  }
   if (!response.ok) {
-    throw createHttpError(response.status, data?.errorMessage || data?.message || "Failed to fetch player.");
+    const detailError = createHttpError(
+      response.status,
+      data?.errorMessage || data?.message || "Failed to fetch player."
+    );
+    try {
+      return await fetchLicensedPlayerFromEvaluations(APIplayerId);
+    } catch {
+      throw detailError;
+    }
   }
-  const item = data?.item;
+  const item = data?.item || data?.player || data?.playerDoc || data;
   const normalized = normalizeApiPlayer(item);
   if (!normalized || String(normalized.APIplayerId) !== String(APIplayerId)) {
     throw createHttpError(502, "Licensed API returned an invalid player payload.");
@@ -163,13 +215,20 @@ async function fetchLicensedPlayerFromEvaluations(APIplayerId) {
   }
 
   return normalizeApiPlayer({
-    _id: matched.APIplayerId,
+    playerId: matched.APIplayerId,
     name: matched.name,
     status: matched.status,
     note: matched.notes || matched.status || "",
     pictureURL: matched.pictureURL,
     positions: matched.positions,
     team: matched.team,
+    age: matched.age,
+    injury: matched.injury,
+    injuryStatus: matched.injuryStatus,
+    injuryNote: matched.injuryNote,
+    depthChart: matched.depthChart,
+    height: matched.height,
+    weight: matched.weight,
     currentStats: matched.currentStats,
     projectedStats: matched.projectedStats,
     threeYearAverageStats: matched.threeYearAverageStats,
@@ -189,13 +248,21 @@ function extractPlayers(payload) {
   }
 
   return source.map((player) => ({
-    APIplayerId: player._id,
+    APIplayerId: player.playerId || player.APIplayerId || player._id,
     name: player.name,
     status: player.status,
+    notes: player.note || player.notes || player.status || "",
     pictureURL: player.pictureURL,
     positions: player.positions,
     team: player.team,
     cost: player.cost,
+    age: normalizeNumberField(player.age),
+    injury: Boolean(player.injury),
+    injuryStatus: normalizeTextField(player.injuryStatus),
+    injuryNote: normalizeTextField(player.injuryNote),
+    depthChart: normalizeDepthChart(player.depthChart),
+    height: normalizeNumberField(player.height),
+    weight: normalizeNumberField(player.weight),
     currentStats: player.currentStats || {},
     projectedStats: player.projectedStats || {},
     threeYearAverageStats: player.threeYearAverageStats || {},
@@ -383,7 +450,39 @@ const getPlayerDoc = async (req, res) => {
     }
 
     const playerDoc = await db.getPlayerDoc(APIplayerId, leagueId);
-    return res.status(200).json({ playerDoc });
+    let licensedPlayer = null;
+    try {
+      licensedPlayer = await fetchLicensedPlayerById(APIplayerId);
+    } catch (err) {
+      console.warn(
+        `Unable to hydrate player ${APIplayerId} from upstream:`,
+        err.message || "Failed to fetch upstream player."
+      );
+      licensedPlayer = null;
+    }
+
+    if (!playerDoc) {
+      return res.status(200).json({ playerDoc: licensedPlayer });
+    }
+
+    if (!licensedPlayer) {
+      return res.status(200).json({ playerDoc });
+    }
+
+    const localPlayerDoc =
+      typeof playerDoc.toObject === "function" ? playerDoc.toObject() : playerDoc;
+    const mergedPlayerDoc = {
+      ...localPlayerDoc,
+      ...(licensedPlayer || {}),
+      price: playerDoc.price,
+      personalNotes: playerDoc.personalNotes,
+      bidStartedById: playerDoc.bidStartedById,
+      ownerId: playerDoc.ownerId,
+      leagueId: playerDoc.leagueId,
+      APIplayerId: playerDoc.APIplayerId,
+    };
+
+    return res.status(200).json({ playerDoc: mergedPlayerDoc });
   } catch (err) {
     console.error(err);
     return res.status(500).json({ errorMessage: "Error fetching player document." });
@@ -395,7 +494,7 @@ const upsertPlayerDoc = async (req, res) => {
     const { APIplayerId } = req.params;
     const {
       leagueId, personalNotes, name, status, notes,
-      positions, team, pictureURL, price,
+      positions, team, pictureURL, price, age, injury, injuryStatus, injuryNote, depthChart, height, weight,
       currentStats, projectedStats, threeYearAverageStats,
     } = req.body;
 
@@ -421,6 +520,13 @@ const upsertPlayerDoc = async (req, res) => {
       positions,
       team,
       pictureURL: pictureURL || "",
+      age: normalizeNumberField(age),
+      injury: Boolean(injury),
+      injuryStatus: normalizeTextField(injuryStatus),
+      injuryNote: normalizeTextField(injuryNote),
+      depthChart: normalizeDepthChart(depthChart),
+      height: normalizeNumberField(height),
+      weight: normalizeNumberField(weight),
       // Preserve existing draft cost unless explicitly provided.
       price: price ?? prevDoc?.price ?? 0,
       personalNotes: personalNotes || "",

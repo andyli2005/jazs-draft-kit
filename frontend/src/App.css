@@ -882,6 +882,33 @@
   gap: 0.25rem;
 }
 
+.player-stats-details {
+  margin: 0;
+  display: grid;
+  gap: 0.4rem;
+  font-size: 0.82rem;
+}
+
+.player-stats-detail-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.25fr);
+  gap: 0.65rem;
+  align-items: baseline;
+}
+
+.player-stats-detail-row dt {
+  color: #5a6788;
+  font-weight: 700;
+}
+
+.player-stats-detail-row dd {
+  margin: 0;
+  color: #2a3759;
+  font-weight: 600;
+  text-align: right;
+  overflow-wrap: anywhere;
+}
+
 .player-stats-notes-display p {
   margin: 0;
   font-size: 0.85rem;
