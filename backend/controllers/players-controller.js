@@ -31,6 +31,8 @@ const ROSTER_SLOT_KEYS = [
   "outfielder4",
   "outfielder5",
 ];
+const CONTRACT_STATUS_VALUES = ["S1", "S2", "S3", "F1", "F2", "F3", "X"];
+
 const STAT_KEYS = [
   "atBats",
   "runs",
@@ -54,6 +56,20 @@ function createHttpError(status, message) {
   const error = new Error(message);
   error.status = status;
   return error;
+}
+
+function parseRequiredContractStatus(raw) {
+  const value = raw == null ? "" : String(raw).trim();
+  if (!value) {
+    return { ok: false, errorMessage: "contractStatus is required to draft a player." };
+  }
+  if (!CONTRACT_STATUS_VALUES.includes(value)) {
+    return {
+      ok: false,
+      errorMessage: "contractStatus must be one of S1, S2, S3, F1, F2, F3, X.",
+    };
+  }
+  return { ok: true, value };
 }
 
 function isTransactionUnsupportedError(error) {
@@ -141,6 +157,7 @@ function mapPlayerToDocFields(licensedPlayer, existingDoc) {
     // Preserve local draft/dropped state; this should not be overwritten by recommended API cost.
     price: existingDoc?.price ?? 0,
     personalNotes: existingDoc?.personalNotes || "",
+    contractStatus: existingDoc?.contractStatus ?? null,
     currentStats: licensedPlayer.currentStats,
     projectedStats: licensedPlayer.projectedStats,
     threeYearAverageStats: licensedPlayer.threeYearAverageStats,
@@ -359,6 +376,25 @@ const updateCustomPlayer = async (req, res) => {
 
     if (!playerDoc.notes) {
       playerDoc.notes = playerDoc.status || "";
+    }
+
+    if (playerDoc.ownerId) {
+      const parse = parseRequiredContractStatus(req.body.contractStatus);
+      if (!parse.ok) {
+        return res.status(400).json({ errorMessage: parse.errorMessage });
+      }
+      playerDoc.contractStatus = parse.value;
+    } else if (req.body.contractStatus !== undefined && req.body.contractStatus !== null) {
+      const trimmed = String(req.body.contractStatus).trim();
+      if (!trimmed) {
+        playerDoc.contractStatus = null;
+      } else {
+        const parse = parseRequiredContractStatus(req.body.contractStatus);
+        if (!parse.ok) {
+          return res.status(400).json({ errorMessage: parse.errorMessage });
+        }
+        playerDoc.contractStatus = parse.value;
+      }
     }
 
     await playerDoc.save();
@@ -636,6 +672,7 @@ const upsertPlayerDoc = async (req, res) => {
       leagueId, personalNotes, name, status, notes,
       positions, team, pictureURL, price,
       currentStats, projectedStats, threeYearAverageStats,
+      contractStatus,
     } = req.body;
 
     if (!leagueId) {
@@ -667,6 +704,25 @@ const upsertPlayerDoc = async (req, res) => {
       projectedStats,
       threeYearAverageStats,
     };
+
+    if (prevDoc?.ownerId) {
+      const parse = parseRequiredContractStatus(contractStatus);
+      if (!parse.ok) {
+        return res.status(400).json({ errorMessage: parse.errorMessage });
+      }
+      fields.contractStatus = parse.value;
+    } else if (contractStatus !== undefined && contractStatus !== null) {
+      const trimmed = String(contractStatus).trim();
+      if (!trimmed) {
+        fields.contractStatus = null;
+      } else {
+        const parse = parseRequiredContractStatus(contractStatus);
+        if (!parse.ok) {
+          return res.status(400).json({ errorMessage: parse.errorMessage });
+        }
+        fields.contractStatus = parse.value;
+      }
+    }
 
     const prevNotes = prevDoc?.personalNotes ?? "";
     const hasChangedNotes = prevNotes !== fields.personalNotes;
@@ -702,6 +758,7 @@ const draftPlayer = async (req, res) => {
       slotKey,
       draftCost,
       inactiveOverrideAccepted,
+      contractStatus,
     } = req.body || {};
 
     if (!leagueId || !bidStartedById || !draftedToRosterId || !slotKey || draftCost == null) {
@@ -709,6 +766,12 @@ const draftPlayer = async (req, res) => {
         errorMessage: "leagueId, bidStartedById, draftedToRosterId, slotKey, and draftCost are required.",
       });
     }
+
+    const contractStatusParse = parseRequiredContractStatus(contractStatus);
+    if (!contractStatusParse.ok) {
+      return res.status(400).json({ errorMessage: contractStatusParse.errorMessage });
+    }
+    const normalizedContractStatus = contractStatusParse.value;
 
     if (!ROSTER_SLOT_KEYS.includes(slotKey)) {
       return res.status(400).json({ errorMessage: "Invalid roster slot selected." });
@@ -792,7 +855,14 @@ const draftPlayer = async (req, res) => {
 
       const claimResult = await Player.updateOne(
         { _id: playerDoc._id, $or: [{ ownerId: null }, { ownerId: { $exists: false } }] },
-        { $set: { ownerId: draftedToRosterId, bidStartedById, price: normalizedDraftCost } },
+        {
+          $set: {
+            ownerId: draftedToRosterId,
+            bidStartedById,
+            price: normalizedDraftCost,
+            contractStatus: normalizedContractStatus,
+          },
+        },
         queryOptions
       );
       if (claimResult.modifiedCount !== 1) {
@@ -922,7 +992,7 @@ const dropPlayer = async (req, res) => {
 
       const playerUpdate = await Player.updateOne(
         { _id: playerDoc._id, ownerId: rosterId },
-        { $set: { ownerId: null, bidStartedById: null, price: 0 } },
+        { $set: { ownerId: null, bidStartedById: null, price: 0, contractStatus: null } },
         queryOptions
       );
       if (playerUpdate.modifiedCount !== 1) {
@@ -1105,6 +1175,7 @@ const draftCustomPlayer = async (req, res) => {
       slotKey,
       draftCost,
       inactiveOverrideAccepted,
+      contractStatus,
     } = req.body || {};
 
     if (!leagueId || !bidStartedById || !draftedToRosterId || !slotKey || draftCost == null) {
@@ -1112,6 +1183,12 @@ const draftCustomPlayer = async (req, res) => {
         errorMessage: "leagueId, bidStartedById, draftedToRosterId, slotKey, and draftCost are required.",
       });
     }
+
+    const contractStatusParse = parseRequiredContractStatus(contractStatus);
+    if (!contractStatusParse.ok) {
+      return res.status(400).json({ errorMessage: contractStatusParse.errorMessage });
+    }
+    const normalizedContractStatus = contractStatusParse.value;
 
     if (!ROSTER_SLOT_KEYS.includes(slotKey)) {
       return res.status(400).json({ errorMessage: "Invalid roster slot selected." });
@@ -1179,7 +1256,14 @@ const draftCustomPlayer = async (req, res) => {
 
       const claimResult = await Player.updateOne(
         { _id: playerDoc._id, $or: [{ ownerId: null }, { ownerId: { $exists: false } }] },
-        { $set: { ownerId: draftedToRosterId, bidStartedById, price: normalizedDraftCost } },
+        {
+          $set: {
+            ownerId: draftedToRosterId,
+            bidStartedById,
+            price: normalizedDraftCost,
+            contractStatus: normalizedContractStatus,
+          },
+        },
         queryOptions
       );
       if (claimResult.modifiedCount !== 1) {
@@ -1299,7 +1383,7 @@ const dropCustomPlayer = async (req, res) => {
 
       const playerUpdate = await Player.updateOne(
         { _id: playerDoc._id, ownerId: rosterId },
-        { $set: { ownerId: null, bidStartedById: null, price: 0 } },
+        { $set: { ownerId: null, bidStartedById: null, price: 0, contractStatus: null } },
         queryOptions
       );
       if (playerUpdate.modifiedCount !== 1) {

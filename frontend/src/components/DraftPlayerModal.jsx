@@ -6,6 +6,8 @@ import {
   getEligibleSlotKeySet,
 } from "../leagues/rosterSlots";
 
+const CONTRACT_STATUS_OPTIONS = ["S1", "S2", "S3", "F1", "F2", "F3", "X"];
+
 function normalizeStatus(status) {
   return String(status || "").trim().toLowerCase();
 }
@@ -20,6 +22,7 @@ function DraftPlayerModal({ open, player, league, onClose, onDrafted, isCustom =
   const [inactiveOverrideAccepted, setInactiveOverrideAccepted] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState("");
+  const [contractStatus, setContractStatus] = useState("");
 
   const rosters = useMemo(
     () => (Array.isArray(league?.rosterIds) ? league.rosterIds : []),
@@ -65,6 +68,7 @@ function DraftPlayerModal({ open, player, league, onClose, onDrafted, isCustom =
     setPositionOverrideEnabled(false);
     setInactiveOverrideAccepted(false);
     setError("");
+    setContractStatus("");
     const defaultCost = Number.isFinite(Number(player?.cost)) ? Number(player.cost) : 0;
     setDraftCost(String(defaultCost));
   }, [open, player?.APIplayerId, player?._id, player?.cost, rosters]);
@@ -93,6 +97,7 @@ function DraftPlayerModal({ open, player, league, onClose, onDrafted, isCustom =
     Boolean(draftedToRosterId) &&
     Boolean(slotKey) &&
     draftCostIsValid &&
+    CONTRACT_STATUS_OPTIONS.includes(contractStatus) &&
     (!requiresInactiveOverride || inactiveOverrideAccepted) &&
     !isSubmitting;
 
@@ -109,6 +114,7 @@ function DraftPlayerModal({ open, player, league, onClose, onDrafted, isCustom =
         slotKey,
         draftCost: numericDraftCost,
         inactiveOverrideAccepted,
+        contractStatus,
       });
       await onDrafted?.(data);
       onClose();
@@ -210,6 +216,25 @@ function DraftPlayerModal({ open, player, league, onClose, onDrafted, isCustom =
                 </label>
               </div>
             ) : null}
+
+            <label className="modal-label">
+              <span>Contract status</span>
+              <select
+                className="modal-select"
+                value={contractStatus}
+                onChange={(event) => setContractStatus(event.target.value)}
+                aria-required="true"
+              >
+                <option value="" disabled>
+                  Select contract status
+                </option>
+                {CONTRACT_STATUS_OPTIONS.map((value) => (
+                  <option key={value} value={value}>
+                    {value}
+                  </option>
+                ))}
+              </select>
+            </label>
 
             <label className="modal-label">
               <span>Draft Cost</span>

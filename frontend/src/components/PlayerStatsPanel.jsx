@@ -5,6 +5,8 @@ import { useLeague } from "../leagues";
 import { formatPositionsString, parsePositionsString } from "../leagues/positions";
 import { getPlayerDoc, updateCustomPlayer, updatePlayerDoc } from "../leagues/requests";
 
+const CONTRACT_STATUS_OPTIONS = ["S1", "S2", "S3", "F1", "F2", "F3", "X"];
+
 const BATTING_STATS = [
   { label: "At Bats", key: "atBats" },
   { label: "Batting Avg", key: "battingAverage" },
@@ -40,6 +42,7 @@ function PlayerStatsPanel({
   const [playerDoc, setPlayerDoc] = useState(null);
   const [isEditing, setIsEditing] = useState(false);
   const [editDraft, setEditDraft] = useState("");
+  const [editContractStatus, setEditContractStatus] = useState("");
   const [customDraft, setCustomDraft] = useState(null);
   const [isSaving, setIsSaving] = useState(false);
   const [saveError, setSaveError] = useState("");
@@ -102,12 +105,21 @@ function PlayerStatsPanel({
         team: displayData?.team || "",
         pictureURL: displayData?.pictureURL || "",
         personalNotes: displayData?.personalNotes || "",
+        contractStatus:
+          effectiveOwnerId && CONTRACT_STATUS_OPTIONS.includes(displayData?.contractStatus)
+            ? displayData.contractStatus
+            : "",
         currentStats: { ...(displayData?.currentStats || {}) },
         projectedStats: { ...(displayData?.projectedStats || {}) },
         threeYearAverageStats: { ...(displayData?.threeYearAverageStats || {}) },
       });
     } else {
       setEditDraft(playerDoc?.personalNotes || "");
+      setEditContractStatus(
+        effectiveOwnerId && CONTRACT_STATUS_OPTIONS.includes(playerDoc?.contractStatus)
+          ? playerDoc.contractStatus
+          : ""
+      );
     }
     setSaveError("");
     setIsEditing(true);
@@ -116,6 +128,7 @@ function PlayerStatsPanel({
   function handleCancel() {
     setIsEditing(false);
     setCustomDraft(null);
+    setEditContractStatus("");
     setSaveError("");
   }
 
@@ -143,7 +156,7 @@ function PlayerStatsPanel({
     try {
       if (isCustomPlayer) {
         if (!player?._id || !customDraft) return;
-        const data = await updateCustomPlayer(player._id, {
+        const body = {
           leagueId: activeLeagueId,
           name: customDraft.name || "",
           status: customDraft.status || "Active",
@@ -155,11 +168,15 @@ function PlayerStatsPanel({
           currentStats: customDraft.currentStats || {},
           projectedStats: customDraft.projectedStats || {},
           threeYearAverageStats: customDraft.threeYearAverageStats || {},
-        });
+        };
+        if (effectiveOwnerId) {
+          body.contractStatus = customDraft.contractStatus;
+        }
+        const data = await updateCustomPlayer(player._id, body);
         setPlayerDoc(data.playerDoc);
       } else {
         if (!player?.APIplayerId) return;
-        const data = await updatePlayerDoc(player.APIplayerId, {
+        const body = {
           leagueId: activeLeagueId,
           personalNotes: editDraft,
           name: player.name,
@@ -173,7 +190,11 @@ function PlayerStatsPanel({
           currentStats: player.currentStats || {},
           projectedStats: player.projectedStats || {},
           threeYearAverageStats: player.threeYearAverageStats || {},
-        });
+        };
+        if (effectiveOwnerId) {
+          body.contractStatus = editContractStatus;
+        }
+        const data = await updatePlayerDoc(player.APIplayerId, body);
         setPlayerDoc(data.playerDoc);
       }
       setIsEditing(false);
@@ -250,6 +271,9 @@ function PlayerStatsPanel({
         {displayData.status && (
           <span className="player-stats-badge badge-outline">{displayData.status}</span>
         )}
+        {displayData.contractStatus && CONTRACT_STATUS_OPTIONS.includes(displayData.contractStatus) ? (
+          <span className="player-stats-badge badge-outline">Contract: {displayData.contractStatus}</span>
+        ) : null}
       </div>
 
       <div className="player-stats-kpi-row">
@@ -392,15 +416,57 @@ function PlayerStatsPanel({
                     rows={3}
                   />
                 </label>
+                {effectiveOwnerId ? (
+                  <label className="modal-label">
+                    <span>Contract status</span>
+                    <select
+                      className="modal-select"
+                      value={customDraft?.contractStatus || ""}
+                      onChange={(event) => updateCustomDraftField("contractStatus", event.target.value)}
+                      disabled={isSaving}
+                    >
+                      <option value="" disabled>
+                        Select contract status
+                      </option>
+                      {CONTRACT_STATUS_OPTIONS.map((value) => (
+                        <option key={value} value={value}>
+                          {value}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                ) : null}
               </div>
             ) : (
-              <textarea
-                className="player-stats-textarea"
-                value={editDraft}
-                onChange={(e) => setEditDraft(e.target.value)}
-                rows={4}
-                placeholder="Write your notes about this player..."
-              />
+              <>
+                {effectiveOwnerId ? (
+                  <label className="modal-label">
+                    <span>Contract status</span>
+                    <select
+                      className="modal-select"
+                      value={editContractStatus}
+                      onChange={(event) => setEditContractStatus(event.target.value)}
+                      disabled={isSaving}
+                    >
+                      <option value="" disabled>
+                        Select contract status
+                      </option>
+                      {CONTRACT_STATUS_OPTIONS.map((value) => (
+                        <option key={value} value={value}>
+                          {value}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                ) : null}
+                <textarea
+                  className="player-stats-textarea"
+                  value={editDraft}
+                  onChange={(e) => setEditDraft(e.target.value)}
+                  rows={4}
+                  placeholder="Write your notes about this player..."
+                />
+              </>
             )}
             {saveError && <p className="error">{saveError}</p>}
             <div className="player-stats-notes-actions">
@@ -408,7 +474,13 @@ function PlayerStatsPanel({
                 className="btn btn-primary player-stats-edit-btn"
                 type="button"
                 onClick={handleSave}
-                disabled={isSaving}
+                disabled={
+                  isSaving ||
+                  (effectiveOwnerId &&
+                    !CONTRACT_STATUS_OPTIONS.includes(
+                      isCustomPlayer ? customDraft?.contractStatus : editContractStatus
+                    ))
+                }
               >
                 {isSaving ? "Saving..." : "Save"}
               </button>
@@ -428,15 +500,25 @@ function PlayerStatsPanel({
               <div>
                 <p><strong>Notes:</strong> {displayData?.notes || "N/A"}</p>
                 <p><strong>Personal Notes:</strong> {personalNotes || "N/A"}</p>
+                {effectiveOwnerId && displayData?.contractStatus && CONTRACT_STATUS_OPTIONS.includes(displayData.contractStatus) ? (
+                  <p><strong>Contract status:</strong> {displayData.contractStatus}</p>
+                ) : null}
               </div>
-            ) : personalNotes ? (
-              <p>{personalNotes}</p>
             ) : (
-              <p className="muted">
-                {notesDisabled
-                  ? "Create a league to add notes."
-                  : "No notes yet. Click Edit to add notes."}
-              </p>
+              <div>
+                {personalNotes ? <p>{personalNotes}</p> : (
+                  <p className="muted">
+                    {notesDisabled
+                      ? "Create a league to add notes."
+                      : effectiveOwnerId
+                        ? "No personal notes yet. Click Edit to add notes."
+                        : "No notes yet. Click Edit to add notes."}
+                  </p>
+                )}
+                {effectiveOwnerId && displayData?.contractStatus && CONTRACT_STATUS_OPTIONS.includes(displayData.contractStatus) ? (
+                  <p><strong>Contract status:</strong> {displayData.contractStatus}</p>
+                ) : null}
+              </div>
             )}
           </div>
         )}

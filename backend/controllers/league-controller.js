@@ -246,7 +246,7 @@ const editLeague = async (req, res) => {
           ownerId: { $in: deleteArray },
         },
         {
-          $set: { ownerId: null, bidStartedById: null, price: 0 },
+          $set: { ownerId: null, bidStartedById: null, price: 0, contractStatus: null },
         }
       );
 
