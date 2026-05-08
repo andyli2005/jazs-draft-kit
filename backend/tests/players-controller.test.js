@@ -521,6 +521,11 @@ describe("players-controller endpoints", () => {
       createSelectLeanQuery({ user: USER_ID })
     );
     vi.spyOn(db, "getPlayerDoc").mockResolvedValue({ APIplayerId: API_PLAYER_ID, leagueId: LEAGUE_ID });
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: false,
+      status: 404,
+      json: async () => ({ message: "Not Found" }),
+    });
     const res = createResponse();
     await playersController.getPlayerDoc(
       { userId: USER_ID, params: { APIplayerId: API_PLAYER_ID }, query: { leagueId: LEAGUE_ID } },
