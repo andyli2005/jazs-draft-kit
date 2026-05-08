@@ -331,9 +331,141 @@ const editLeague = async (req, res) => {
   }
 };
 
+const IMPORT_ROSTER_SLOT_KEYS = [
+  "catcher1", "catcher2",
+  "firstBase", "secondBase", "thirdBase", "inField", "shortStop", "utility", "middleInField",
+  "pitcher1", "pitcher2", "pitcher3", "pitcher4", "pitcher5",
+  "pitcher6", "pitcher7", "pitcher8", "pitcher9",
+  "outfielder1", "outfielder2", "outfielder3", "outfielder4", "outfielder5",
+];
+
+const importFromLeague = async (req, res) => {
+  try {
+    const { id: targetLeagueId, sourceId } = req.params;
+
+    if (String(targetLeagueId) === String(sourceId)) {
+      return res.status(400).json({ errorMessage: "Cannot import from the same league." });
+    }
+
+    const [targetLeague, sourceLeague] = await Promise.all([
+      League.findById(targetLeagueId),
+      League.findById(sourceId),
+    ]);
+
+    if (!targetLeague || String(targetLeague.user) !== String(req.userId)) {
+      return res.status(404).json({ errorMessage: "Target league not found." });
+    }
+    if (!sourceLeague || String(sourceLeague.user) !== String(req.userId)) {
+      return res.status(404).json({ errorMessage: "Source league not found." });
+    }
+
+    const populatedSource = await League.findById(sourceId).populate({
+      path: "rosterIds",
+      populate: IMPORT_ROSTER_SLOT_KEYS.map((key) => ({ path: key })),
+    });
+
+    const sourceRosters = populatedSource.rosterIds || [];
+
+    await Player.deleteMany({ leagueId: targetLeagueId });
+
+    const newTargetRosterIds = [...(targetLeague.rosterIds || [])];
+
+    if (sourceRosters.length > newTargetRosterIds.length) {
+      const extrasNeeded = sourceRosters.length - newTargetRosterIds.length;
+      for (let i = 0; i < extrasNeeded; i++) {
+        const sourceRoster = sourceRosters[newTargetRosterIds.length];
+        const newRoster = await MLBRoster.create({
+          budgetLeft: sourceRoster.budgetLeft,
+          name: sourceRoster.name,
+        });
+        newTargetRosterIds.push(newRoster._id);
+      }
+      targetLeague.rosterIds = newTargetRosterIds;
+      targetLeague.teamCount = newTargetRosterIds.length;
+    }
+
+    const rosterUpdatePromises = newTargetRosterIds.map(async (targetRosterId, index) => {
+      const sourceRoster = sourceRosters[index];
+      if (!sourceRoster) {
+        const clearData = { budgetLeft: targetLeague.budgetCap };
+        IMPORT_ROSTER_SLOT_KEYS.forEach((key) => { clearData[key] = null; });
+        return MLBRoster.findByIdAndUpdate(targetRosterId, { $set: clearData });
+      }
+
+      const slotData = { budgetLeft: sourceRoster.budgetLeft };
+
+      for (const slotKey of IMPORT_ROSTER_SLOT_KEYS) {
+        const sourcePlayer = sourceRoster[slotKey];
+        if (!sourcePlayer) {
+          slotData[slotKey] = null;
+          continue;
+        }
+
+        const playerFields = sourcePlayer.toObject ? sourcePlayer.toObject() : { ...sourcePlayer };
+        delete playerFields._id;
+        delete playerFields.__v;
+        delete playerFields.createdAt;
+        delete playerFields.updatedAt;
+
+        let newPlayer;
+        if (playerFields.isCustom) {
+          newPlayer = await Player.create({
+            ...playerFields,
+            leagueId: targetLeagueId,
+            ownerId: targetRosterId,
+            bidStartedById: null,
+          });
+        } else {
+          newPlayer = await Player.findOneAndUpdate(
+            { APIplayerId: playerFields.APIplayerId, leagueId: targetLeagueId },
+            {
+              $set: {
+                ...playerFields,
+                leagueId: targetLeagueId,
+                ownerId: targetRosterId,
+                bidStartedById: null,
+              },
+            },
+            { upsert: true, new: true, runValidators: true }
+          );
+        }
+
+        slotData[slotKey] = newPlayer._id;
+      }
+
+      return MLBRoster.findByIdAndUpdate(targetRosterId, { $set: slotData });
+    });
+
+    await Promise.all(rosterUpdatePromises);
+
+    let newMyTeam = null;
+    if (sourceLeague.myTeam) {
+      const sourceMyTeamIndex = sourceRosters.findIndex(
+        (r) => String(r._id) === String(sourceLeague.myTeam)
+      );
+      if (sourceMyTeamIndex !== -1 && sourceMyTeamIndex < newTargetRosterIds.length) {
+        newMyTeam = newTargetRosterIds[sourceMyTeamIndex];
+      }
+    }
+    targetLeague.myTeam = newMyTeam;
+    await targetLeague.save();
+
+    const refreshedLeagues = await db.getLeaguesByUser(req.userId);
+    const updatedLeague = refreshedLeagues.find(
+      (l) => String(l._id) === String(targetLeagueId)
+    );
+
+    return res.status(200).json({ success: true, league: updatedLeague || targetLeague });
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ errorMessage: "Error importing league data." });
+  }
+};
+
 module.exports = {
   createLeague,
   getMyLeagues,
   setMyTeam,
   editLeague,
+  importFromLeague,
 };
