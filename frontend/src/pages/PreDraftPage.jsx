@@ -4,6 +4,7 @@ import PlayerSearchModal from "../components/PlayerSearchModal";
 import PlayerStatsPanel from "../components/PlayerStatsPanel";
 import Sidebar from "../components/Sidebar";
 import { useLeague } from "../leagues";
+import { importLeagueData } from "../leagues/requests";
 import { SLOT_DEFS } from "../leagues/rosterSlots";
 import "./AllTeamsPage.css";
 
@@ -20,10 +21,41 @@ function PreDraftPage() {
   const [panelInfo, setPanelInfo] = useState(null);
   const [panelRefreshKey, setPanelRefreshKey] = useState(0);
 
+  const [showPicker, setShowPicker] = useState(false);
+  const [selectedSourceId, setSelectedSourceId] = useState("");
+  const [isImporting, setIsImporting] = useState(false);
+  const [importError, setImportError] = useState("");
+
   const activeLeague = useMemo(
     () => leagues.find((league) => league._id === selectedLeagueId) || null,
     [leagues, selectedLeagueId]
   );
+
+  const otherLeagues = useMemo(
+    () => leagues.filter((l) => l._id !== selectedLeagueId),
+    [leagues, selectedLeagueId]
+  );
+
+  const selectedSourceName = useMemo(
+    () => leagues.find((l) => l._id === selectedSourceId)?.name || "",
+    [leagues, selectedSourceId]
+  );
+
+  async function handleSourceChange(e) {
+    const sourceId = e.target.value;
+    if (!sourceId) return;
+    setSelectedSourceId(sourceId);
+    setIsImporting(true);
+    setImportError("");
+    try {
+      await importLeagueData(selectedLeagueId, sourceId);
+      await refreshLeagues();
+    } catch (err) {
+      setImportError(err?.message || "Import failed. Please try again.");
+    } finally {
+      setIsImporting(false);
+    }
+  }
 
   const rosters = Array.isArray(activeLeague?.rosterIds) ? activeLeague.rosterIds : [];
 
@@ -57,9 +89,47 @@ function PreDraftPage() {
             league, or use the button below to import information from a previous league.
           </p>
           <div style={{ marginTop: "0.75rem" }}>
-            <button className="btn btn-secondary" type="button" disabled>
-              Use Information From Previous Leagues
+            <button
+              className="btn btn-secondary"
+              type="button"
+              onClick={() => setShowPicker((prev) => !prev)}
+            >
+              {showPicker ? "Hide Previous Leagues" : "Use Information From Previous Leagues"}
             </button>
+
+            {showPicker && (
+              <div className="predraft-source-row">
+                <select
+                  className="my-team-select"
+                  value={selectedSourceId}
+                  disabled={isImporting}
+                  onChange={handleSourceChange}
+                >
+                  <option value="">-- Select a previous league --</option>
+                  {otherLeagues.length === 0 ? (
+                    <option value="" disabled>No other leagues available</option>
+                  ) : (
+                    otherLeagues.map((league) => (
+                      <option key={league._id} value={league._id}>
+                        {league.name}
+                      </option>
+                    ))
+                  )}
+                </select>
+
+                {isImporting && (
+                  <span className="muted">Importing...</span>
+                )}
+                {!isImporting && importError && (
+                  <span className="predraft-source-error">{importError}</span>
+                )}
+                {!isImporting && !importError && selectedSourceName && (
+                  <span className="muted">
+                    Imported from: <strong>{selectedSourceName}</strong>
+                  </span>
+                )}
+              </div>
+            )}
           </div>
 
           <hr className="predraft-divider" />

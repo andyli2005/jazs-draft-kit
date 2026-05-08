@@ -214,3 +214,16 @@
   outline-offset: -2px;
   border-radius: 4px;
 }
+
+.predraft-source-row {
+  margin-top: 0.6rem;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.predraft-source-error {
+  font-size: 0.85rem;
+  color: #d0433a;
+}
