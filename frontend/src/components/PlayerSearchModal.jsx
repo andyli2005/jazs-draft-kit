@@ -127,14 +127,19 @@ function PlayerSearchModal({ open, onClose, slotKey, rosterId, onDrafted }) {
   const overlayRef = useRef(null);
 
   const [activeTab, setActiveTab] = useState("licensed");
-  const [search, setSearch] = useState("");
-  const [sortBy, setSortBy] = useState("fantasyPoints");
-  const [sortOrder, setSortOrder] = useState("desc");
 
+  // Licensed player state — search/sort are sent server-side
+  const [licensedSearch, setLicensedSearch] = useState("");
+  const [licensedSortBy, setLicensedSortBy] = useState("fantasyPoints");
+  const [licensedSortOrder, setLicensedSortOrder] = useState("desc");
   const [licensedPlayers, setLicensedPlayers] = useState([]);
   const [licensedLoading, setLicensedLoading] = useState(false);
   const [licensedError, setLicensedError] = useState("");
 
+  // Custom player state — all loaded once, search/sort are client-side
+  const [customSearch, setCustomSearch] = useState("");
+  const [customSortBy, setCustomSortBy] = useState("fantasyPoints");
+  const [customSortOrder, setCustomSortOrder] = useState("desc");
   const [customPlayers, setCustomPlayers] = useState([]);
   const [customLoading, setCustomLoading] = useState(false);
   const [customError, setCustomError] = useState("");
@@ -142,6 +147,7 @@ function PlayerSearchModal({ open, onClose, slotKey, rosterId, onDrafted }) {
   const [selectedPlayer, setSelectedPlayer] = useState(null);
   const [showDraftModal, setShowDraftModal] = useState(false);
   const [panelRefreshKey, setPanelRefreshKey] = useState(0);
+  const [positionOverride, setPositionOverride] = useState(false);
 
   const slotDef = SLOT_DEFS.find((s) => s.key === slotKey);
   const eligiblePosTokens = useMemo(
@@ -149,12 +155,18 @@ function PlayerSearchModal({ open, onClose, slotKey, rosterId, onDrafted }) {
     [slotKey]
   );
 
+  // Licensed players: re-fetch from the server whenever search/sort changes (server-side).
   useEffect(() => {
     if (!open || !selectedLeagueId) return;
     let isMounted = true;
     setLicensedLoading(true);
     setLicensedError("");
-    getPlayers({ leagueId: selectedLeagueId, rankBy: "fantasyPoints", order: "desc" })
+    getPlayers({
+      leagueId: selectedLeagueId,
+      name: licensedSearch,
+      rankBy: licensedSortBy,
+      order: licensedSortOrder,
+    })
       .then((data) => {
         if (!isMounted) return;
         setLicensedPlayers(Array.isArray(data.players) ? data.players : []);
@@ -169,7 +181,7 @@ function PlayerSearchModal({ open, onClose, slotKey, rosterId, onDrafted }) {
     return () => {
       isMounted = false;
     };
-  }, [open, selectedLeagueId]);
+  }, [open, selectedLeagueId, licensedSearch, licensedSortBy, licensedSortOrder]);
 
   useEffect(() => {
     if (!open || !selectedLeagueId) return;
@@ -198,10 +210,14 @@ function PlayerSearchModal({ open, onClose, slotKey, rosterId, onDrafted }) {
     if (!open) return;
     setSelectedPlayer(null);
     setShowDraftModal(false);
-    setSearch("");
-    setSortBy("fantasyPoints");
-    setSortOrder("desc");
     setActiveTab("licensed");
+    setPositionOverride(false);
+    setLicensedSearch("");
+    setLicensedSortBy("fantasyPoints");
+    setLicensedSortOrder("desc");
+    setCustomSearch("");
+    setCustomSortBy("fantasyPoints");
+    setCustomSortOrder("desc");
   }, [open]);
 
   useEffect(() => {
@@ -218,15 +234,15 @@ function PlayerSearchModal({ open, onClose, slotKey, rosterId, onDrafted }) {
   }
 
   function filterBySlot(players) {
-    if (!eligiblePosTokens || eligiblePosTokens.size === 0) return players;
+    if (positionOverride || !eligiblePosTokens || eligiblePosTokens.size === 0) return players;
     return players.filter((player) => {
       const tokens = parseEligiblePositions(player.positions);
       return tokens.some((t) => eligiblePosTokens.has(t));
     });
   }
 
-  function filterBySearch(players) {
-    const normalized = search.trim().toLowerCase();
+  function filterCustomBySearch(players) {
+    const normalized = customSearch.trim().toLowerCase();
     if (!normalized) return players;
     return players.filter((player) =>
       [player.name, player.team, player.positions, player.status].some((v) =>
@@ -235,47 +251,63 @@ function PlayerSearchModal({ open, onClose, slotKey, rosterId, onDrafted }) {
     );
   }
 
-  function sortPlayerList(players) {
+  function sortCustomPlayers(players) {
     return [...players].sort((a, b) => {
-      const aValue = a[sortBy];
-      const bValue = b[sortBy];
+      const aValue = a[customSortBy];
+      const bValue = b[customSortBy];
       const aN = Number(aValue);
       const bN = Number(bValue);
       if (Number.isFinite(aN) && Number.isFinite(bN)) {
-        return sortOrder === "asc" ? aN - bN : bN - aN;
+        return customSortOrder === "asc" ? aN - bN : bN - aN;
       }
       const cmp = String(aValue || "").localeCompare(String(bValue || ""), undefined, {
         sensitivity: "base",
       });
-      return sortOrder === "asc" ? cmp : -cmp;
+      return customSortOrder === "asc" ? cmp : -cmp;
     });
   }
 
-  function handleSort(key) {
-    if (sortBy === key) {
-      setSortOrder((prev) => (prev === "asc" ? "desc" : "asc"));
+  function handleLicensedSort(key) {
+    if (licensedSortBy === key) {
+      setLicensedSortOrder((prev) => (prev === "asc" ? "desc" : "asc"));
     } else {
-      setSortBy(key);
-      setSortOrder("asc");
+      setLicensedSortBy(key);
+      setLicensedSortOrder("asc");
     }
   }
 
+  function handleCustomSort(key) {
+    if (customSortBy === key) {
+      setCustomSortOrder((prev) => (prev === "asc" ? "desc" : "asc"));
+    } else {
+      setCustomSortBy(key);
+      setCustomSortOrder("asc");
+    }
+  }
+
+  // Licensed: slot filter only (search + sort are server-side)
   const displayedLicensed = useMemo(
-    () => sortPlayerList(filterBySearch(filterBySlot(licensedPlayers))),
+    () => filterBySlot(licensedPlayers),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [licensedPlayers, search, eligiblePosTokens, sortBy, sortOrder]
+    [licensedPlayers, eligiblePosTokens, positionOverride]
   );
 
+  // Custom: slot filter + client-side search + client-side sort
   const displayedCustom = useMemo(
-    () => sortPlayerList(filterBySearch(filterBySlot(customPlayers))),
+    () => sortCustomPlayers(filterCustomBySearch(filterBySlot(customPlayers))),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [customPlayers, search, eligiblePosTokens, sortBy, sortOrder]
+    [customPlayers, customSearch, eligiblePosTokens, customSortBy, customSortOrder, positionOverride]
   );
 
   async function reloadAll() {
     if (!selectedLeagueId) return;
     const [licensedData, customData] = await Promise.all([
-      getPlayers({ leagueId: selectedLeagueId, rankBy: "fantasyPoints", order: "desc" }),
+      getPlayers({
+        leagueId: selectedLeagueId,
+        name: licensedSearch,
+        rankBy: licensedSortBy,
+        order: licensedSortOrder,
+      }),
       getCustomPlayers(selectedLeagueId),
     ]);
     setLicensedPlayers(Array.isArray(licensedData.players) ? licensedData.players : []);
@@ -316,6 +348,11 @@ function PlayerSearchModal({ open, onClose, slotKey, rosterId, onDrafted }) {
   const columns = isLicensedTab ? LICENSED_COLUMNS : CUSTOM_COLUMNS;
   const hasPlayers = players.length > 0;
   const isCustomPlayer = Boolean(selectedPlayer?._id && !selectedPlayer?.APIplayerId);
+  const activeSearch = isLicensedTab ? licensedSearch : customSearch;
+  const setActiveSearch = isLicensedTab ? setLicensedSearch : setCustomSearch;
+  const handleSort = isLicensedTab ? handleLicensedSort : handleCustomSort;
+  const activeSortBy = isLicensedTab ? licensedSortBy : customSortBy;
+  const activeSortOrder = isLicensedTab ? licensedSortOrder : customSortOrder;
 
   return (
     <>
@@ -349,6 +386,25 @@ function PlayerSearchModal({ open, onClose, slotKey, rosterId, onDrafted }) {
             >
               Custom Players
             </button>
+
+            {slotDef ? (
+              <div className="player-search-override-wrap">
+                <span className="player-search-override-label">Position filter</span>
+                <button
+                  className={`player-search-override-btn${positionOverride ? " override-on" : " override-off"}`}
+                  type="button"
+                  onClick={() => setPositionOverride((prev) => !prev)}
+                  aria-pressed={positionOverride}
+                >
+                  <span className="override-track">
+                    <span className="override-thumb" />
+                  </span>
+                  <span className="override-state-label">
+                    {positionOverride ? "All players" : `${slotDef.label} eligible only`}
+                  </span>
+                </button>
+              </div>
+            ) : null}
           </div>
 
           <div className="player-search-modal-body">
@@ -356,8 +412,8 @@ function PlayerSearchModal({ open, onClose, slotKey, rosterId, onDrafted }) {
               <div className="player-search-modal-search">
                 <input
                   type="text"
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
+                  value={activeSearch}
+                  onChange={(e) => setActiveSearch(e.target.value)}
                   placeholder="Search players..."
                   className="modal-search-input"
                 />
@@ -374,8 +430,8 @@ function PlayerSearchModal({ open, onClose, slotKey, rosterId, onDrafted }) {
                   players={players}
                   selectedPlayer={selectedPlayer}
                   onSelectPlayer={setSelectedPlayer}
-                  sortBy={sortBy}
-                  sortOrder={sortOrder}
+                  sortBy={activeSortBy}
+                  sortOrder={activeSortOrder}
                   onSort={handleSort}
                 />
               ) : null}
