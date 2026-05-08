@@ -70,6 +70,13 @@ export function updateLeague(leagueId, payload) {
   });
 }
 
+export function importLeagueData(targetLeagueId, sourceLeagueId) {
+  return request(
+    `/api/leagues/${normalizePathId(targetLeagueId)}/import-from/${normalizePathId(sourceLeagueId)}`,
+    { method: "POST" }
+  );
+}
+
 export function getPlayers(query = {}) {
   const params = new URLSearchParams();
   Object.entries(query).forEach(([key, value]) => {
