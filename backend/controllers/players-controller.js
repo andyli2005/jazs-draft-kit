@@ -31,7 +31,6 @@ const ROSTER_SLOT_KEYS = [
   "outfielder4",
   "outfielder5",
 ];
-const CONTRACT_STATUS_VALUES = ["S1", "S2", "S3", "F1", "F2", "F3", "X"];
 
 const STAT_KEYS = [
   "atBats",
@@ -62,12 +61,6 @@ function parseRequiredContractStatus(raw) {
   const value = raw == null ? "" : String(raw).trim();
   if (!value) {
     return { ok: false, errorMessage: "contractStatus is required to draft a player." };
-  }
-  if (!CONTRACT_STATUS_VALUES.includes(value)) {
-    return {
-      ok: false,
-      errorMessage: "contractStatus must be one of S1, S2, S3, F1, F2, F3, X.",
-    };
   }
   return { ok: true, value };
 }

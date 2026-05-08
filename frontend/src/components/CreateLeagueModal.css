@@ -83,6 +83,11 @@
   color: #1e2a47;
 }
 
+.required-asterisk {
+  color: #e03e3e;
+  font-weight: 700;
+}
+
 .modal-input,
 .modal-select {
   border: 1px solid #c8d2e9;

@@ -6,7 +6,6 @@ import {
   getEligibleSlotKeySet,
 } from "../leagues/rosterSlots";
 
-const CONTRACT_STATUS_OPTIONS = ["S1", "S2", "S3", "F1", "F2", "F3", "X"];
 
 function normalizeStatus(status) {
   return String(status || "").trim().toLowerCase();
@@ -110,7 +109,7 @@ function DraftPlayerModal({
     Boolean(draftedToRosterId) &&
     Boolean(slotKey) &&
     draftCostIsValid &&
-    CONTRACT_STATUS_OPTIONS.includes(contractStatus) &&
+    Boolean(contractStatus.trim()) &&
     (!requiresInactiveOverride || inactiveOverrideAccepted) &&
     !isSubmitting;
 
@@ -258,22 +257,15 @@ function DraftPlayerModal({
             ) : null}
 
             <label className="modal-label">
-              <span>Contract status</span>
-              <select
-                className="modal-select"
+              <span>Contract status <span className="required-asterisk">*</span></span>
+              <input
+                className="modal-input"
+                type="text"
                 value={contractStatus}
                 onChange={(event) => setContractStatus(event.target.value)}
-                aria-required="true"
-              >
-                <option value="" disabled>
-                  Select contract status
-                </option>
-                {CONTRACT_STATUS_OPTIONS.map((value) => (
-                  <option key={value} value={value}>
-                    {value}
-                  </option>
-                ))}
-              </select>
+                placeholder="Enter contract status"
+                required
+              />
             </label>
 
             <label className="modal-label">

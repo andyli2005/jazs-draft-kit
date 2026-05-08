@@ -5,7 +5,6 @@ import { useLeague } from "../leagues";
 import { formatPositionsString, parsePositionsString } from "../leagues/positions";
 import { getPlayerDoc, updateCustomPlayer, updatePlayerDoc } from "../leagues/requests";
 
-const CONTRACT_STATUS_OPTIONS = ["S1", "S2", "S3", "F1", "F2", "F3", "X"];
 
 const BATTING_STATS = [
   { label: "At Bats", key: "atBats" },
@@ -419,21 +418,14 @@ function PlayerStatsPanel({
                 {effectiveOwnerId ? (
                   <label className="modal-label">
                     <span>Contract status</span>
-                    <select
-                      className="modal-select"
+                    <input
+                      className="modal-input"
+                      type="text"
                       value={customDraft?.contractStatus || ""}
                       onChange={(event) => updateCustomDraftField("contractStatus", event.target.value)}
+                      placeholder="Enter contract status"
                       disabled={isSaving}
-                    >
-                      <option value="" disabled>
-                        Select contract status
-                      </option>
-                      {CONTRACT_STATUS_OPTIONS.map((value) => (
-                        <option key={value} value={value}>
-                          {value}
-                        </option>
-                      ))}
-                    </select>
+                    />
                   </label>
                 ) : null}
               </div>
@@ -442,21 +434,14 @@ function PlayerStatsPanel({
                 {effectiveOwnerId ? (
                   <label className="modal-label">
                     <span>Contract status</span>
-                    <select
-                      className="modal-select"
+                    <input
+                      className="modal-input"
+                      type="text"
                       value={editContractStatus}
                       onChange={(event) => setEditContractStatus(event.target.value)}
+                      placeholder="Enter contract status"
                       disabled={isSaving}
-                    >
-                      <option value="" disabled>
-                        Select contract status
-                      </option>
-                      {CONTRACT_STATUS_OPTIONS.map((value) => (
-                        <option key={value} value={value}>
-                          {value}
-                        </option>
-                      ))}
-                    </select>
+                    />
                   </label>
                 ) : null}
                 <textarea
@@ -477,9 +462,7 @@ function PlayerStatsPanel({
                 disabled={
                   isSaving ||
                   (effectiveOwnerId &&
-                    !CONTRACT_STATUS_OPTIONS.includes(
-                      isCustomPlayer ? customDraft?.contractStatus : editContractStatus
-                    ))
+                    !String(isCustomPlayer ? customDraft?.contractStatus ?? "" : editContractStatus).trim())
                 }
               >
                 {isSaving ? "Saving..." : "Save"}

@@ -40,10 +40,7 @@ const playerSchema = new mongoose.Schema(
     leagueId:              { type: ObjectId, ref: "League", required: true },
     APIplayerId:           { type: ObjectId, default: null },
     isCustom:              { type: Boolean, default: false },
-    contractStatus:        {
-      type: String,
-      enum: ["S1", "S2", "S3", "F1", "F2", "F3", "X", null],
-    },
+    contractStatus:        { type: String, default: null },
     currentStats:          { type: statBlockSchema, required: true },
     projectedStats:        { type: statBlockSchema, required: true },
     threeYearAverageStats: { type: statBlockSchema, required: true },
