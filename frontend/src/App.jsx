@@ -4,6 +4,7 @@ import "./App.css";
 import { useAuth } from "./auth/index.jsx";
 import { useLeague } from "./leagues";
 import AllTeamsPage from "./pages/AllTeamsPage";
+import PreDraftPage from "./pages/PreDraftPage";
 import ApiDashboardPage from "./pages/ApiDashboardPage";
 import CustomPlayersPage from "./pages/CustomPlayersPage";
 import LoggedInHomePage from "./pages/LoggedInHomePage";
@@ -58,6 +59,14 @@ function App() {
   return (
     <Routes>
       <Route path="/" element={homeElement} />
+      <Route
+        path="/pre-draft"
+        element={
+          <LeagueProtectedRoute isLoggedIn={isLoggedIn} hasSelectedLeague={hasSelectedLeague}>
+            <PreDraftPage />
+          </LeagueProtectedRoute>
+        }
+      />
       <Route
         path="/all-teams"
         element={

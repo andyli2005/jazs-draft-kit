@@ -36,6 +36,31 @@ export const POS_TO_SLOT_KEYS = {
   P: ["pitcher1", "pitcher2", "pitcher3", "pitcher4", "pitcher5", "pitcher6", "pitcher7", "pitcher8", "pitcher9"],
 };
 
+/**
+ * Inverse of POS_TO_SLOT_KEYS.
+ * Maps a roster slot key to the position tokens that make a player eligible for it.
+ * Used by the Pre-draft search modal to filter players by the clicked slot.
+ */
+export const SLOT_KEY_TO_POS_TOKENS = Object.entries(POS_TO_SLOT_KEYS).reduce(
+  (acc, [posToken, slotKeys]) => {
+    slotKeys.forEach((slotKey) => {
+      if (!acc[slotKey]) acc[slotKey] = [];
+      acc[slotKey].push(posToken);
+    });
+    return acc;
+  },
+  {}
+);
+
+/**
+ * Returns a Set of position tokens that are eligible to fill the given slot key.
+ * e.g. getEligiblePosTokensForSlot("catcher1") => Set { "C" }
+ *      getEligiblePosTokensForSlot("utility")   => Set { "C","1B","2B","3B","SS","OF","U","DH" }
+ */
+export function getEligiblePosTokensForSlot(slotKey) {
+  return new Set(SLOT_KEY_TO_POS_TOKENS[slotKey] || []);
+}
+
 export function parseEligiblePositions(raw) {
   return String(raw || "")
     .split(",")

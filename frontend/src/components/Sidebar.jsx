@@ -4,6 +4,7 @@ import { useLeague } from "../leagues";
 
 const NAV_ITEMS = [
   { to: "/", label: "Home" },
+  { to: "/pre-draft", label: "Pre-draft", requiresLeague: true },
   { to: "/all-teams", label: "All Teams", requiresLeague: true },
   { to: "/my-team", label: "My Team", requiresLeague: true },
   { to: "/player-search", label: "Player Search", requiresLeague: true },
