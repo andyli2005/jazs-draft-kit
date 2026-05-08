@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { NavLink, useLocation } from "react-router-dom";
 import { useLeague } from "../leagues";
+import { SLOT_DEFS } from "../leagues/rosterSlots";
 
 const NAV_ITEMS = [
   { to: "/", label: "Home" },
@@ -8,6 +9,7 @@ const NAV_ITEMS = [
   { to: "/my-team", label: "My Team", requiresLeague: true },
   { to: "/player-search", label: "Player Search", requiresLeague: true },
   { to: "/custom-players", label: "Custom Players", requiresLeague: true },
+  { to: "/taxi", label: "Taxi Draft", requiresLeague: true, requiresFullRosters: true },
   { to: "/transactions", label: "Transactions", requiresLeague: true },
   { to: "/api-dashboard", label: "API Dashboard" },
   { to: "/settings", label: "Settings" },
@@ -23,6 +25,12 @@ function Sidebar() {
   const [isRostersManuallyOpen, setIsRostersManuallyOpen] = useState(location.pathname.startsWith("/rosters/"));
   const isRostersOpen = location.pathname.startsWith("/rosters/") || isRostersManuallyOpen;
 
+  const allRostersFull =
+    hasSelectedLeague &&
+    leagueRosters.length > 0 &&
+    leagueRosters.every((roster) =>
+      SLOT_DEFS.every(({ key }) => roster?.[key] != null)
+    );
   function renderRostersMenu() {
     if (hasSelectedLeague) {
       return (
@@ -73,7 +81,11 @@ function Sidebar() {
   return (
     <aside className="app-sidebar">
       {NAV_ITEMS.map((item) => {
-        const isDisabled = item.requiresLeague && !hasSelectedLeague;
+        const shouldRequireFullRosters = false;
+
+        const isDisabled = 
+          (item.requiresLeague && !hasSelectedLeague) ||
+          (shouldRequireFullRosters && item.requiresFullRosters && !allRostersFull);
 
         if (isDisabled) {
           return (

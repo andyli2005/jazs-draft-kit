@@ -157,6 +157,17 @@ class Database {
   }
 
   async getDraftedPlayers(leagueId) { return Player.find({ leagueId, ownerId: { $ne: null } }).lean(); }
+  async countDraftedTaxiPlayers(leagueId, rosterId, options={}) { 
+    const count = Player.countDocuments({ 
+      leagueId, 
+      taxiRosterId: rosterId,
+    }); 
+
+    if(options.session){
+      count.session(options.session);
+    }
+    return count;
+  }
 } 
 
 module.exports = new Database();

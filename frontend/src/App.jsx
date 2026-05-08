@@ -13,6 +13,7 @@ import PlayerSearchPage from "./pages/PlayerSearchPage";
 import PublicHomePage from "./pages/PublicHomePage";
 import RegisterPage from "./pages/RegisterPage";
 import RostersPage from "./pages/RostersPage";
+import TaxiDraftPage from "./pages/TaxiDraftPage.jsx";
 import SettingsPage from "./pages/SettingsPage";
 import TransactionsPage from "./pages/TransactionsPage";
 
@@ -95,6 +96,14 @@ function App() {
         element={
           <LeagueProtectedRoute isLoggedIn={isLoggedIn} hasSelectedLeague={hasSelectedLeague}>
             <RostersPage />
+          </LeagueProtectedRoute>
+        }
+      />
+      <Route 
+        path="/taxi"
+        element={
+          <LeagueProtectedRoute isLoggedIn={isLoggedIn} hasSelectedLeague={hasSelectedLeague}>
+            <TaxiDraftPage />
           </LeagueProtectedRoute>
         }
       />
