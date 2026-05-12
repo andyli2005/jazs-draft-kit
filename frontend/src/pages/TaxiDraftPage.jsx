@@ -14,6 +14,8 @@ const TABLE_COLUMNS = [
   { label: "Fantasy Points", key: "fantasyPoints" },
 ];
 
+const TAXI_SQUAD_SIZE = 9;
+
 function renderValue(value) {
   if (value == null || value === "") return "N/A";
   if (typeof value === "boolean") return value ? "Yes" : "No";
@@ -75,13 +77,17 @@ function TaxiDraftPage() {
   const [selectedTaxiRosterId, setSelectedTaxiRosterId] = useState("");
   const [isSubmittingTaxiDraft, setIsSubmittingTaxiDraft] = useState(false);
 
-  const taxiRosterOptions = useMemo(
-    () => (Array.isArray(selectedLeague?.rosterIds) ? selectedLeague.rosterIds : []),
-    [selectedLeague?.rosterIds]
-  );
+  const taxiRosterOptions = useMemo(() => {
+      const rosters = Array.isArray(selectedLeague?.rosterIds) ? selectedLeague.rosterIds : [];
+      return rosters
+        .filter((roster) => (roster.taxiPlayers?.length || 0) < TAXI_SQUAD_SIZE)
+        .map((roster) => ({
+          ...roster,
+          display: `${roster.name || "Unknown Team"} (${roster.taxiPlayers?.length || 0}/${TAXI_SQUAD_SIZE})`}));
+    }, [selectedLeague?.rosterIds]);
 
-  const testTaxi = true; // TEMP: set to false before final submission.
-  const allRostersFull = testTaxi || areRostersFull(taxiRosterOptions);
+  const testTaxi = true;
+  const allRostersFull = testTaxi || areRostersFull(Array.isArray(selectedLeague?.rosterIds) ? selectedLeague.rosterIds : []);
 
   useEffect(() => {
     let isMounted = true;
@@ -366,7 +372,7 @@ function TaxiDraftPage() {
                 <option value="">Select team...</option>
                 {taxiRosterOptions.map((roster, index) => (
                   <option key={roster._id || `taxi-roster-${index}`} value={roster._id}>
-                    {roster.name || `Team ${index + 1}`}
+                    {roster.display}
                   </option>
                 ))}
               </select>
