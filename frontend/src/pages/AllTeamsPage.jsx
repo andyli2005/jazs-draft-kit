@@ -159,6 +159,23 @@ function AllTeamsPage() {
                               </div>
                             );
                           })}
+
+                          {Array.isArray(roster.taxiPlayers) && roster.taxiPlayers.length > 0 && (
+                            <div className="taxi-squad-divider" style={{ marginTop: "1rem", borderTop: "2px dashed #c8d2e9", paddingTop: "0.5rem" }}>
+                              <p className="eyebrow" style={{ textAlign: "center", marginBottom: "0.5rem" }}>Taxi Squad</p>
+                            </div>
+                          )}
+                          {Array.isArray(roster.taxiPlayers) && roster.taxiPlayers.map((player, index) => (
+                            <div className="roster-slot-card taxi-slot-card" key={`taxi-${player._id || index}`}>
+                              <span className="roster-slot-label taxi-label">TAXI</span>
+                              <div className="roster-slot-content">
+                                <strong>{player.name}{player.team ? ` • ${player.team}` : ""}</strong>
+                                <span className="muted">
+                                  {player.positions}
+                                </span>
+                              </div>
+                            </div>
+                          ))}
                         </div>
                       </article>
                     );

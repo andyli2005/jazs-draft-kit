@@ -31,6 +31,8 @@ function Sidebar() {
     leagueRosters.every((roster) =>
       SLOT_DEFS.every(({ key }) => roster?.[key] != null)
     );
+  const testTaxi = true;
+
   function renderRostersMenu() {
     if (hasSelectedLeague) {
       return (
@@ -81,11 +83,13 @@ function Sidebar() {
   return (
     <aside className="app-sidebar">
       {NAV_ITEMS.map((item) => {
-        const shouldRequireFullRosters = false;
-
         const isDisabled = 
           (item.requiresLeague && !hasSelectedLeague) ||
-          (shouldRequireFullRosters && item.requiresFullRosters && !allRostersFull);
+          (item.requiresFullRosters && !testTaxi && !allRostersFull);
+
+        const disabledTitle = (item.requiresFullRosters && hasSelectedLeague && !testTaxi && !allRostersFull)
+          ? "Finish drafting main roster to unlock this page."
+          : "Select a league on the dashboard to unlock this page.";
 
         if (isDisabled) {
           return (
@@ -93,7 +97,7 @@ function Sidebar() {
               key={item.to}
               className="side-link side-link-disabled"
               aria-disabled="true"
-              title="Select a league on the dashboard to unlock this page."
+              title={disabledTitle}
             >
               {item.label}
             </span>

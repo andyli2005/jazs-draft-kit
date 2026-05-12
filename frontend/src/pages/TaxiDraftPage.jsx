@@ -1,8 +1,9 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Header from "../components/Header";
 import Sidebar from "../components/Sidebar";
 import { useLeague } from "../leagues";
 import { draftTaxiPlayer, getPlayers } from "../leagues/requests";
+import { SLOT_DEFS } from "../leagues/rosterSlots";
 
 // Taxi-draft most, if not all, stats don't matter 
 const TABLE_COLUMNS = [
@@ -56,6 +57,11 @@ function getTaxiPlayers(players) {
   return players.filter((player) => !player.isDrafted && !player.isTaxiDrafted);
 }
 
+function areRostersFull(rosters) {
+  return rosters.length > 0 &&
+    rosters.every((roster) => SLOT_DEFS.every(({ key }) => roster?.[key] != null));
+}
+
 function TaxiDraftPage() {
   const { selectedLeagueId, selectedLeague, refreshLeagues } = useLeague();
   const [players, setPlayers] = useState([]);
@@ -69,9 +75,13 @@ function TaxiDraftPage() {
   const [selectedTaxiRosterId, setSelectedTaxiRosterId] = useState("");
   const [isSubmittingTaxiDraft, setIsSubmittingTaxiDraft] = useState(false);
 
-  const taxiRosterOptions = Array.isArray(selectedLeague?.rosterIds)
-    ? selectedLeague.rosterIds
-    : [];
+  const taxiRosterOptions = useMemo(
+    () => (Array.isArray(selectedLeague?.rosterIds) ? selectedLeague.rosterIds : []),
+    [selectedLeague?.rosterIds]
+  );
+
+  const testTaxi = true; // TEMP: set to false before final submission.
+  const allRostersFull = testTaxi || areRostersFull(taxiRosterOptions);
 
   useEffect(() => {
     let isMounted = true;
@@ -83,6 +93,13 @@ function TaxiDraftPage() {
       if (!selectedLeagueId) {
         setIsLoading(false);
         setErrorMessage("Select a league first.");
+        return;
+      }
+
+      if (!allRostersFull) {
+        setPlayers([]);
+        setSelectedPlayer(null);
+        setIsLoading(false);
         return;
       }
 
@@ -109,7 +126,7 @@ function TaxiDraftPage() {
     return () => {
       isMounted = false;
     };
-  }, [sortBy, sortOrder, search, selectedLeagueId]);
+  }, [sortBy, sortOrder, search, selectedLeagueId, allRostersFull]);
 
   useEffect(() => {
     if (!selectedTaxiRosterId) return;
@@ -144,6 +161,12 @@ function TaxiDraftPage() {
   }
 
   async function reloadPlayers() {
+    if (!allRostersFull) {
+      setPlayers([]);
+      setSelectedPlayer(null);
+      return;
+    }
+
     const data = await getPlayers(buildPlayersQuery({ sortBy, sortOrder, search, selectedLeagueId }));
     const nextPlayers = Array.isArray(data.players) ? data.players : [];
     const taxiPlayers = getTaxiPlayers(nextPlayers);
@@ -155,7 +178,7 @@ function TaxiDraftPage() {
   }
 
   async function handleTaxiDraftClick() {
-    if (!selectedLeagueId || !selectedPlayer?.APIplayerId || !selectedTaxiRosterId) return;
+    if (!allRostersFull || !selectedLeagueId || !selectedPlayer?.APIplayerId || !selectedTaxiRosterId) return;
 
     try {
       setIsSubmittingTaxiDraft(true);
@@ -219,14 +242,20 @@ function TaxiDraftPage() {
           </div>
           <p className="muted">Pick 9 players to be in Taxi Roster.</p>
 
-          {isLoading ? <p className="muted">Loading players...</p> : null}
+          {!allRostersFull ? (
+            <p className="muted">
+              Taxi Draft unlocks after every roster slot is filled for every team.
+            </p>
+          ) : null}
+
+          {allRostersFull && isLoading ? <p className="muted">Loading players...</p> : null}
           {!isLoading && errorMessage ? <p className="error">{errorMessage}</p> : null}
-          {!isLoading && actionMessage ? <p className="success">{actionMessage}</p> : null}
-          {!isLoading && !errorMessage && !hasPlayers ? (
+          {allRostersFull && !isLoading && actionMessage ? <p className="success">{actionMessage}</p> : null}
+          {allRostersFull && !isLoading && !errorMessage && !hasPlayers ? (
             <p className="muted">No taxi-eligible players found.</p>
           ) : null}
 
-          {!isLoading && !errorMessage && hasPlayers ? (
+          {allRostersFull && !isLoading && !errorMessage && hasPlayers ? (
             <div className="players-table-wrap">
               <div className="players-table-inner">
                 <table className="players-table">
@@ -279,7 +308,7 @@ function TaxiDraftPage() {
           ) : null}
         </section>
 
-        {selectedPlayer && (
+        {allRostersFull && selectedPlayer && (
           <aside
             className="card"
             style={{
@@ -347,7 +376,7 @@ function TaxiDraftPage() {
               type="button"
               className="btn btn-primary"
               onClick={handleTaxiDraftClick}
-              disabled={!selectedTaxiRosterId || isSubmittingTaxiDraft}
+              disabled={!allRostersFull || !selectedTaxiRosterId || isSubmittingTaxiDraft}
               style={{ width: "100%" }}
             >
               {isSubmittingTaxiDraft ? "Adding..." : "Add to Taxi"}
