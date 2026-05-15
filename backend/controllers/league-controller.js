@@ -310,6 +310,14 @@ const editLeague = async (req, res) => {
       await Promise.all(renameOps);
     }
 
+    const budgetDiff = normalizedBudgetCap - league.budgetCap;
+    if (budgetDiff !== 0) {
+      await MLBRoster.updateMany(
+        { _id: { $in: league.rosterIds } },
+        { $inc: { budgetLeft: budgetDiff } }
+      );
+    }
+
     league.name = normalizedName;
     league.budgetCap = normalizedBudgetCap;
     league.teamCount = Array.isArray(league.rosterIds) ? league.rosterIds.length : 0;

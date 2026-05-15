@@ -1191,7 +1191,7 @@ const movePlayer = async (req, res) => {
       const data = {
         teamOwner: updatedRoster?.name || "Unknown Team",
         player: updatedPlayerDoc?.name || "Unknown Player",
-        actionType: "ChangedPosition",
+        actionType: "UpdatedPosition",
         draftCost: Number(updatedPlayerDoc?.price) || 0,
         budgetLeft: Number(updatedRoster?.budgetLeft ?? 0),
         leagueId,
@@ -1558,7 +1558,7 @@ const moveCustomPlayer = async (req, res) => {
       const data = {
         teamOwner: updatedRoster?.name || "Unknown Team",
         player: updatedPlayerDoc?.name || "Unknown Player",
-        actionType: "ChangedPosition",
+        actionType: "UpdatedPosition",
         draftCost: Number(updatedPlayerDoc?.price) || 0,
         budgetLeft: Number(updatedRoster?.budgetLeft ?? 0),
         leagueId,
