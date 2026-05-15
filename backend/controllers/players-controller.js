@@ -534,7 +534,7 @@ const getPlayers = async (req, res) => {
     });
   }
 
-  const { leagueId } = req.query;
+  const { leagueId, position } = req.query;
   if (!leagueId) {
     return res.status(400).json({ errorMessage: "leagueId query parameter is required." });
   }
