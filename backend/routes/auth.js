@@ -7,6 +7,8 @@ router.post('/register', AuthController.registerUser)
 router.post('/login', AuthController.loginUser)
 router.post('/logout', AuthController.logoutUser)
 router.get('/loggedIn', AuthController.getLoggedIn)
+router.get('/security-question', AuthController.getSecurityQuestion)
+router.post('/reset-password', AuthController.resetPassword)
 router.put('/user', auth.verify, AuthController.updateUser);
 router.delete('/user', auth.verify, AuthController.deleteUser);
 

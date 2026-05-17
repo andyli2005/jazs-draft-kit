@@ -15,6 +15,7 @@ import MyTeamPage from "./pages/MyTeamPage";
 import PlayerSearchPage from "./pages/PlayerSearchPage";
 import PublicHomePage from "./pages/PublicHomePage";
 import RegisterPage from "./pages/RegisterPage";
+import ForgotPasswordPage from "./pages/ForgotPasswordPage";
 import RostersPage from "./pages/RostersPage";
 import TaxiDraftPage from "./pages/TaxiDraftPage.jsx";
 import SettingsPage from "./pages/SettingsPage";
@@ -151,6 +152,10 @@ function App() {
         <Route
           path="/register"
           element={isLoggedIn ? <Navigate to="/" replace /> : <RegisterPage />}
+        />
+        <Route
+          path="/forgot-password"
+          element={isLoggedIn ? <Navigate to="/" replace /> : <ForgotPasswordPage />}
         />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>

@@ -107,14 +107,87 @@ const logoutUser = async (req, res) => {
   });
 };
 
+const SECURITY_QUESTIONS = [
+  "What was the name of your first pet?",
+  "What city were you born in?",
+  "What is your mother's maiden name?",
+  "What was the name of your elementary school?",
+  "What was the make of your first car?",
+];
+
+const getSecurityQuestion = async (req, res) => {
+  try {
+    const email = normalizeEmail(req.query.email);
+    if (!email) {
+      return res.status(400).json({ errorMessage: "Email is required." });
+    }
+
+    const user = await db.getUserByEmail(email);
+    if (!user || !user.securityQuestion) {
+      return res.status(404).json({ errorMessage: "No security question found for this account." });
+    }
+
+    return res.status(200).json({ securityQuestion: user.securityQuestion });
+  } catch (err) {
+    console.error(err);
+    return res.status(500).send();
+  }
+};
+
+const resetPassword = async (req, res) => {
+  try {
+    const { email, securityAnswer, password, passwordVerify } = req.body;
+
+    if (!email || !securityAnswer || !password || !passwordVerify) {
+      return res.status(400).json({ errorMessage: "Please enter all required fields." });
+    }
+
+    if (password.length < 8) {
+      return res.status(400).json({ errorMessage: "Please enter a password of at least 8 characters." });
+    }
+
+    if (password !== passwordVerify) {
+      return res.status(400).json({ errorMessage: "Passwords do not match." });
+    }
+
+    const normalizedEmail = normalizeEmail(email);
+    const user = await db.getUserByEmail(normalizedEmail);
+    if (!user || !user.securityAnswerHash) {
+      return res.status(401).json({ errorMessage: "Incorrect answer." });
+    }
+
+    const answerCorrect = await bcrypt.compare(
+      securityAnswer.trim().toLowerCase(),
+      user.securityAnswerHash
+    );
+    if (!answerCorrect) {
+      return res.status(401).json({ errorMessage: "Incorrect answer." });
+    }
+
+    const saltRounds = 10;
+    const salt = await bcrypt.genSalt(saltRounds);
+    const passwordHash = await bcrypt.hash(password, salt);
+    await db.updateUserById(user._id, { passwordHash });
+
+    return res.status(200).json({ success: true });
+  } catch (err) {
+    console.error(err);
+    return res.status(500).send();
+  }
+};
+
 const registerUser = async (req, res) => {
   try {
-    const { userName, email, password, passwordVerify } = req.body;
+    const { userName, email, password, passwordVerify, securityQuestion, securityAnswer } = req.body;
 
-    if (!userName || !email || !password || !passwordVerify) {
+    if (!userName || !email || !password || !passwordVerify || !securityQuestion || !securityAnswer) {
       return res
         .status(400)
         .json({ errorMessage: "Please enter all required fields." });
+    }
+
+    if (!SECURITY_QUESTIONS.includes(securityQuestion)) {
+      return res.status(400).json({ errorMessage: "Invalid security question." });
     }
 
     if (password.length < 8) {
@@ -141,11 +214,14 @@ const registerUser = async (req, res) => {
     const saltRounds = 10;
     const salt = await bcrypt.genSalt(saltRounds);
     const passwordHash = await bcrypt.hash(password, salt);
+    const securityAnswerHash = await bcrypt.hash(securityAnswer.trim().toLowerCase(), salt);
 
     const savedUser = await db.createUser({
       userName: userName.trim(),
       email: normalizedEmail,
       passwordHash,
+      securityQuestion,
+      securityAnswerHash,
       profilePicture: "",
     });
 
@@ -272,4 +348,7 @@ module.exports = {
   logoutUser,
   updateUser,
   deleteUser,
+  getSecurityQuestion,
+  resetPassword,
+  SECURITY_QUESTIONS,
 };
