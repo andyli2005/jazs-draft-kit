@@ -1045,7 +1045,7 @@ const draftPlayer = async (req, res) => {
       const playerDoc = await Player.findOneAndUpdate(
         { APIplayerId, leagueId, isCustom: false },
         { $set: { APIplayerId, leagueId, isCustom: false, ...docFields } },
-        { upsert: true, new: true, runValidators: true, ...queryOptions }
+        { upsert: true, returnDocument: 'after', runValidators: true, ...queryOptions }
       );
 
       const claimResult = await Player.updateOne(
@@ -1822,7 +1822,7 @@ const draftTaxiPlayer = async (req, res) => {
             taxiDraftedAt: new Date(), 
           } 
         },
-        { upsert: true, new: true, runValidators: true, ...queryOptions }
+        { upsert: true, returnDocument: 'after', runValidators: true, ...queryOptions }
       );
 
       const updatedPlayerQuery = Player.findById(playerDoc._id);
