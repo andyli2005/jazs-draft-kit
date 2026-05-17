@@ -616,6 +616,17 @@
   margin-left: 0.8rem;
 }
 
+.sidebar-divider {
+  border: none;
+  border-top: 1px solid rgba(49, 61, 89, 0.12);
+  margin: 0.2rem 0.4rem 0;
+}
+
+.side-nav-item {
+  display: grid;
+  gap: 0.35rem;
+}
+
 .sidebar-hint {
   margin: 0.4rem 0 0;
   padding: 0.55rem 0.7rem 0;
