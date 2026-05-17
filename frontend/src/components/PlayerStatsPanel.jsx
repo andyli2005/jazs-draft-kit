@@ -24,6 +24,47 @@ const BATTING_STATS = [
   { label: "Caught Stealing", key: "caughtStealing" },
 ];
 
+function valueFrom(sources, keys) {
+  for (const source of sources) {
+    for (const key of keys) {
+      const value = source?.[key];
+      if (value != null && value !== "") return value;
+    }
+  }
+  return null;
+}
+
+function formatDetailValue(value, fallback = "N/A") {
+  if (value == null || value === "") return fallback;
+  if (typeof value === "object") return JSON.stringify(value);
+  return String(value);
+}
+
+function formatHeight(value) {
+  const height = Number(value);
+  if (!Number.isFinite(height) || height <= 0) return null;
+  const feet = Math.floor(height / 12);
+  const inches = height % 12;
+  return `${feet}' ${inches}"`;
+}
+
+function formatWeight(value) {
+  const weight = Number(value);
+  if (!Number.isFinite(weight) || weight <= 0) return null;
+  return `${weight} lb`;
+}
+
+function getDepthChartValue(sources, key) {
+  for (const source of sources) {
+    const depthChart = source?.depthChart;
+    if (depthChart && typeof depthChart === "object") {
+      const value = depthChart[key];
+      if (value != null && value !== "") return value;
+    }
+  }
+  return null;
+}
+
 function PlayerStatsPanel({
   player,
   fantasyPoints,
@@ -91,7 +132,30 @@ function PlayerStatsPanel({
 
   const hasDoc = playerDoc != null;
   const displayData = hasDoc ? playerDoc : player;
-  const stats = hasDoc ? (playerDoc.currentStats || {}) : (player.currentStats || {});
+  const stats = hasDoc ? (playerDoc.currentStats || {}) : (player?.currentStats || {});
+  const detailSources = [player, displayData];
+  const age = valueFrom(detailSources, ["age"]);
+  const latestNews = valueFrom(detailSources, ["latestNews"]);
+  const injuryStatus = valueFrom(detailSources, ["injuryStatus"]);
+  const playerNotes = valueFrom(detailSources, ["notes"]);
+  const normalizedStatus = String(displayData?.status || "").trim().toLowerCase();
+  const isActivePlayer = normalizedStatus === "active";
+  const depthChartPosition = getDepthChartValue(detailSources, "position");
+  const depthChartRank = getDepthChartValue(detailSources, "rank");
+  const depthChartRole = getDepthChartValue(detailSources, "role");
+  const depthChartSection = getDepthChartValue(detailSources, "section");
+  const playerDetails = [
+    { label: "Age", value: age },
+    { label: "Height", value: formatHeight(valueFrom(detailSources, ["height"])) },
+    { label: "Weight", value: formatWeight(valueFrom(detailSources, ["weight"])) },
+    { label: "Injury Status", value: injuryStatus },
+    { label: "Latest News", value: latestNews },
+    { label: "Depth Chart Position", value: depthChartPosition },
+    { label: "Depth Chart Rank", value: depthChartRank },
+    { label: "Depth Chart Role", value: depthChartRole },
+    { label: "Depth Chart Section", value: depthChartSection },
+    { label: "Player Status", value: displayData?.status },
+  ];
   const effectiveOwnerId = playerDoc?.ownerId || player?.ownerId || ownerRosterId || null;
 
   function handleEdit() {
@@ -184,6 +248,12 @@ function PlayerStatsPanel({
           positions: player.positions || "",
           team: player.team || "",
           pictureURL: player.pictureURL || "",
+          age: player.age ?? null,
+          contractStatus: player.contractStatus || "",
+          latestNews: player.latestNews || "",
+          depthChart: player.depthChart || {},
+          height: player.height ?? null,
+          weight: player.weight ?? null,
           // Keep existing draft price for accurate drop refunds.
           price: playerDoc?.price ?? player?.leaguePrice ?? 0,
           currentStats: player.currentStats || {},
@@ -268,7 +338,12 @@ function PlayerStatsPanel({
           <span className="player-stats-badge">{displayData.team}</span>
         )}
         {displayData.status && (
-          <span className="player-stats-badge badge-outline">{displayData.status}</span>
+          <span className={`player-stats-badge status-badge ${isActivePlayer ? "status-badge-active" : "status-badge-inactive"}`}>
+            {displayData.status}
+          </span>
+        )}
+        {displayData.injuryStatus && (
+          <span className="player-stats-badge injury-badge">{displayData.injuryStatus}</span>
         )}
         {displayData.contractStatus && CONTRACT_STATUS_OPTIONS.includes(displayData.contractStatus) ? (
           <span className="player-stats-badge badge-outline">Contract: {displayData.contractStatus}</span>
@@ -287,6 +362,19 @@ function PlayerStatsPanel({
           <span className="player-stats-kpi-value">${cost}</span>
         </div>
       </div>
+
+      {!isCustomPlayer && (
+        <div className="player-stats-section">
+          <h3>Player Notes</h3>
+          <div className="player-stats-notes-display">
+            {playerNotes ? (
+              <p>{playerNotes}</p>
+            ) : (
+              <p className="muted">No player notes available.</p>
+            )}
+          </div>
+        </div>
+      )}
 
       <div className="player-stats-section">
         <div className="player-stats-section-head">
@@ -508,10 +596,15 @@ function PlayerStatsPanel({
       </div>
 
       <div className="player-stats-section">
-        <h3>Depth Chart Status</h3>
-        <ul className="player-stats-list">
-          <li className="muted">Depth chart data not available.</li>
-        </ul>
+        <h3>Player Details</h3>
+        <dl className="player-stats-details">
+          {playerDetails.map((detail) => (
+            <div className="player-stats-detail-row" key={detail.label}>
+              <dt>{detail.label}</dt>
+              <dd>{formatDetailValue(detail.value, detail.fallback)}</dd>
+            </div>
+          ))}
+        </dl>
       </div>
 
       <div className="player-stats-section">

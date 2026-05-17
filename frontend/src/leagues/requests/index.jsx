@@ -151,6 +151,13 @@ export function draftPlayer(APIplayerId, payload) {
   });
 }
 
+export function draftTaxiPlayer(APIplayerId, payload) {
+  return request(`/api/players/${normalizePathId(APIplayerId)}/taxi`, {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
 export function draftCustomPlayer(playerId, payload) {
   return request(`/api/players/custom/${normalizePathId(playerId)}/draft`, {
     method: "POST",

@@ -4,7 +4,8 @@ import DraftPlayerModal from "../components/DraftPlayerModal";
 import PlayerStatsPanel from "../components/PlayerStatsPanel";
 import Sidebar from "../components/Sidebar";
 import { useLeague } from "../leagues";
-import { dropPlayer, getPlayers } from "../leagues/requests";
+import { getPlayers, dropPlayer } from "../leagues/requests";
+import { POSITION_OPTIONS } from "../leagues/positions";
 const TABLE_COLUMNS = [
   { label: "Name", key: "name" },
   { label: "Status", key: "status" },
@@ -44,6 +45,15 @@ function isDateLike(value) {
 }
 
 function renderCellValue(key, value) {
+  if (key === "status") {
+    const isActive = isStatusActive(value);
+    return (
+      <span className={`status-pill ${isActive ? "status-pill-active" : "status-pill-inactive"}`}>
+        {renderValue(value)}
+      </span>
+    );
+  }
+
   if (key === "pictureURL") {
     if (!value) return "N/A";
     return (
@@ -72,12 +82,13 @@ function isStatusActive(status) {
   return String(status || "").trim().toLowerCase() === "active";
 }
 
-function buildPlayersQuery({ sortBy, sortOrder, search, selectedLeagueId }) {
+function buildPlayersQuery({ sortBy, sortOrder, search, selectedLeagueId, position }) {
   return {
     rankBy: sortBy,
     order: sortOrder,
     name: search,
     leagueId: selectedLeagueId,
+    position,
   };
 }
 
@@ -92,6 +103,7 @@ function PlayerSearchPage() {
   const [selectedPlayer, setSelectedPlayer] = useState(null);
   const [showDraftModal, setShowDraftModal] = useState(false);
   const [panelRefreshKey, setPanelRefreshKey] = useState(0);
+  const [positionFilter, setPositionFilter] = useState("");
 
   useEffect(() => {
     let isMounted = true;
@@ -107,7 +119,13 @@ function PlayerSearchPage() {
       }
 
       try {
-        const data = await getPlayers(buildPlayersQuery({ sortBy, sortOrder, search, selectedLeagueId }));
+        const data = await getPlayers(buildPlayersQuery({ 
+          sortBy, 
+          sortOrder, 
+          search, 
+          selectedLeagueId,
+          position: positionFilter
+        }));
 
         if (!isMounted) return;
         const nextPlayers = Array.isArray(data.players) ? data.players : [];
@@ -128,7 +146,41 @@ function PlayerSearchPage() {
     return () => {
       isMounted = false;
     };
-  }, [sortBy, sortOrder, search, selectedLeagueId]);
+  }, [sortBy, sortOrder, search, selectedLeagueId, positionFilter]);
+
+  useEffect(() => {
+    function handleLiveUpdate(event) {
+      const notice = event.detail;
+      const playerUpdate = notice?.player || {};
+      if (!playerUpdate.APIplayerId) return;
+
+      const mergePlayerUpdate = (player) => {
+        if (!player || String(player.APIplayerId) !== String(playerUpdate.APIplayerId)) {
+          return player;
+        }
+
+        return {
+          ...player,
+          status: playerUpdate.status || player.status,
+          injuryStatus: playerUpdate.injuryStatus || player.injuryStatus,
+          latestNews: playerUpdate.latestNews || player.latestNews,
+          depthChart:
+            notice.type === "depthChart"
+              ? { ...(player.depthChart || {}), ...(playerUpdate.depthChart || {}) }
+              : player.depthChart,
+        };
+      };
+
+      setPlayers((prev) => prev.map(mergePlayerUpdate));
+      setSelectedPlayer((prev) => mergePlayerUpdate(prev));
+      setPanelRefreshKey((prev) => prev + 1);
+    }
+
+    window.addEventListener("draft-kit:player-live-update", handleLiveUpdate);
+    return () => {
+      window.removeEventListener("draft-kit:player-live-update", handleLiveUpdate);
+    };
+  }, []);
 
   const hasPlayers = players.length > 0;
 
@@ -153,7 +205,13 @@ function PlayerSearchPage() {
   }
 
   async function reloadPlayers() {
-    const data = await getPlayers(buildPlayersQuery({ sortBy, sortOrder, search, selectedLeagueId }));
+    const data = await getPlayers(buildPlayersQuery({ 
+      sortBy, 
+      sortOrder, 
+      search, 
+      selectedLeagueId,
+      position: positionFilter
+    }));
     const nextPlayers = Array.isArray(data.players) ? data.players : [];
     setPlayers(nextPlayers);
     setSelectedPlayer((prev) => {
@@ -193,20 +251,40 @@ function PlayerSearchPage() {
           <p className="eyebrow">Player Search</p>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "1rem", marginBottom: "1rem" }}>
             <h1 style={{ margin: 0 }}>Find Players</h1>
-            <input
-              type="text"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search for player..."
-              style={{
-                border: "1px solid #c8d2e9",
-                borderRadius: "10px",
-                padding: "0.65rem 0.75rem",
-                font: "inherit",
-                fontSize: "1rem",
-                width: "280px",
-              }}
-            />
+            <div style={{ display: "flex", gap: "0.5rem" }}>
+              <select
+                value={positionFilter}
+                onChange={(e) => setPositionFilter(e.target.value)}
+                style={{
+                  border: "1px solid #c8d2e9",
+                  borderRadius: "10px",
+                  padding: "0.65rem 0.75rem",
+                  font: "inherit",
+                  fontSize: "1rem",
+                }}
+              >
+                <option value="">Filter by Positions</option>
+                {POSITION_OPTIONS.map((pos) => (
+                  <option key={pos} value={pos}>
+                    {pos}
+                  </option>
+                ))}
+              </select>
+              <input
+                type="text"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Search for player..."
+                style={{
+                  border: "1px solid #c8d2e9",
+                  borderRadius: "10px",
+                  padding: "0.65rem 0.75rem",
+                  font: "inherit",
+                  fontSize: "1rem",
+                  width: "280px",
+                }}
+              />
+            </div>
           </div>
           <p className="muted">Loaded from Draft Kit backend via upstream players service.</p>
 

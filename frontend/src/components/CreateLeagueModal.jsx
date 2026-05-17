@@ -1,6 +1,5 @@
 import { useState, useEffect, useRef } from "react";
 import { useLeague } from "../leagues";
-import "./CreateLeagueModal.css";
 
 const MLB_POSITIONS = [
   { name: "Catchers", count: 2 },

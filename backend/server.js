@@ -8,6 +8,7 @@ const authRoutes = require("./routes/auth");
 const playersRoutes = require("./routes/players");
 const transactionsRoutes = require("./routes/transactions");
 const leaguesRoutes = require("./routes/leagues");
+const liveUpdateRoutes = require("./routes/live-updates");
 
 const app = express();
 
@@ -31,6 +32,7 @@ app.use("/api/auth", authRoutes);
 app.use("/api/players", playersRoutes);
 app.use("/api/transactions", transactionsRoutes);
 app.use("/api/leagues", leaguesRoutes);
+app.use("/api/live-updates", liveUpdateRoutes);
 
 const PORT = process.env.PORT || 4000;
 

@@ -3,7 +3,7 @@ const mongoose = require("mongoose");
 const League = require("../db/models/League");
 const MLBRoster = require("../db/models/MLBRoster");
 const Player = require("../db/models/Player");
-const { computeTotalMoneyRemaining, computeRosterSpotsRemaining, computeMoneyAboveMinimum } = require("../services/league-valuation");
+const { computeTotalMoneyRemaining, computeRosterSpotsRemaining, computeMoneyAboveMinimum, computeRemainingSlotsPerPosition } = require("../services/league-valuation");
 
 const DEFAULT_API_ENDPOINT = "http://localhost:4001";
 const ROSTER_SLOT_KEYS = [
@@ -50,6 +50,13 @@ const STAT_KEYS = [
   "sluggingPercentage",
   "fantasyPoints",
 ];
+const MAX_TAXI_PLAYERS = 9;
+const EMPTY_DEPTH_CHART = Object.freeze({
+  position: "",
+  rank: null,
+  role: "",
+  section: "",
+});
 
 function createHttpError(status, message) {
   const error = new Error(message);
@@ -79,16 +86,66 @@ function normalizeStatBlock(block) {
   }, {});
 }
 
+function normalizeNumberField(value) {
+  const number = Number(value);
+  return Number.isFinite(number) ? number : null;
+}
+
+function normalizeTextField(value) {
+  if (value == null) return "";
+  if (typeof value === "object") return JSON.stringify(value);
+  return String(value);
+}
+
+function normalizeInjuryStatusField(value) {
+  const text = normalizeTextField(value).trim();
+  if (!text) return "";
+  const lower = text.toLowerCase();
+  if (lower === "active" || lower === "inactive") return "";
+  return text;
+}
+
+function normalizeAvailabilityStatusField(status, injuryStatus = "") {
+  const normalized = normalizeTextField(status).trim();
+  const lower = normalized.toLowerCase();
+  if (lower === "active" || lower === "inactive") {
+    return normalized || (injuryStatus ? "Inactive" : "Active");
+  }
+  return injuryStatus ? "Inactive" : "Active";
+}
+
+function normalizeDepthChart(value) {
+  if (!value || typeof value !== "object") {
+    return { ...EMPTY_DEPTH_CHART };
+  }
+
+  return {
+    position: normalizeTextField(value.position),
+    rank: normalizeNumberField(value.rank),
+    role: normalizeTextField(value.role),
+    section: normalizeTextField(value.section),
+  };
+}
+
 function normalizeApiPlayer(rawPlayer) {
   if (!rawPlayer) return null;
+  const depthChart = normalizeDepthChart(rawPlayer.depthChart);
+  const injuryStatus = normalizeInjuryStatusField(rawPlayer.injuryStatus || rawPlayer.status);
   return {
-    APIplayerId: rawPlayer._id || rawPlayer.APIplayerId,
+    APIplayerId: rawPlayer.playerId || rawPlayer.APIplayerId || rawPlayer._id,
     name: rawPlayer.name || "",
-    status: rawPlayer.status || "",
-    notes: rawPlayer.note || rawPlayer.notes || rawPlayer.status || "",
+    status: normalizeAvailabilityStatusField(rawPlayer.status, injuryStatus),
+    injuryStatus,
+    notes: rawPlayer.note || rawPlayer.notes || injuryStatus || rawPlayer.status || "",
     positions: rawPlayer.positions || "",
     team: rawPlayer.team || "",
     pictureURL: rawPlayer.pictureURL || "",
+    age: normalizeNumberField(rawPlayer.age),
+    contractStatus: normalizeTextField(rawPlayer.contractStatus),
+    latestNews: normalizeTextField(rawPlayer.latestNews || rawPlayer.news),
+    depthChart,
+    height: normalizeNumberField(rawPlayer.height),
+    weight: normalizeNumberField(rawPlayer.weight),
     // Single-player licensed payload does not include recommended cost.
     price: 0,
     currentStats: normalizeStatBlock(rawPlayer.currentStats),
@@ -140,13 +197,21 @@ function buildLicensedPlayerIdentifierQuery(playerIdentifier, leagueId) {
 }
 
 function mapPlayerToDocFields(licensedPlayer, existingDoc) {
+  const injuryStatus = normalizeInjuryStatusField(licensedPlayer.injuryStatus || licensedPlayer.status);
   return {
     name: licensedPlayer.name,
-    status: licensedPlayer.status,
-    notes: licensedPlayer.notes || licensedPlayer.status || "",
+    status: normalizeAvailabilityStatusField(licensedPlayer.status, injuryStatus),
+    injuryStatus,
+    notes: licensedPlayer.notes || licensedPlayer.injuryStatus || licensedPlayer.status || "",
     positions: licensedPlayer.positions,
     team: licensedPlayer.team,
     pictureURL: licensedPlayer.pictureURL || "",
+    age: licensedPlayer.age ?? null,
+    contractStatus: licensedPlayer.contractStatus || "",
+    latestNews: licensedPlayer.latestNews || "",
+    depthChart: normalizeDepthChart(licensedPlayer.depthChart),
+    height: licensedPlayer.height ?? null,
+    weight: licensedPlayer.weight ?? null,
     // Preserve local draft/dropped state; this should not be overwritten by recommended API cost.
     price: existingDoc?.price ?? 0,
     personalNotes: existingDoc?.personalNotes || "",
@@ -173,15 +238,20 @@ async function fetchLicensedPlayerById(APIplayerId) {
     throw createHttpError(500, "Server configuration is missing API_TOKEN.");
   }
 
-  const url = `${getApiBase()}/api/players/${APIplayerId}`;
+  const url = `${getApiBase()}/api/players/${encodeURIComponent(APIplayerId)}`;
   const { response, data } = await fetchUpstreamJson(url);
-  if (response.status === 404) {
-    return fetchLicensedPlayerFromEvaluations(APIplayerId);
-  }
   if (!response.ok) {
-    throw createHttpError(response.status, data?.errorMessage || data?.message || "Failed to fetch player.");
+    const detailError = createHttpError(
+      response.status,
+      data?.errorMessage || data?.message || "Failed to fetch player."
+    );
+    try {
+      return await fetchLicensedPlayerFromEvaluations(APIplayerId);
+    } catch {
+      throw detailError;
+    }
   }
-  const item = data?.item;
+  const item = data?.item || data?.player || data?.playerDoc || data;
   const normalized = normalizeApiPlayer(item);
   if (!normalized || String(normalized.APIplayerId) !== String(APIplayerId)) {
     throw createHttpError(502, "Licensed API returned an invalid player payload.");
@@ -211,13 +281,19 @@ async function fetchLicensedPlayerFromEvaluations(APIplayerId) {
   }
 
   return normalizeApiPlayer({
-    _id: matched.APIplayerId,
+    playerId: matched.APIplayerId,
     name: matched.name,
     status: matched.status,
     note: matched.notes || matched.status || "",
     pictureURL: matched.pictureURL,
     positions: matched.positions,
     team: matched.team,
+    age: matched.age,
+    contractStatus: matched.contractStatus,
+    latestNews: matched.latestNews,
+    depthChart: matched.depthChart,
+    height: matched.height,
+    weight: matched.weight,
     currentStats: matched.currentStats,
     projectedStats: matched.projectedStats,
     threeYearAverageStats: matched.threeYearAverageStats,
@@ -237,13 +313,21 @@ function extractPlayers(payload) {
   }
 
   return source.map((player) => ({
-    APIplayerId: player._id,
+    APIplayerId: player.playerId || player.APIplayerId || player._id,
     name: player.name,
-    status: player.status,
+    status: normalizeAvailabilityStatusField(player.status, normalizeInjuryStatusField(player.injuryStatus || player.status)),
+    injuryStatus: normalizeInjuryStatusField(player.injuryStatus || player.status),
+    notes: player.note || player.notes || normalizeInjuryStatusField(player.injuryStatus || player.status) || player.status || "",
     pictureURL: player.pictureURL,
     positions: player.positions,
     team: player.team,
     cost: player.cost,
+    age: normalizeNumberField(player.age),
+    contractStatus: normalizeTextField(player.contractStatus),
+    latestNews: normalizeTextField(player.latestNews || player.news),
+    depthChart: normalizeDepthChart(player.depthChart),
+    height: normalizeNumberField(player.height),
+    weight: normalizeNumberField(player.weight),
     currentStats: player.currentStats || {},
     projectedStats: player.projectedStats || {},
     threeYearAverageStats: player.threeYearAverageStats || {},
@@ -251,7 +335,7 @@ function extractPlayers(payload) {
   }));
 }
 
-function buildUpstreamUrl(query, path="/api/players") {
+function buildUpstreamUrl(query, path = "/api/players") {
   const searchParams = new URLSearchParams();
   Object.entries(query || {}).forEach(([key, value]) => {
     if (Array.isArray(value)) {
@@ -290,6 +374,7 @@ const createCustomPlayer = async (req, res) => {
       leagueId,
       name,
       status,
+      injuryStatus,
       notes,
       positions,
       team,
@@ -315,6 +400,7 @@ const createCustomPlayer = async (req, res) => {
       APIplayerId: null,
       name: String(name).trim(),
       status: String(status).trim(),
+      injuryStatus: String(injuryStatus || "").trim(),
       notes: (notes || status || "").trim(),
       positions: String(positions).trim(),
       team: String(team).trim(),
@@ -350,7 +436,7 @@ const updateCustomPlayer = async (req, res) => {
       return res.status(404).json({ errorMessage: "Custom player not found in this league." });
     }
 
-    const editableStringFields = ["name", "status", "notes", "positions", "team", "pictureURL", "personalNotes"];
+    const editableStringFields = ["name", "status", "injuryStatus", "notes", "positions", "team", "pictureURL", "personalNotes"];
     editableStringFields.forEach((field) => {
       if (req.body[field] != null) {
         playerDoc[field] = String(req.body[field]).trim();
@@ -495,7 +581,7 @@ const getPlayers = async (req, res) => {
     });
   }
 
-  const { leagueId } = req.query;
+  const { leagueId, position } = req.query;
   if (!leagueId) {
     return res.status(400).json({ errorMessage: "leagueId query parameter is required." });
   }
@@ -512,23 +598,38 @@ const getPlayers = async (req, res) => {
     (sum, roster) => sum + computeRosterSpotsRemaining(roster),
     0
   );
+  const remainingSlotsPerPosition = computeRemainingSlotsPerPosition(rosters);
   const moneyAboveMinimum = computeMoneyAboveMinimum(totalMoneyRemaining, spotsRemaining);
-  leagueState = { totalMoneyRemaining, spotsRemaining, moneyAboveMinimum };
+  leagueState = { totalMoneyRemaining, spotsRemaining, moneyAboveMinimum, remainingSlotsPerPosition };
 
   // Cost is NOT part of API Licensing database, so if user wants to sort by cost,
   // temporarily change rankBy to a valid data column
   const upstreamQuery = { ...req.query };
   if (upstreamQuery.rankBy === "cost") upstreamQuery.rankBy = "fantasyPoints";
-    
+
   // Similarly, leagueId is not necessary for the query
   delete upstreamQuery.leagueId;
-
   upstreamQuery.moneyAboveMinimum = moneyAboveMinimum;
 
   const url = buildUpstreamUrl(upstreamQuery, "/api/players/evaluations");
+  const draftedPlayers = await db.getDraftedPlayers(leagueId);
+  const draftHistory = draftedPlayers.map((player) => ({
+    playerId: String(player.APIplayerId),
+    draftCost: Number(player.price),
+  }));
 
   try {
-    const response = await fetch(url, { headers: { "x-api-token": process.env.API_TOKEN } });
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        "Content-Type": "application/json",
+        "x-api-token": process.env.API_TOKEN
+      },
+      body: JSON.stringify({
+        draftHistory,
+        leagueState,
+      }),
+    });
 
     let data = {};
     try {
@@ -553,7 +654,7 @@ const getPlayers = async (req, res) => {
     if (apiPlayerIds.length > 0) {
       const localPlayerDocs = await Player.find(
         { leagueId, APIplayerId: { $in: apiPlayerIds }, isCustom: false },
-        "APIplayerId ownerId bidStartedById price"
+        "APIplayerId ownerId bidStartedById price taxiRosterId taxiDraftedAt"
       ).lean();
       localPlayerMap = new Map(
         localPlayerDocs.map((doc) => [String(doc.APIplayerId), doc])
@@ -563,10 +664,14 @@ const getPlayers = async (req, res) => {
     players = players.map((player) => {
       const localDoc = localPlayerMap.get(String(player.APIplayerId));
       const isDrafted = Boolean(localDoc?.ownerId);
+      const isTaxiDrafted = Boolean(localDoc?.taxiRosterId);
       return {
         ...player,
         isDrafted,
+        isTaxiDrafted,
         draftOwnerId: localDoc?.ownerId ? String(localDoc.ownerId) : null,
+        taxiRosterId: localDoc?.taxiRosterId ? String(localDoc.taxiRosterId) : null,
+        taxiDraftedAt: localDoc?.taxiDraftedAt ?? null,
         bidStartedById: localDoc?.bidStartedById ? String(localDoc.bidStartedById) : null,
         leaguePrice: localDoc?.price ?? null,
       };
@@ -651,7 +756,39 @@ const getPlayerDoc = async (req, res) => {
     }
 
     const playerDoc = await db.getPlayerDoc(APIplayerId, leagueId);
-    return res.status(200).json({ playerDoc });
+    let licensedPlayer = null;
+    try {
+      licensedPlayer = await fetchLicensedPlayerById(APIplayerId);
+    } catch (err) {
+      console.warn(
+        `Unable to hydrate player ${APIplayerId} from upstream:`,
+        err.message || "Failed to fetch upstream player."
+      );
+      licensedPlayer = null;
+    }
+
+    if (!playerDoc) {
+      return res.status(200).json({ playerDoc: licensedPlayer });
+    }
+
+    if (!licensedPlayer) {
+      return res.status(200).json({ playerDoc });
+    }
+
+    const localPlayerDoc =
+      typeof playerDoc.toObject === "function" ? playerDoc.toObject() : playerDoc;
+    const mergedPlayerDoc = {
+      ...localPlayerDoc,
+      ...(licensedPlayer || {}),
+      price: playerDoc.price,
+      personalNotes: playerDoc.personalNotes,
+      bidStartedById: playerDoc.bidStartedById,
+      ownerId: playerDoc.ownerId,
+      leagueId: playerDoc.leagueId,
+      APIplayerId: playerDoc.APIplayerId,
+    };
+
+    return res.status(200).json({ playerDoc: mergedPlayerDoc });
   } catch (err) {
     console.error(err);
     return res.status(500).json({ errorMessage: "Error fetching player document." });
@@ -662,8 +799,8 @@ const upsertPlayerDoc = async (req, res) => {
   try {
     const { APIplayerId } = req.params;
     const {
-      leagueId, personalNotes, name, status, notes,
-      positions, team, pictureURL, price,
+      leagueId, personalNotes, name, status, injuryStatus, notes,
+      positions, team, pictureURL, price, age, contractStatus, latestNews, depthChart, height, weight,
       currentStats, projectedStats, threeYearAverageStats,
       contractStatus,
     } = req.body;
@@ -686,10 +823,17 @@ const upsertPlayerDoc = async (req, res) => {
     const fields = {
       name,
       status,
+      injuryStatus: normalizeTextField(injuryStatus),
       notes: notes || status || "",
       positions,
       team,
       pictureURL: pictureURL || "",
+      age: normalizeNumberField(age),
+      contractStatus: normalizeTextField(contractStatus),
+      latestNews: normalizeTextField(latestNews),
+      depthChart: normalizeDepthChart(depthChart),
+      height: normalizeNumberField(height),
+      weight: normalizeNumberField(weight),
       // Preserve existing draft cost unless explicitly provided.
       price: price ?? prevDoc?.price ?? 0,
       personalNotes: personalNotes || "",
@@ -732,7 +876,7 @@ const upsertPlayerDoc = async (req, res) => {
       };
       await db.createTransaction(data);
     }
-    
+
     return res.status(200).json({ playerDoc });
   } catch (err) {
     console.error(err);
@@ -837,6 +981,9 @@ const draftPlayer = async (req, res) => {
           throw createHttpError(409, "Player is already drafted to the selected roster.");
         }
         throw createHttpError(409, "Player is already drafted in this league.");
+      }
+      if (existingDoc?.taxiRosterId) {
+        throw createHttpError(409, "Player is already on a taxi roster.");
       }
 
       const docFields = mapPlayerToDocFields(licensedPlayer, existingDoc);
@@ -1125,7 +1272,7 @@ const movePlayer = async (req, res) => {
       const data = {
         teamOwner: updatedRoster?.name || "Unknown Team",
         player: updatedPlayerDoc?.name || "Unknown Player",
-        actionType: "ChangedPosition",
+        actionType: "UpdatedPosition",
         draftCost: Number(updatedPlayerDoc?.price) || 0,
         budgetLeft: Number(updatedRoster?.budgetLeft ?? 0),
         leagueId,
@@ -1506,7 +1653,7 @@ const moveCustomPlayer = async (req, res) => {
       const data = {
         teamOwner: updatedRoster?.name || "Unknown Team",
         player: updatedPlayerDoc?.name || "Unknown Player",
-        actionType: "ChangedPosition",
+        actionType: "UpdatedPosition",
         draftCost: Number(updatedPlayerDoc?.price) || 0,
         budgetLeft: Number(updatedRoster?.budgetLeft ?? 0),
         leagueId,
@@ -1538,6 +1685,133 @@ const moveCustomPlayer = async (req, res) => {
   }
 };
 
+const draftTaxiPlayer = async (req, res) => {
+  let session = null;
+  try {
+    const { APIplayerId } = req.params;
+    const { leagueId, rosterId, inactiveOverrideAccepted } = req.body || {};
+
+    if (!leagueId || !rosterId) {
+      return res.status(400).json({
+        errorMessage: "leagueId and rosterId are required.",
+      });
+    }
+
+    const licensedPlayer = await fetchLicensedPlayerById(APIplayerId);
+    const normalizedStatus = String(licensedPlayer.status || "").trim().toLowerCase();
+    const isActive = normalizedStatus === "active";
+    if (!isActive && !hasTruthyOverride(inactiveOverrideAccepted)) {
+      return res.status(400).json({
+        errorMessage: "Player is not currently active. Confirm inactive override to continue.",
+      });
+    }
+
+    let updatedPlayerDoc = null;
+    let updatedRoster = null;
+
+    const applyTaxiDraftMutation = async (activeSession = null) => {
+      const queryOptions = activeSession ? { session: activeSession } : {};
+      const leagueQuery = League.findById(leagueId);
+      if (activeSession) leagueQuery.session(activeSession);
+      const league = await leagueQuery;
+      if (!league) {
+        throw createHttpError(404, "League not found.");
+      }
+
+      if (String(league.user) !== String(req.userId)) {
+        throw createHttpError(403, "You do not have access to this league.");
+      }
+
+      const rosterIdsInLeague = new Set((league.rosterIds || []).map((id) => String(id)));
+      if (!rosterIdsInLeague.has(String(rosterId))) {
+        throw createHttpError(400, "Selected roster does not belong to this league.");
+      }
+
+      const rosterQuery = MLBRoster.findById(rosterId);
+      if (activeSession) rosterQuery.session(activeSession);
+      const taxiRoster = await rosterQuery;
+      if (!taxiRoster) {
+        throw createHttpError(404, "Taxi roster not found.");
+      }
+
+      const numberOfTaxiPlayers = await db.countDraftedTaxiPlayers(leagueId, rosterId, queryOptions);
+      if (numberOfTaxiPlayers >= MAX_TAXI_PLAYERS) {
+        throw createHttpError(400, "Taxi roster is full.");
+      }
+
+      const existingDocQuery = Player.findOne({ APIplayerId, leagueId, isCustom: false });
+      if (activeSession) existingDocQuery.session(activeSession);
+      const existingDoc = await existingDocQuery;
+
+      if (existingDoc?.ownerId) {
+        throw createHttpError(409, "Player is already drafted.");
+      }
+
+      if (existingDoc?.taxiRosterId) {
+        throw createHttpError(409, "Player is already on a taxi roster.");
+      }
+
+      const docFields = mapPlayerToDocFields(licensedPlayer, existingDoc);
+      const playerDoc = await Player.findOneAndUpdate(
+        { APIplayerId, leagueId, isCustom: false },
+        { 
+          $set: { 
+            APIplayerId, 
+            leagueId, 
+            isCustom: false, 
+            ...docFields, 
+            price: 1, 
+            ownerId: null, 
+            bidStartedById: null,
+            taxiRosterId: rosterId,
+            taxiDraftedAt: new Date(), 
+          } 
+        },
+        { upsert: true, new: true, runValidators: true, ...queryOptions }
+      );
+
+      const updatedPlayerQuery = Player.findById(playerDoc._id);
+      if (activeSession) updatedPlayerQuery.session(activeSession);
+      updatedPlayerDoc = await updatedPlayerQuery;
+
+      // taxi rosters are not directly impacting MLBRoster, so no new query
+      updatedRoster = taxiRoster;
+
+      const data = {
+        teamOwner: updatedRoster?.name || "Unknown Team",
+        player: updatedPlayerDoc?.name || "Unknown Player",
+        actionType: "TaxiDrafted",
+        draftCost: 1,
+        budgetLeft: Number(updatedRoster?.budgetLeft ?? 0),
+        leagueId,
+        rosterId,
+      };
+      await db.createTransaction(data, queryOptions);
+    };
+
+    session = await mongoose.startSession();
+    try {
+      await session.withTransaction(async () => {
+        await applyTaxiDraftMutation(session);
+      });
+    } catch (error) {
+      if (!isTransactionUnsupportedError(error)) {
+        throw error;
+      }
+      await applyTaxiDraftMutation(null);
+    }
+
+    return res.status(200).json({ playerDoc: updatedPlayerDoc, roster: updatedRoster });
+  } catch (err) {
+    console.error(err);
+    return res.status(err.status || 500).json({ errorMessage: err.message || "Error drafting taxi player." });
+  } finally {
+    if (session) {
+      await session.endSession();
+    }
+  }
+};
+
 module.exports = {
   getPlayers,
   getCustomPlayers,
@@ -1548,6 +1822,7 @@ module.exports = {
   getPlayerDoc,
   upsertPlayerDoc,
   draftPlayer,
+  draftTaxiPlayer,
   draftCustomPlayer,
   dropPlayer,
   dropCustomPlayer,

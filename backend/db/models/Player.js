@@ -23,24 +23,41 @@ const statBlockSchema = new mongoose.Schema(
   { _id: false }
 );
 
+const depthChartSchema = new mongoose.Schema(
+  {
+    position: { type: String, default: "" },
+    rank:     { type: Number, default: null },
+    role:     { type: String, default: "" },
+    section:  { type: String, default: "" },
+  },
+  { _id: false }
+);
+
 const playerSchema = new mongoose.Schema(
   {
     name:                  { type: String, required: true, trim: true },
     status:                { type: String, required: true },
+    injuryStatus:          { type: String, default: "" },
     notes:                 { type: String, required: true },
     positions:             { type: String, required: true },
     personalNotes:         { type: String, default: "" },
     pictureURL:            { type: String, default: "" },
     price:                 { type: Number, required: true },
     team:                  { type: String, required: true },
+    age:                   { type: Number, default: null },
+    contractStatus:        { type: String, default: "" },
+    latestNews:            { type: String, default: "" },
+    depthChart:            { type: depthChartSchema, default: () => ({}) },
     weight:                { type: Number, default: null },
     height:                { type: Number, default: null },
     bidStartedById:        { type: ObjectId, ref: "MLBRoster", default: null },
     ownerId:               { type: ObjectId, ref: "MLBRoster", default: null },
+    taxiRosterId:          { type: ObjectId, ref: "MLBRoster", default: null },
     leagueId:              { type: ObjectId, ref: "League", required: true },
-    APIplayerId:           { type: ObjectId, default: null },
+    APIplayerId:           { type: String, default: null },
     isCustom:              { type: Boolean, default: false },
     contractStatus:        { type: String, default: null },
+    taxiDraftedAt:         { type: Date, default: null },
     currentStats:          { type: statBlockSchema, required: true },
     projectedStats:        { type: statBlockSchema, required: true },
     threeYearAverageStats: { type: statBlockSchema, required: true },

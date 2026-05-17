@@ -11,6 +11,7 @@ const leagueSchema = new mongoose.Schema(
     budgetCap:  { type: Number, required: true },
     rosterIds:  [{ type: ObjectId, ref: "MLBRoster" }],
     myTeam:     { type: ObjectId, ref: "MLBRoster", default: null },
+    taxiDraftOrder: [{ type: ObjectId, ref: "MLBRoster" }],
   },
   { timestamps: true }
 );

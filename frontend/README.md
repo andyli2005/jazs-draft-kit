@@ -14,6 +14,12 @@ The UI is organized around a selected league. Once a league is chosen on the das
 - Player details panel with editable personal notes saved per league
 - League-wide roster overview and transaction history
 
+## Recent Updates
+
+- **Position Filtering:** The Player Search page now includes a dedicated dropdown to filter by position (C, 1B, 2B, etc.). This supports players with multiple positions (e.g., a "C" filter will correctly find "C, 1B" players).
+- **Custom Player Management:** A new `/custom-players` route allows users to create league-local players with manual stats.
+- **Dynamic Comparison:** The "All Teams" page now reflects live budget changes made in the settings panel.
+
 ## Tech Stack
 
 - React 19
