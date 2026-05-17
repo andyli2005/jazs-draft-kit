@@ -1860,7 +1860,7 @@ const draftTaxiPlayer = async (req, res) => {
       const updateData = isCustom
         ? { 
             $set: { 
-              price: 1, 
+              price: 0, 
               ownerId: null, 
               bidStartedById: null,
               taxiRosterId: rosterId,
@@ -1873,7 +1873,7 @@ const draftTaxiPlayer = async (req, res) => {
               leagueId, 
               isCustom: false, 
               ...docFields, 
-              price: 1, 
+              price: 0, 
               ownerId: null, 
               bidStartedById: null,
               taxiRosterId: rosterId,
@@ -1898,7 +1898,7 @@ const draftTaxiPlayer = async (req, res) => {
         teamOwner: updatedRoster?.name || "Unknown Team",
         player: updatedPlayerDoc?.name || "Unknown Player",
         actionType: "TaxiDrafted",
-        draftCost: 1,
+        draftCost: 0,
         budgetLeft: Number(updatedRoster?.budgetLeft ?? 0),
         leagueId,
         rosterId,
