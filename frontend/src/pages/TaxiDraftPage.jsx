@@ -39,6 +39,10 @@ function renderCellValue(key, value) {
     return value;
   }
 
+  if (key === "fantasyPoints" && (value == null || value === "")) {
+    return "0";
+  }
+
   return renderValue(value);
 }
 

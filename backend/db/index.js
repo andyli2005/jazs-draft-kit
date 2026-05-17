@@ -7,34 +7,34 @@ const Player = require("./models/Player");
 
 class Database {
   constructor() {
-    const rosterPlayerSelect =
-      "name status injuryStatus positions team pictureURL price age contractStatus latestNews depthChart height weight APIplayerId currentStats projectedStats threeYearAverageStats";
+    this.rosterPlayerSelect =
+      "name status injuryStatus positions team pictureURL price age contractStatus latestNews depthChart height weight APIplayerId currentStats projectedStats threeYearAverageStats isCustom";
     this.leaguePopulate = {
       path: "rosterIds",
       populate: [
-        { path: "catcher1", select: rosterPlayerSelect },
-        { path: "catcher2", select: rosterPlayerSelect },
-        { path: "firstBase", select: rosterPlayerSelect },
-        { path: "secondBase", select: rosterPlayerSelect },
-        { path: "thirdBase", select: rosterPlayerSelect },
-        { path: "inField", select: rosterPlayerSelect },
-        { path: "shortStop", select: rosterPlayerSelect },
-        { path: "utility", select: rosterPlayerSelect },
-        { path: "middleInField", select: rosterPlayerSelect },
-        { path: "pitcher1", select: rosterPlayerSelect },
-        { path: "pitcher2", select: rosterPlayerSelect },
-        { path: "pitcher3", select: rosterPlayerSelect },
-        { path: "pitcher4", select: rosterPlayerSelect },
-        { path: "pitcher5", select: rosterPlayerSelect },
-        { path: "pitcher6", select: rosterPlayerSelect },
-        { path: "pitcher7", select: rosterPlayerSelect },
-        { path: "pitcher8", select: rosterPlayerSelect },
-        { path: "pitcher9", select: rosterPlayerSelect },
-        { path: "outfielder1", select: rosterPlayerSelect },
-        { path: "outfielder2", select: rosterPlayerSelect },
-        { path: "outfielder3", select: rosterPlayerSelect },
-        { path: "outfielder4", select: rosterPlayerSelect },
-        { path: "outfielder5", select: rosterPlayerSelect },
+        { path: "catcher1", select: this.rosterPlayerSelect },
+        { path: "catcher2", select: this.rosterPlayerSelect },
+        { path: "firstBase", select: this.rosterPlayerSelect },
+        { path: "secondBase", select: this.rosterPlayerSelect },
+        { path: "thirdBase", select: this.rosterPlayerSelect },
+        { path: "inField", select: this.rosterPlayerSelect },
+        { path: "shortStop", select: this.rosterPlayerSelect },
+        { path: "utility", select: this.rosterPlayerSelect },
+        { path: "middleInField", select: this.rosterPlayerSelect },
+        { path: "pitcher1", select: this.rosterPlayerSelect },
+        { path: "pitcher2", select: this.rosterPlayerSelect },
+        { path: "pitcher3", select: this.rosterPlayerSelect },
+        { path: "pitcher4", select: this.rosterPlayerSelect },
+        { path: "pitcher5", select: this.rosterPlayerSelect },
+        { path: "pitcher6", select: this.rosterPlayerSelect },
+        { path: "pitcher7", select: this.rosterPlayerSelect },
+        { path: "pitcher8", select: this.rosterPlayerSelect },
+        { path: "pitcher9", select: this.rosterPlayerSelect },
+        { path: "outfielder1", select: this.rosterPlayerSelect },
+        { path: "outfielder2", select: this.rosterPlayerSelect },
+        { path: "outfielder3", select: this.rosterPlayerSelect },
+        { path: "outfielder4", select: this.rosterPlayerSelect },
+        { path: "outfielder5", select: this.rosterPlayerSelect },
       ],
     };
   }
