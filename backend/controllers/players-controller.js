@@ -54,7 +54,6 @@ const EMPTY_DEPTH_CHART = Object.freeze({
   rank: null,
   role: "",
   section: "",
-  status: "",
 });
 
 function createHttpError(status, message) {
@@ -98,7 +97,6 @@ function normalizeDepthChart(value) {
     rank: normalizeNumberField(value.rank),
     role: normalizeTextField(value.role),
     section: normalizeTextField(value.section),
-    status: normalizeTextField(value.status),
   };
 }
 
@@ -114,9 +112,8 @@ function normalizeApiPlayer(rawPlayer) {
     team: rawPlayer.team || "",
     pictureURL: rawPlayer.pictureURL || "",
     age: normalizeNumberField(rawPlayer.age),
-    injury: Boolean(rawPlayer.injury),
-    injuryStatus: normalizeTextField(rawPlayer.injuryStatus),
-    injuryNote: normalizeTextField(rawPlayer.injuryNote),
+    contractStatus: normalizeTextField(rawPlayer.contractStatus),
+    latestNews: normalizeTextField(rawPlayer.latestNews || rawPlayer.news),
     depthChart,
     height: normalizeNumberField(rawPlayer.height),
     weight: normalizeNumberField(rawPlayer.weight),
@@ -179,9 +176,8 @@ function mapPlayerToDocFields(licensedPlayer, existingDoc) {
     team: licensedPlayer.team,
     pictureURL: licensedPlayer.pictureURL || "",
     age: licensedPlayer.age ?? null,
-    injury: Boolean(licensedPlayer.injury),
-    injuryStatus: licensedPlayer.injuryStatus || "",
-    injuryNote: licensedPlayer.injuryNote || "",
+    contractStatus: licensedPlayer.contractStatus || "",
+    latestNews: licensedPlayer.latestNews || "",
     depthChart: normalizeDepthChart(licensedPlayer.depthChart),
     height: licensedPlayer.height ?? null,
     weight: licensedPlayer.weight ?? null,
@@ -261,9 +257,8 @@ async function fetchLicensedPlayerFromEvaluations(APIplayerId) {
     positions: matched.positions,
     team: matched.team,
     age: matched.age,
-    injury: matched.injury,
-    injuryStatus: matched.injuryStatus,
-    injuryNote: matched.injuryNote,
+    contractStatus: matched.contractStatus,
+    latestNews: matched.latestNews,
     depthChart: matched.depthChart,
     height: matched.height,
     weight: matched.weight,
@@ -295,9 +290,8 @@ function extractPlayers(payload) {
     team: player.team,
     cost: player.cost,
     age: normalizeNumberField(player.age),
-    injury: Boolean(player.injury),
-    injuryStatus: normalizeTextField(player.injuryStatus),
-    injuryNote: normalizeTextField(player.injuryNote),
+    contractStatus: normalizeTextField(player.contractStatus),
+    latestNews: normalizeTextField(player.latestNews || player.news),
     depthChart: normalizeDepthChart(player.depthChart),
     height: normalizeNumberField(player.height),
     weight: normalizeNumberField(player.weight),
@@ -748,7 +742,7 @@ const upsertPlayerDoc = async (req, res) => {
     const { APIplayerId } = req.params;
     const {
       leagueId, personalNotes, name, status, notes,
-      positions, team, pictureURL, price, age, injury, injuryStatus, injuryNote, depthChart, height, weight,
+      positions, team, pictureURL, price, age, contractStatus, latestNews, depthChart, height, weight,
       currentStats, projectedStats, threeYearAverageStats,
     } = req.body;
 
@@ -775,9 +769,8 @@ const upsertPlayerDoc = async (req, res) => {
       team,
       pictureURL: pictureURL || "",
       age: normalizeNumberField(age),
-      injury: Boolean(injury),
-      injuryStatus: normalizeTextField(injuryStatus),
-      injuryNote: normalizeTextField(injuryNote),
+      contractStatus: normalizeTextField(contractStatus),
+      latestNews: normalizeTextField(latestNews),
       depthChart: normalizeDepthChart(depthChart),
       height: normalizeNumberField(height),
       weight: normalizeNumberField(weight),

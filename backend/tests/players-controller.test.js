@@ -93,10 +93,7 @@ describe("players-controller helpers", () => {
       positions: "1B",
       team: "NYM",
       age: 28,
-      injury: true,
-      injuryStatus: "Day-to-day",
-      injuryNote: "Hamstring tightness",
-      depthChart: { position: "1B", rank: 2, role: "Reserve", section: "Infield", status: "Backup" },
+      depthChart: { position: "1B", rank: 2, role: "Reserve", section: "Infield" },
       height: 74,
       weight: 224,
       currentStats: { runs: "3" },
@@ -110,10 +107,7 @@ describe("players-controller helpers", () => {
       positions: "1B",
       team: "NYM",
       age: 28,
-      injury: true,
-      injuryStatus: "Day-to-day",
-      injuryNote: "Hamstring tightness",
-      depthChart: { position: "1B", rank: 2, role: "Reserve", section: "Infield", status: "Backup" },
+      depthChart: { position: "1B", rank: 2, role: "Reserve", section: "Infield" },
       height: 74,
       weight: 224,
       price: 0,
@@ -144,10 +138,7 @@ describe("players-controller helpers", () => {
           team: "SEA",
           cost: 12,
           age: 29,
-          injury: true,
-          injuryStatus: "IL",
-          injuryNote: "Shoulder",
-          depthChart: { position: "SP", rank: 3, role: "Starter", section: "Pitchers", status: "Rotation" },
+          depthChart: { position: "SP", rank: 3, role: "Starter", section: "Pitchers" },
           height: 76,
           weight: 230,
           currentStats: { runs: 1 },
@@ -161,9 +152,7 @@ describe("players-controller helpers", () => {
         team: "SEA",
         cost: 12,
         age: 29,
-        injuryStatus: "IL",
-        injuryNote: "Shoulder",
-        depthChart: { position: "SP", rank: 3, role: "Starter", section: "Pitchers", status: "Rotation" },
+        depthChart: { position: "SP", rank: 3, role: "Starter", section: "Pitchers" },
         height: 76,
         weight: 230,
         runs: 1,
@@ -181,10 +170,7 @@ describe("players-controller helpers", () => {
         team: "SEA",
         pictureURL: "img",
         age: 31,
-        injury: false,
-        injuryStatus: "",
-        injuryNote: "",
-        depthChart: { position: "SP", rank: 1, role: "Ace", section: "Pitchers", status: "Starter" },
+        depthChart: { position: "SP", rank: 1, role: "Ace", section: "Pitchers" },
         height: 77,
         weight: 225,
         currentStats: { runs: 1 },
@@ -200,7 +186,6 @@ describe("players-controller helpers", () => {
     expect(fields.price).toBe(44);
     expect(fields.personalNotes).toBe("stash");
     expect(fields.notes).toBe("Healthy");
-    expect(fields.depthChart.status).toBe("Starter");
     expect(fields.depthChart.role).toBe("Ace");
     expect(fields.depthChart.section).toBe("Pitchers");
     expect(fields.height).toBe(77);
@@ -246,7 +231,7 @@ describe("players-controller helpers", () => {
               status: "Active",
               positions: "OF",
               team: "ATL",
-              depthChart: { position: "OF", rank: 1, role: "Starter", section: "Outfield", status: "First String" },
+              depthChart: { position: "OF", rank: 1, role: "Starter", section: "Outfield" },
               height: 75,
               weight: 210,
               currentStats: {},
@@ -261,7 +246,6 @@ describe("players-controller helpers", () => {
 
     expect(player.APIplayerId).toBe("api-7");
     expect(player.name).toBe("Fallback Player");
-    expect(player.depthChart.status).toBe("First String");
     expect(player.height).toBe(75);
     expect(player.weight).toBe(210);
   });
@@ -286,7 +270,6 @@ describe("players-controller helpers", () => {
             rank: 1,
             role: "Starter",
             section: "Infield",
-            status: "First String",
           },
           height: 72,
           weight: 205,
@@ -305,7 +288,6 @@ describe("players-controller helpers", () => {
       rank: 1,
       role: "Starter",
       section: "Infield",
-      status: "First String",
     });
     expect(player.height).toBe(72);
     expect(player.weight).toBe(205);
@@ -555,7 +537,6 @@ describe("players-controller endpoints", () => {
             rank: 1,
             role: "Starter",
             section: "Infield",
-            status: "First String",
           },
           currentStats: {},
           projectedStats: {},
@@ -578,7 +559,6 @@ describe("players-controller endpoints", () => {
         rank: 1,
         role: "Starter",
         section: "Infield",
-        status: "First String",
       },
     });
   });

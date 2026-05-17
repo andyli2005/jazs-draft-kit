@@ -29,7 +29,6 @@ const depthChartSchema = new mongoose.Schema(
     rank:     { type: Number, default: null },
     role:     { type: String, default: "" },
     section:  { type: String, default: "" },
-    status:   { type: String, default: "" },
   },
   { _id: false }
 );
@@ -45,9 +44,8 @@ const playerSchema = new mongoose.Schema(
     price:                 { type: Number, required: true },
     team:                  { type: String, required: true },
     age:                   { type: Number, default: null },
-    injury:                { type: Boolean, default: false },
-    injuryStatus:          { type: String, default: "" },
-    injuryNote:            { type: String, default: "" },
+    contractStatus:        { type: String, default: "" },
+    latestNews:            { type: String, default: "" },
     depthChart:            { type: depthChartSchema, default: () => ({}) },
     weight:                { type: Number, default: null },
     height:                { type: Number, default: null },

@@ -130,6 +130,39 @@ function PlayerSearchPage() {
     };
   }, [sortBy, sortOrder, search, selectedLeagueId]);
 
+  useEffect(() => {
+    function handleLiveUpdate(event) {
+      const notice = event.detail;
+      const playerUpdate = notice?.player || {};
+      if (!playerUpdate.APIplayerId) return;
+
+      const mergePlayerUpdate = (player) => {
+        if (!player || String(player.APIplayerId) !== String(playerUpdate.APIplayerId)) {
+          return player;
+        }
+
+        return {
+          ...player,
+          status: playerUpdate.status || player.status,
+          latestNews: playerUpdate.latestNews || player.latestNews,
+          depthChart:
+            notice.type === "depthChart"
+              ? { ...(player.depthChart || {}), ...(playerUpdate.depthChart || {}) }
+              : player.depthChart,
+        };
+      };
+
+      setPlayers((prev) => prev.map(mergePlayerUpdate));
+      setSelectedPlayer((prev) => mergePlayerUpdate(prev));
+      setPanelRefreshKey((prev) => prev + 1);
+    }
+
+    window.addEventListener("draft-kit:player-live-update", handleLiveUpdate);
+    return () => {
+      window.removeEventListener("draft-kit:player-live-update", handleLiveUpdate);
+    };
+  }, []);
+
   const hasPlayers = players.length > 0;
 
   function handleSort(columnKey) {

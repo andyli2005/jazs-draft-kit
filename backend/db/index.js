@@ -8,7 +8,7 @@ const Player = require("./models/Player");
 class Database {
   constructor() {
     const rosterPlayerSelect =
-      "name status positions team pictureURL price age injury injuryStatus injuryNote depthChart height weight APIplayerId currentStats projectedStats threeYearAverageStats";
+      "name status positions team pictureURL price age contractStatus latestNews depthChart height weight APIplayerId currentStats projectedStats threeYearAverageStats";
     this.leaguePopulate = {
       path: "rosterIds",
       populate: [

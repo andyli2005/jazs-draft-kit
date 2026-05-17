@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useLeague } from "../leagues";
-import "./CreateLeagueModal.css";
 import "./EditLeagueModal.css";
 
 const DEFAULT_TEAM_PREFIX = "Team";

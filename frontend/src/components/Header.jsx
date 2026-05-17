@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../auth/index.jsx";
 import { useLeague } from "../leagues";
+import LiveUpdateBell from "../live-updates/LiveUpdateBell";
 import EditLeagueModal from "./EditLeagueModal";
 
 function Header() {
@@ -15,6 +16,7 @@ function Header() {
   const hasProfilePicture = Boolean(user?.profilePicture);
   const isLeaguesMenuOpen = openMenu === "leagues";
   const isAccountMenuOpen = openMenu === "account";
+  const isNotificationsMenuOpen = openMenu === "notifications";
 
   useEffect(() => {
     function handleDocumentClick(event) {
@@ -60,6 +62,11 @@ function Header() {
         <h2 className="app-title">Dashboard</h2>
       </div>
       <div className="header-right" ref={menuRef}>
+        <LiveUpdateBell
+          isOpen={isNotificationsMenuOpen}
+          onToggle={(willOpen) => setOpenMenu(willOpen ? "notifications" : null)}
+        />
+
         <button 
           className="btn btn-primary"
           type="button"
