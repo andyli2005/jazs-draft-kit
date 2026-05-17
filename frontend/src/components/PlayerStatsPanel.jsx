@@ -131,13 +131,13 @@ function PlayerStatsPanel({
   const hasDoc = playerDoc != null;
   const displayData = hasDoc ? playerDoc : player;
   const stats = hasDoc ? (playerDoc.currentStats || {}) : (player?.currentStats || {});
-  const detailSources = [displayData, player];
+  const detailSources = [player, displayData];
   const age = valueFrom(detailSources, ["age"]);
-  const injuryStatus =
-    valueFrom(detailSources, ["injuryStatus"]) ||
-    (valueFrom(detailSources, ["injury"]) ? "Injured" : "Healthy");
-  const injuryNote = valueFrom(detailSources, ["injuryNote"]);
-  const depthChartStatus = getDepthChartValue(detailSources, "status");
+  const latestNews = valueFrom(detailSources, ["latestNews"]);
+  const injuryStatus = valueFrom(detailSources, ["injuryStatus"]);
+  const playerNotes = valueFrom(detailSources, ["notes"]);
+  const normalizedStatus = String(displayData?.status || "").trim().toLowerCase();
+  const isActivePlayer = normalizedStatus === "active";
   const depthChartPosition = getDepthChartValue(detailSources, "position");
   const depthChartRank = getDepthChartValue(detailSources, "rank");
   const depthChartRole = getDepthChartValue(detailSources, "role");
@@ -146,9 +146,8 @@ function PlayerStatsPanel({
     { label: "Age", value: age },
     { label: "Height", value: formatHeight(valueFrom(detailSources, ["height"])) },
     { label: "Weight", value: formatWeight(valueFrom(detailSources, ["weight"])) },
-    { label: "Injury Status", value: injuryStatus, fallback: "Unknown" },
-    { label: "Injury Note", value: injuryNote },
-    { label: "Depth Chart Status", value: depthChartStatus },
+    { label: "Injury Status", value: injuryStatus },
+    { label: "Latest News", value: latestNews },
     { label: "Depth Chart Position", value: depthChartPosition },
     { label: "Depth Chart Rank", value: depthChartRank },
     { label: "Depth Chart Role", value: depthChartRole },
@@ -234,9 +233,8 @@ function PlayerStatsPanel({
           team: player.team || "",
           pictureURL: player.pictureURL || "",
           age: player.age ?? null,
-          injury: Boolean(player.injury),
-          injuryStatus: player.injuryStatus || "",
-          injuryNote: player.injuryNote || "",
+          contractStatus: player.contractStatus || "",
+          latestNews: player.latestNews || "",
           depthChart: player.depthChart || {},
           height: player.height ?? null,
           weight: player.weight ?? null,
@@ -320,7 +318,12 @@ function PlayerStatsPanel({
           <span className="player-stats-badge">{displayData.team}</span>
         )}
         {displayData.status && (
-          <span className="player-stats-badge badge-outline">{displayData.status}</span>
+          <span className={`player-stats-badge status-badge ${isActivePlayer ? "status-badge-active" : "status-badge-inactive"}`}>
+            {displayData.status}
+          </span>
+        )}
+        {displayData.injuryStatus && (
+          <span className="player-stats-badge injury-badge">{displayData.injuryStatus}</span>
         )}
       </div>
 
@@ -336,6 +339,19 @@ function PlayerStatsPanel({
           <span className="player-stats-kpi-value">${cost}</span>
         </div>
       </div>
+
+      {!isCustomPlayer && (
+        <div className="player-stats-section">
+          <h3>Player Notes</h3>
+          <div className="player-stats-notes-display">
+            {playerNotes ? (
+              <p>{playerNotes}</p>
+            ) : (
+              <p className="muted">No player notes available.</p>
+            )}
+          </div>
+        </div>
+      )}
 
       <div className="player-stats-section">
         <div className="player-stats-section-head">

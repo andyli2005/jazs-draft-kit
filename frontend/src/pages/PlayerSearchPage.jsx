@@ -45,6 +45,15 @@ function isDateLike(value) {
 }
 
 function renderCellValue(key, value) {
+  if (key === "status") {
+    const isActive = isStatusActive(value);
+    return (
+      <span className={`status-pill ${isActive ? "status-pill-active" : "status-pill-inactive"}`}>
+        {renderValue(value)}
+      </span>
+    );
+  }
+
   if (key === "pictureURL") {
     if (!value) return "N/A";
     return (
@@ -138,6 +147,40 @@ function PlayerSearchPage() {
       isMounted = false;
     };
   }, [sortBy, sortOrder, search, selectedLeagueId, positionFilter]);
+
+  useEffect(() => {
+    function handleLiveUpdate(event) {
+      const notice = event.detail;
+      const playerUpdate = notice?.player || {};
+      if (!playerUpdate.APIplayerId) return;
+
+      const mergePlayerUpdate = (player) => {
+        if (!player || String(player.APIplayerId) !== String(playerUpdate.APIplayerId)) {
+          return player;
+        }
+
+        return {
+          ...player,
+          status: playerUpdate.status || player.status,
+          injuryStatus: playerUpdate.injuryStatus || player.injuryStatus,
+          latestNews: playerUpdate.latestNews || player.latestNews,
+          depthChart:
+            notice.type === "depthChart"
+              ? { ...(player.depthChart || {}), ...(playerUpdate.depthChart || {}) }
+              : player.depthChart,
+        };
+      };
+
+      setPlayers((prev) => prev.map(mergePlayerUpdate));
+      setSelectedPlayer((prev) => mergePlayerUpdate(prev));
+      setPanelRefreshKey((prev) => prev + 1);
+    }
+
+    window.addEventListener("draft-kit:player-live-update", handleLiveUpdate);
+    return () => {
+      window.removeEventListener("draft-kit:player-live-update", handleLiveUpdate);
+    };
+  }, []);
 
   const hasPlayers = players.length > 0;
 
