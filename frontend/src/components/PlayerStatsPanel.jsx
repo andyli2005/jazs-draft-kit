@@ -224,7 +224,9 @@ function PlayerStatsPanel({
       leagueId: activeLeagueId,
       name: displayData?.name || "",
       status: displayData?.status || "Active",
-      notes: displayData?.notes || "",
+      // Omit notes when unavailable so the backend preserves the existing DB value.
+      // (notes is not included in the roster-slot populate select)
+      ...(displayData?.notes ? { notes: displayData.notes } : {}),
       positions: displayData?.positions || "",
       team: displayData?.team || "",
       pictureURL: displayData?.pictureURL || "",

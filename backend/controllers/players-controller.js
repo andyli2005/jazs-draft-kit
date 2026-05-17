@@ -456,10 +456,13 @@ const updateCustomPlayer = async (req, res) => {
       return res.status(404).json({ errorMessage: "Custom player not found in this league." });
     }
 
+    const requiredStringFields = new Set(["notes"]);
     const editableStringFields = ["name", "status", "injuryStatus", "notes", "positions", "team", "pictureURL", "personalNotes", "latestNews"];
     editableStringFields.forEach((field) => {
       if (req.body[field] != null) {
-        playerDoc[field] = String(req.body[field]).trim();
+        const trimmed = String(req.body[field]).trim();
+        if (requiredStringFields.has(field) && !trimmed) return;
+        playerDoc[field] = trimmed;
       }
     });
 
