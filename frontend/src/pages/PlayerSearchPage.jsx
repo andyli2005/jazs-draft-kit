@@ -4,7 +4,7 @@ import DraftPlayerModal from "../components/DraftPlayerModal";
 import PlayerStatsPanel from "../components/PlayerStatsPanel";
 import Sidebar from "../components/Sidebar";
 import { useLeague } from "../leagues";
-import { getPlayers, dropPlayer } from "../leagues/requests";
+import { getPlayers, dropPlayer, getDepthCharts } from "../leagues/requests";
 import { POSITION_OPTIONS } from "../leagues/positions";
 const TABLE_COLUMNS = [
   { label: "Name", key: "name" },
@@ -104,6 +104,7 @@ function PlayerSearchPage() {
   const [showDraftModal, setShowDraftModal] = useState(false);
   const [panelRefreshKey, setPanelRefreshKey] = useState(0);
   const [positionFilter, setPositionFilter] = useState("");
+  const [depthCharts, setDepthCharts] = useState(null);
 
   useEffect(() => {
     let isMounted = true;
@@ -182,35 +183,41 @@ function PlayerSearchPage() {
     };
   }, []);
 
+  useEffect(() => {
+    let isMounted = true;
+    async function loadDepthCharts() {
+      try {
+        const data = await getDepthCharts();
+        if (isMounted) setDepthCharts(data.teams ?? null);
+      } catch {
+        // Depth charts are supplemental — fail silently.
+      }
+    }
+    loadDepthCharts();
+    return () => { isMounted = false; };
+  }, []);
+
   const hasPlayers = players.length > 0;
 
   const teamDepthChart = useMemo(() => {
-    if (!selectedPlayer?.team || !selectedPlayer?.APIplayerId) return null;
-    const teamPlayers = players.filter(
-      (p) => p.team === selectedPlayer.team && p.depthChart?.position
-    );
-    if (!teamPlayers.length) return null;
+    if (!selectedPlayer?.team || !depthCharts) return null;
+    const teamData = depthCharts[selectedPlayer.team];
+    if (!teamData) return null;
 
-    const grouped = {};
-    teamPlayers.forEach((p) => {
-      const pos = p.depthChart.position;
-      if (!grouped[pos]) grouped[pos] = [];
-      grouped[pos].push({
-        name: p.name,
-        rank: p.depthChart.rank,
-        role: p.depthChart.role,
-        section: p.depthChart.section,
-        isSelected: p.APIplayerId === selectedPlayer.APIplayerId,
-      });
-    });
-
-    return Object.entries(grouped)
+    return Object.entries(teamData)
       .map(([position, posPlayers]) => ({
         position,
-        players: [...posPlayers].sort((a, b) => (a.rank ?? 999) - (b.rank ?? 999)),
+        players: posPlayers.map((p) => ({
+          name: p.name,
+          role: p.depthChart?.role,
+          section: p.depthChart?.section,
+          isSelected:
+            p.playerId === selectedPlayer.APIplayerId ||
+            p.name === selectedPlayer.name,
+        })),
       }))
       .sort((a, b) => a.position.localeCompare(b.position));
-  }, [selectedPlayer, players]);
+  }, [selectedPlayer, depthCharts]);
 
   function handleSort(columnKey) {
     if (columnKey === "cost") {

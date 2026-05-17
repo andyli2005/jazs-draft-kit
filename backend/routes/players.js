@@ -4,6 +4,7 @@ const PlayersController = require("../controllers/players-controller");
 const auth = require("../auth");
 
 router.get("/totalFantasyPoints", auth.verify, PlayersController.getTotalFantasyPoints);
+router.get("/depth-charts", auth.verify, PlayersController.getDepthCharts);
 router.get("/custom", auth.verify, PlayersController.getCustomPlayers);
 router.post("/custom", auth.verify, PlayersController.createCustomPlayer);
 router.patch("/custom/:playerId", auth.verify, PlayersController.updateCustomPlayer);

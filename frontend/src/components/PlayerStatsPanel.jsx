@@ -657,7 +657,6 @@ function PlayerStatsPanel({
                       key={`${p.name}-${idx}`}
                       className={`depth-chart-player-row${p.isSelected ? " depth-chart-player-selected" : ""}`}
                     >
-                      <span className="depth-chart-rank">{p.rank ?? idx + 1}</span>
                       <span className="depth-chart-player-name">{p.name}</span>
                       {p.role ? <span className="depth-chart-role">{p.role}</span> : null}
                       {p.section ? <span className="depth-chart-section">{p.section}</span> : null}

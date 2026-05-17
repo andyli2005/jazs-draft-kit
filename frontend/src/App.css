@@ -1125,15 +1125,6 @@
   font-weight: 700;
 }
 
-.depth-chart-rank {
-  flex-shrink: 0;
-  width: 1.4rem;
-  text-align: center;
-  font-size: 0.72rem;
-  font-weight: 800;
-  color: #4866a2;
-}
-
 .depth-chart-player-name {
   flex: 1;
   min-width: 0;

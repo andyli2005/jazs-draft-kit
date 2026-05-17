@@ -351,6 +351,27 @@ function buildUpstreamUrl(query, path = "/api/players") {
   return queryString ? `${base}?${queryString}` : base;
 }
 
+const getDepthCharts = async (req, res) => {
+  if (!process.env.API_TOKEN) {
+    return res.status(500).json({ errorMessage: "Server configuration is missing API_TOKEN." });
+  }
+
+  const url = `${getApiBase()}/api/players/depth-charts`;
+  try {
+    const { response, data } = await fetchUpstreamJson(url);
+    if (!response.ok) {
+      return res.status(response.status).json({
+        errorMessage: data?.errorMessage || data?.message || "Failed to fetch depth charts.",
+      });
+    }
+    return res.status(200).json(data);
+  } catch (err) {
+    return res.status(502).json({
+      errorMessage: `Unable to reach players service at ${url}.`,
+    });
+  }
+};
+
 const getCustomPlayers = async (req, res) => {
   try {
     const { leagueId } = req.query;
@@ -1812,6 +1833,7 @@ const draftTaxiPlayer = async (req, res) => {
 
 module.exports = {
   getPlayers,
+  getDepthCharts,
   getCustomPlayers,
   createCustomPlayer,
   updateCustomPlayer,
