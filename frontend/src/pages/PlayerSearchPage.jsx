@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Header from "../components/Header";
 import DraftPlayerModal from "../components/DraftPlayerModal";
 import PlayerStatsPanel from "../components/PlayerStatsPanel";
@@ -184,6 +184,34 @@ function PlayerSearchPage() {
 
   const hasPlayers = players.length > 0;
 
+  const teamDepthChart = useMemo(() => {
+    if (!selectedPlayer?.team || !selectedPlayer?.APIplayerId) return null;
+    const teamPlayers = players.filter(
+      (p) => p.team === selectedPlayer.team && p.depthChart?.position
+    );
+    if (!teamPlayers.length) return null;
+
+    const grouped = {};
+    teamPlayers.forEach((p) => {
+      const pos = p.depthChart.position;
+      if (!grouped[pos]) grouped[pos] = [];
+      grouped[pos].push({
+        name: p.name,
+        rank: p.depthChart.rank,
+        role: p.depthChart.role,
+        section: p.depthChart.section,
+        isSelected: p.APIplayerId === selectedPlayer.APIplayerId,
+      });
+    });
+
+    return Object.entries(grouped)
+      .map(([position, posPlayers]) => ({
+        position,
+        players: [...posPlayers].sort((a, b) => (a.rank ?? 999) - (b.rank ?? 999)),
+      }))
+      .sort((a, b) => a.position.localeCompare(b.position));
+  }, [selectedPlayer, players]);
+
   function handleSort(columnKey) {
     if (columnKey === "cost") {
       const order = sortBy === "cost" && sortOrder === "asc" ? "desc" : "asc";
@@ -362,6 +390,7 @@ function PlayerSearchPage() {
             }}
             refreshKey={panelRefreshKey}
             onClose={() => setSelectedPlayer(null)}
+            teamDepthChart={teamDepthChart}
           />
         )}
       </div>
