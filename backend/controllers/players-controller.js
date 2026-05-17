@@ -456,10 +456,13 @@ const updateCustomPlayer = async (req, res) => {
       return res.status(404).json({ errorMessage: "Custom player not found in this league." });
     }
 
+    const requiredStringFields = new Set(["notes"]);
     const editableStringFields = ["name", "status", "injuryStatus", "notes", "positions", "team", "pictureURL", "personalNotes", "latestNews"];
     editableStringFields.forEach((field) => {
       if (req.body[field] != null) {
-        playerDoc[field] = String(req.body[field]).trim();
+        const trimmed = String(req.body[field]).trim();
+        if (requiredStringFields.has(field) && !trimmed) return;
+        playerDoc[field] = trimmed;
       }
     });
 
@@ -481,12 +484,22 @@ const updateCustomPlayer = async (req, res) => {
       playerDoc.threeYearAverageStats = normalizeStatBlock(req.body.threeYearAverageStats);
     }
 
+    const priceBeforeSave = Number(playerDoc.price) || 0;
+
     if (playerDoc.ownerId) {
       const parse = parseRequiredContractStatus(req.body.contractStatus);
       if (!parse.ok) {
         return res.status(400).json({ errorMessage: parse.errorMessage });
       }
       playerDoc.contractStatus = parse.value;
+
+      if (req.body.price !== undefined) {
+        const parsedPrice = Number(req.body.price);
+        if (!Number.isFinite(parsedPrice) || parsedPrice < 0) {
+          return res.status(400).json({ errorMessage: "price must be a non-negative number." });
+        }
+        playerDoc.price = parsedPrice;
+      }
     } else if (req.body.contractStatus !== undefined && req.body.contractStatus !== null) {
       const trimmed = String(req.body.contractStatus).trim();
       if (!trimmed) {
@@ -501,6 +514,15 @@ const updateCustomPlayer = async (req, res) => {
     }
 
     await playerDoc.save();
+
+    const priceDelta = (Number(playerDoc.price) || 0) - priceBeforeSave;
+    if (priceDelta !== 0 && playerDoc.ownerId) {
+      await MLBRoster.updateOne(
+        { _id: playerDoc.ownerId },
+        { $inc: { budgetLeft: -priceDelta } }
+      );
+    }
+
     return res.status(200).json({ playerDoc });
   } catch (err) {
     console.error(err);
@@ -637,10 +659,12 @@ const getPlayers = async (req, res) => {
 
   const url = buildUpstreamUrl(upstreamQuery, "/api/players/evaluations");
   const draftedPlayers = await db.getDraftedPlayers(leagueId);
-  const draftHistory = draftedPlayers.map((player) => ({
-    playerId: String(player.APIplayerId),
-    draftCost: Number(player.price),
-  }));
+  const draftHistory = draftedPlayers
+    .filter((player) => player.APIplayerId != null && player.APIplayerId !== "")
+    .map((player) => ({
+      playerId: String(player.APIplayerId),
+      draftCost: Number(player.price),
+    }));
 
   try {
     const response = await fetch(url, {
@@ -889,7 +913,18 @@ const upsertPlayerDoc = async (req, res) => {
     const prevNotes = prevDoc?.personalNotes ?? "";
     const hasChangedNotes = prevNotes !== fields.personalNotes;
 
+    const oldPrice = prevDoc?.price ?? 0;
+    const newPrice = fields.price;
+
     const playerDoc = await db.upsertPlayerDoc(APIplayerId, leagueId, fields);
+
+    const priceDelta = newPrice - oldPrice;
+    if (priceDelta !== 0 && prevDoc?.ownerId) {
+      await MLBRoster.updateOne(
+        { _id: prevDoc.ownerId },
+        { $inc: { budgetLeft: -priceDelta } }
+      );
+    }
 
     if (hasChangedNotes) {
       const user = await db.getUserById(req.userId);
@@ -1015,7 +1050,7 @@ const draftPlayer = async (req, res) => {
       const playerDoc = await Player.findOneAndUpdate(
         { APIplayerId, leagueId, isCustom: false },
         { $set: { APIplayerId, leagueId, isCustom: false, ...docFields } },
-        { upsert: true, new: true, runValidators: true, ...queryOptions }
+        { upsert: true, returnDocument: 'after', runValidators: true, ...queryOptions }
       );
 
       const claimResult = await Player.updateOne(
@@ -1792,7 +1827,7 @@ const draftTaxiPlayer = async (req, res) => {
             taxiDraftedAt: new Date(), 
           } 
         },
-        { upsert: true, new: true, runValidators: true, ...queryOptions }
+        { upsert: true, returnDocument: 'after', runValidators: true, ...queryOptions }
       );
 
       const updatedPlayerQuery = Player.findById(playerDoc._id);

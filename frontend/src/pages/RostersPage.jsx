@@ -9,7 +9,7 @@ import RosterPageContent from "./RosterPageContent";
 
 function RostersPage() {
   const { rosterId } = useParams();
-  const { selectedLeague, selectedLeagueId, refreshLeagues } = useLeague();
+  const { selectedLeague, selectedLeagueId, refreshLeagues, patchRoster } = useLeague();
   const [selectedPlayer, setSelectedPlayer] = useState(null);
   const [panelRefreshKey, setPanelRefreshKey] = useState(0);
   const [depthCharts, setDepthCharts] = useState(null);
@@ -146,6 +146,16 @@ function RostersPage() {
             onMoved={async () => {
               await refreshLeagues();
               setSelectedPlayer(null);
+            }}
+            onContractSaved={async (savedDoc) => {
+              const priceDelta = (savedDoc.price ?? 0) - (selectedPlayer?.price ?? 0);
+              setSelectedPlayer((prev) => prev ? { ...prev, price: savedDoc.price } : prev);
+              if (priceDelta !== 0 && selectedRoster?._id) {
+                patchRoster(selectedRoster._id, {
+                  budgetLeft: (selectedRoster.budgetLeft ?? 0) - priceDelta,
+                });
+              }
+              await refreshLeagues();
             }}
             refreshKey={panelRefreshKey}
             teamDepthChart={teamDepthChart}
