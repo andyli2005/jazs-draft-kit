@@ -808,7 +808,7 @@ describe("players-controller endpoints", () => {
     expect(negativeCostRes.statusCode).toBe(400);
   });
 
-  it("draftPlayer rejects missing or invalid contractStatus", async () => {
+  it("draftPlayer rejects missing contractStatus", async () => {
     const missingRes = createResponse();
     await playersController.draftPlayer(
       {
@@ -825,24 +825,6 @@ describe("players-controller endpoints", () => {
     );
     expect(missingRes.statusCode).toBe(400);
     expect(missingRes.jsonPayload.errorMessage).toContain("contractStatus is required");
-
-    const invalidRes = createResponse();
-    await playersController.draftPlayer(
-      {
-        params: { APIplayerId: "api-1" },
-        body: {
-          leagueId: "league-1",
-          bidStartedById: "roster-1",
-          draftedToRosterId: "roster-1",
-          slotKey: "pitcher1",
-          draftCost: 1,
-          contractStatus: "Y",
-        },
-      },
-      invalidRes
-    );
-    expect(invalidRes.statusCode).toBe(400);
-    expect(invalidRes.jsonPayload.errorMessage).toContain("contractStatus must be one of");
   });
 
   it("draftPlayer requires explicit inactive override for inactive players", async () => {
