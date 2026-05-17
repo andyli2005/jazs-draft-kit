@@ -656,10 +656,12 @@ const getPlayers = async (req, res) => {
 
   const url = buildUpstreamUrl(upstreamQuery, "/api/players/evaluations");
   const draftedPlayers = await db.getDraftedPlayers(leagueId);
-  const draftHistory = draftedPlayers.map((player) => ({
-    playerId: String(player.APIplayerId),
-    draftCost: Number(player.price),
-  }));
+  const draftHistory = draftedPlayers
+    .filter((player) => player.APIplayerId != null && player.APIplayerId !== "")
+    .map((player) => ({
+      playerId: String(player.APIplayerId),
+      draftCost: Number(player.price),
+    }));
 
   try {
     const response = await fetch(url, {
