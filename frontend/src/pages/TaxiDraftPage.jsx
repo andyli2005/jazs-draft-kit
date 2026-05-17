@@ -86,7 +86,7 @@ function TaxiDraftPage() {
           display: `${roster.name || "Unknown Team"} (${roster.taxiPlayers?.length || 0}/${TAXI_SQUAD_SIZE})`}));
     }, [selectedLeague?.rosterIds]);
 
-  const testTaxi = true;
+  const testTaxi = import.meta.env.VITE_TEST_TAXI === "true";
   const allRostersFull = testTaxi || areRostersFull(Array.isArray(selectedLeague?.rosterIds) ? selectedLeague.rosterIds : []);
 
   useEffect(() => {

@@ -32,7 +32,7 @@ function Sidebar() {
     leagueRosters.every((roster) =>
       SLOT_DEFS.every(({ key }) => roster?.[key] != null)
     );
-  const testTaxi = true;
+  const testTaxi = import.meta.env.VITE_TEST_TAXI === "true";
 
   function renderRostersMenu() {
     if (hasSelectedLeague) {
