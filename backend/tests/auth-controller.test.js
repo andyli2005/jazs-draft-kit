@@ -70,6 +70,8 @@ describe("auth-controller", () => {
         email: "alice@example.com",
         password: "short",
         passwordVerify: "short",
+        securityQuestion: "What was the name of your first pet?",
+        securityAnswer: "fluffy",
       },
     };
     const res = createResponse();
@@ -87,6 +89,8 @@ describe("auth-controller", () => {
         email: "alice@example.com",
         password: "password123",
         passwordVerify: "password124",
+        securityQuestion: "What was the name of your first pet?",
+        securityAnswer: "fluffy",
       },
     };
     const res = createResponse();
@@ -105,6 +109,8 @@ describe("auth-controller", () => {
         email: "alice@example.com",
         password: "password123",
         passwordVerify: "password123",
+        securityQuestion: "What was the name of your first pet?",
+        securityAnswer: "fluffy",
       },
     };
     const res = createResponse();
@@ -136,6 +142,8 @@ describe("auth-controller", () => {
         email: "  Alice@Example.COM ",
         password: "password123",
         passwordVerify: "password123",
+        securityQuestion: "What was the name of your first pet?",
+        securityAnswer: "fluffy",
       },
     };
     const res = createResponse();
