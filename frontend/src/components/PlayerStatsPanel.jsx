@@ -65,6 +65,32 @@ function getDepthChartValue(sources, key) {
   return null;
 }
 
+function SectionEditActions({ onSave, onCancel, isSaving, saveError, saveDisabled = false }) {
+  return (
+    <div>
+      {saveError && <p className="error">{saveError}</p>}
+      <div className="player-stats-notes-actions">
+        <button
+          className="btn btn-primary player-stats-edit-btn"
+          type="button"
+          onClick={onSave}
+          disabled={isSaving || saveDisabled}
+        >
+          {isSaving ? "Saving..." : "Save"}
+        </button>
+        <button
+          className="btn btn-secondary player-stats-edit-btn"
+          type="button"
+          onClick={onCancel}
+          disabled={isSaving}
+        >
+          Cancel
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function PlayerStatsPanel({
   player,
   fantasyPoints,
@@ -81,34 +107,54 @@ function PlayerStatsPanel({
 }) {
   const { selectedLeague } = useLeague();
   const [playerDoc, setPlayerDoc] = useState(null);
-  const [isEditing, setIsEditing] = useState(false);
-  const [editDraft, setEditDraft] = useState("");
+
+  // Three independent edit sections
+  const [isEditingNotes, setIsEditingNotes] = useState(false);
+  const [isEditingDetails, setIsEditingDetails] = useState(false);
+  const [isEditingStats, setIsEditingStats] = useState(false);
+
+  // Per-section draft states
+  const [notesDraft, setNotesDraft] = useState(null);
+  const [detailsDraft, setDetailsDraft] = useState(null);
+  const [statsDraft, setStatsDraft] = useState(null);
+
+  // For non-custom player notes
+  const [editPersonalNotes, setEditPersonalNotes] = useState("");
   const [editContractStatus, setEditContractStatus] = useState("");
-  const [customDraft, setCustomDraft] = useState(null);
+
   const [isSaving, setIsSaving] = useState(false);
   const [saveError, setSaveError] = useState("");
   const [showChangePositionMenu, setShowChangePositionMenu] = useState(false);
   const isCustomPlayer = Boolean(player?.isCustom || !player?.APIplayerId);
 
+  function resetAllEdits() {
+    setIsEditingNotes(false);
+    setIsEditingDetails(false);
+    setIsEditingStats(false);
+    setNotesDraft(null);
+    setDetailsDraft(null);
+    setStatsDraft(null);
+    setSaveError("");
+  }
+
   useEffect(() => {
     if (!activeLeagueId) {
       setPlayerDoc(null);
-      setIsEditing(false);
+      resetAllEdits();
       setShowChangePositionMenu(false);
       return;
     }
 
     if (isCustomPlayer) {
       setPlayerDoc(player || null);
-      setIsEditing(false);
+      resetAllEdits();
       setShowChangePositionMenu(false);
-      setSaveError("");
       return;
     }
 
     if (!player?.APIplayerId) {
       setPlayerDoc(null);
-      setIsEditing(false);
+      resetAllEdits();
       setShowChangePositionMenu(false);
       return;
     }
@@ -124,8 +170,7 @@ function PlayerStatsPanel({
       }
     }
 
-    setIsEditing(false);
-    setSaveError("");
+    resetAllEdits();
     setShowChangePositionMenu(false);
     fetchPlayerDoc();
     return () => { isMounted = false; };
@@ -139,6 +184,7 @@ function PlayerStatsPanel({
   const latestNews = valueFrom(detailSources, ["latestNews"]);
   const injuryStatus = valueFrom(detailSources, ["injuryStatus"]);
   const playerNotes = valueFrom(detailSources, ["notes"]);
+  const contractStatus = valueFrom([playerDoc, player], ["contractStatus"]);
   const normalizedStatus = String(displayData?.status || "").trim().toLowerCase();
   const isActivePlayer = normalizedStatus === "active";
   const depthChartPosition = getDepthChartValue(detailSources, "position");
@@ -158,10 +204,46 @@ function PlayerStatsPanel({
     { label: "Player Status", value: displayData?.status },
   ];
   const effectiveOwnerId = playerDoc?.ownerId || player?.ownerId || ownerRosterId || null;
+  const isPlayerDrafted = Boolean(
+    player?.isDrafted ||
+    player?.ownerId ||
+    playerDoc?.ownerId ||
+    ownerRosterId
+  );
+  const notesDisabled = !activeLeagueId;
+  const personalNotes = displayData?.personalNotes || "";
 
-  function handleEdit() {
+  // Build a full custom-player body from current displayData, then merge overrides.
+  // This way each section save keeps all fields intact.
+  function buildCustomSaveBody(overrides = {}) {
+    return {
+      leagueId: activeLeagueId,
+      name: displayData?.name || "",
+      status: displayData?.status || "Active",
+      notes: displayData?.notes || "",
+      positions: displayData?.positions || "",
+      team: displayData?.team || "",
+      pictureURL: displayData?.pictureURL || "",
+      personalNotes: displayData?.personalNotes || "",
+      age: displayData?.age ?? null,
+      height: displayData?.height ?? null,
+      weight: displayData?.weight ?? null,
+      injuryStatus: displayData?.injuryStatus || "",
+      latestNews: displayData?.latestNews || "",
+      currentStats: displayData?.currentStats || {},
+      projectedStats: displayData?.projectedStats || {},
+      threeYearAverageStats: displayData?.threeYearAverageStats || {},
+      ...(effectiveOwnerId ? { contractStatus: displayData?.contractStatus || "" } : {}),
+      ...overrides,
+    };
+  }
+
+  // ─── Player Notes section ─────────────────────────────────────────────────
+
+  function handleEditNotes() {
+    resetAllEdits();
     if (isCustomPlayer) {
-      setCustomDraft({
+      setNotesDraft({
         name: displayData?.name || "",
         status: displayData?.status || "Active",
         notes: displayData?.notes || "",
@@ -169,80 +251,49 @@ function PlayerStatsPanel({
         team: displayData?.team || "",
         pictureURL: displayData?.pictureURL || "",
         personalNotes: displayData?.personalNotes || "",
-        contractStatus:
-          effectiveOwnerId && CONTRACT_STATUS_OPTIONS.includes(displayData?.contractStatus)
-            ? displayData.contractStatus
-            : "",
-        currentStats: { ...(displayData?.currentStats || {}) },
-        projectedStats: { ...(displayData?.projectedStats || {}) },
-        threeYearAverageStats: { ...(displayData?.threeYearAverageStats || {}) },
+        contractStatus: effectiveOwnerId ? (displayData?.contractStatus || "") : "",
       });
     } else {
-      setEditDraft(playerDoc?.personalNotes || "");
-      setEditContractStatus(
-        effectiveOwnerId && CONTRACT_STATUS_OPTIONS.includes(playerDoc?.contractStatus)
-          ? playerDoc.contractStatus
-          : ""
-      );
+      setEditPersonalNotes(playerDoc?.personalNotes || "");
+      setEditContractStatus(effectiveOwnerId ? (playerDoc?.contractStatus || "") : "");
     }
-    setSaveError("");
-    setIsEditing(true);
+    setIsEditingNotes(true);
   }
 
-  function handleCancel() {
-    setIsEditing(false);
-    setCustomDraft(null);
-    setEditContractStatus("");
+  function handleCancelNotes() {
+    setIsEditingNotes(false);
+    setNotesDraft(null);
     setSaveError("");
   }
 
-  function updateCustomDraftField(key, value) {
-    setCustomDraft((prev) => ({ ...(prev || {}), [key]: value }));
+  function updateNotesDraftField(key, value) {
+    setNotesDraft((prev) => ({ ...(prev || {}), [key]: value }));
   }
 
-  function updateCustomStatBlock(blockKey, statKey, rawValue) {
-    const parsedValue = Number(rawValue);
-    const safeValue = Number.isFinite(parsedValue) ? parsedValue : 0;
-    setCustomDraft((prev) => ({
-      ...(prev || {}),
-      [blockKey]: {
-        ...((prev && prev[blockKey]) || {}),
-        [statKey]: safeValue,
-      },
-    }));
-  }
-
-  async function handleSave() {
+  async function handleSaveNotes() {
     if (!activeLeagueId) return;
-
     setIsSaving(true);
     setSaveError("");
     try {
       if (isCustomPlayer) {
-        if (!player?._id || !customDraft) return;
-        const body = {
-          leagueId: activeLeagueId,
-          name: customDraft.name || "",
-          status: customDraft.status || "Active",
-          notes: customDraft.notes || customDraft.status || "",
-          positions: formatPositionsString(customDraft.positions),
-          team: customDraft.team || "",
-          pictureURL: customDraft.pictureURL || "",
-          personalNotes: customDraft.personalNotes || "",
-          currentStats: customDraft.currentStats || {},
-          projectedStats: customDraft.projectedStats || {},
-          threeYearAverageStats: customDraft.threeYearAverageStats || {},
-        };
-        if (effectiveOwnerId) {
-          body.contractStatus = customDraft.contractStatus;
-        }
+        if (!player?._id || !notesDraft) return;
+        const body = buildCustomSaveBody({
+          name: notesDraft.name || "",
+          status: notesDraft.status || "Active",
+          notes: notesDraft.notes || "",
+          positions: formatPositionsString(notesDraft.positions),
+          team: notesDraft.team || "",
+          pictureURL: notesDraft.pictureURL || "",
+          personalNotes: notesDraft.personalNotes || "",
+          ...(effectiveOwnerId ? { contractStatus: notesDraft.contractStatus } : {}),
+        });
         const data = await updateCustomPlayer(player._id, body);
         setPlayerDoc(data.playerDoc);
       } else {
         if (!player?.APIplayerId) return;
         const body = {
           leagueId: activeLeagueId,
-          personalNotes: editDraft,
+          personalNotes: editPersonalNotes,
           name: player.name,
           status: player.status || "Active",
           notes: player.notes || "",
@@ -267,17 +318,115 @@ function PlayerStatsPanel({
         const data = await updatePlayerDoc(player.APIplayerId, body);
         setPlayerDoc(data.playerDoc);
       }
-      setIsEditing(false);
-      setCustomDraft(null);
+      setIsEditingNotes(false);
+      setNotesDraft(null);
     } catch (err) {
-      setSaveError(err.message || "Failed to save player.");
+      setSaveError(err.message || "Failed to save.");
     } finally {
       setIsSaving(false);
     }
   }
 
-  const notesDisabled = !activeLeagueId;
-  const personalNotes = displayData?.personalNotes || "";
+  // ─── Player Details section (custom only) ────────────────────────────────
+
+  function handleEditDetails() {
+    resetAllEdits();
+    setDetailsDraft({
+      age: displayData?.age ?? "",
+      height: displayData?.height ?? "",
+      weight: displayData?.weight ?? "",
+      injuryStatus: displayData?.injuryStatus || "",
+      latestNews: displayData?.latestNews || "",
+    });
+    setIsEditingDetails(true);
+  }
+
+  function handleCancelDetails() {
+    setIsEditingDetails(false);
+    setDetailsDraft(null);
+    setSaveError("");
+  }
+
+  function updateDetailsDraftField(key, value) {
+    setDetailsDraft((prev) => ({ ...(prev || {}), [key]: value }));
+  }
+
+  async function handleSaveDetails() {
+    if (!activeLeagueId || !player?._id || !detailsDraft) return;
+    setIsSaving(true);
+    setSaveError("");
+    try {
+      const body = buildCustomSaveBody({
+        age: detailsDraft.age !== "" ? Number(detailsDraft.age) : null,
+        height: detailsDraft.height !== "" ? Number(detailsDraft.height) : null,
+        weight: detailsDraft.weight !== "" ? Number(detailsDraft.weight) : null,
+        injuryStatus: detailsDraft.injuryStatus || "",
+        latestNews: detailsDraft.latestNews || "",
+      });
+      const data = await updateCustomPlayer(player._id, body);
+      setPlayerDoc(data.playerDoc);
+      setIsEditingDetails(false);
+      setDetailsDraft(null);
+    } catch (err) {
+      setSaveError(err.message || "Failed to save.");
+    } finally {
+      setIsSaving(false);
+    }
+  }
+
+  // ─── Batting Stats section (custom only) ─────────────────────────────────
+
+  function handleEditStats() {
+    resetAllEdits();
+    setStatsDraft({
+      currentStats: { ...(displayData?.currentStats || {}) },
+      projectedStats: { ...(displayData?.projectedStats || {}) },
+      threeYearAverageStats: { ...(displayData?.threeYearAverageStats || {}) },
+    });
+    setIsEditingStats(true);
+  }
+
+  function handleCancelStats() {
+    setIsEditingStats(false);
+    setStatsDraft(null);
+    setSaveError("");
+  }
+
+  function updateStatsDraftBlock(blockKey, statKey, rawValue) {
+    const parsedValue = Number(rawValue);
+    const safeValue = Number.isFinite(parsedValue) ? parsedValue : 0;
+    setStatsDraft((prev) => ({
+      ...(prev || {}),
+      [blockKey]: {
+        ...((prev && prev[blockKey]) || {}),
+        [statKey]: safeValue,
+      },
+    }));
+  }
+
+  async function handleSaveStats() {
+    if (!activeLeagueId || !player?._id || !statsDraft) return;
+    setIsSaving(true);
+    setSaveError("");
+    try {
+      const body = buildCustomSaveBody({
+        currentStats: statsDraft.currentStats || {},
+        projectedStats: statsDraft.projectedStats || {},
+        threeYearAverageStats: statsDraft.threeYearAverageStats || {},
+      });
+      const data = await updateCustomPlayer(player._id, body);
+      setPlayerDoc(data.playerDoc);
+      setIsEditingStats(false);
+      setStatsDraft(null);
+    } catch (err) {
+      setSaveError(err.message || "Failed to save.");
+    } finally {
+      setIsSaving(false);
+    }
+  }
+
+  // ─── Draft / drop ─────────────────────────────────────────────────────────
+
   const isDrafted = Boolean(player?.isDrafted ?? effectiveOwnerId ?? (onDropClick && !onDraftClick));
   const hasActionHandler = isDrafted ? Boolean(onDropClick) : Boolean(onDraftClick);
   const actionDisabled = !activeLeagueId || !hasActionHandler;
@@ -346,9 +495,6 @@ function PlayerStatsPanel({
         {displayData.injuryStatus && (
           <span className="player-stats-badge injury-badge">{displayData.injuryStatus}</span>
         )}
-        {displayData.contractStatus && CONTRACT_STATUS_OPTIONS.includes(displayData.contractStatus) ? (
-          <span className="player-stats-badge badge-outline">Contract: {displayData.contractStatus}</span>
-        ) : null}
       </div>
 
       <div className="player-stats-kpi-row">
@@ -362,6 +508,12 @@ function PlayerStatsPanel({
           <span className="player-stats-kpi-label">Est. Cost</span>
           <span className="player-stats-kpi-value">${cost}</span>
         </div>
+        {isPlayerDrafted && contractStatus ? (
+          <div className="player-stats-kpi">
+            <span className="player-stats-kpi-label">Contract</span>
+            <span className="player-stats-kpi-value">{contractStatus}</span>
+          </div>
+        ) : null}
       </div>
 
       {!isCustomPlayer && (
@@ -423,14 +575,15 @@ function PlayerStatsPanel({
         ) : null}
       </div>
 
+      {/* ── Player Notes section ── */}
       <div className="player-stats-section">
         <div className="player-stats-section-head">
-          <h3>{isCustomPlayer ? "Player Details" : "Personal Notes"}</h3>
-          {!isEditing && (
+          <h3>{isCustomPlayer ? "Player Notes" : "Personal Notes"}</h3>
+          {!isEditingNotes && (
             <button
               className="btn btn-secondary player-stats-edit-btn"
               type="button"
-              onClick={handleEdit}
+              onClick={handleEditNotes}
               disabled={notesDisabled}
             >
               Edit
@@ -438,7 +591,7 @@ function PlayerStatsPanel({
           )}
         </div>
 
-        {isEditing ? (
+        {isEditingNotes ? (
           <div className="player-stats-notes-editor">
             {isCustomPlayer ? (
               <div style={{ display: "grid", gap: "0.6rem" }}>
@@ -447,8 +600,9 @@ function PlayerStatsPanel({
                   <input
                     className="modal-input"
                     type="text"
-                    value={customDraft?.name || ""}
-                    onChange={(event) => updateCustomDraftField("name", event.target.value)}
+                    value={notesDraft?.name || ""}
+                    onChange={(e) => updateNotesDraftField("name", e.target.value)}
+                    disabled={isSaving}
                   />
                 </label>
                 <label className="modal-label">
@@ -456,15 +610,16 @@ function PlayerStatsPanel({
                   <input
                     className="modal-input"
                     type="text"
-                    value={customDraft?.status || ""}
-                    onChange={(event) => updateCustomDraftField("status", event.target.value)}
+                    value={notesDraft?.status || ""}
+                    onChange={(e) => updateNotesDraftField("status", e.target.value)}
+                    disabled={isSaving}
                   />
                 </label>
                 <label className="modal-label">
                   <span>Positions</span>
                   <PositionChecklistDropdown
-                    selected={customDraft?.positions || []}
-                    onChange={(value) => updateCustomDraftField("positions", value)}
+                    selected={notesDraft?.positions || []}
+                    onChange={(value) => updateNotesDraftField("positions", value)}
                     disabled={isSaving}
                   />
                 </label>
@@ -473,8 +628,9 @@ function PlayerStatsPanel({
                   <input
                     className="modal-input"
                     type="text"
-                    value={customDraft?.team || ""}
-                    onChange={(event) => updateCustomDraftField("team", event.target.value)}
+                    value={notesDraft?.team || ""}
+                    onChange={(e) => updateNotesDraftField("team", e.target.value)}
+                    disabled={isSaving}
                   />
                 </label>
                 <label className="modal-label">
@@ -482,26 +638,29 @@ function PlayerStatsPanel({
                   <input
                     className="modal-input"
                     type="text"
-                    value={customDraft?.pictureURL || ""}
-                    onChange={(event) => updateCustomDraftField("pictureURL", event.target.value)}
+                    value={notesDraft?.pictureURL || ""}
+                    onChange={(e) => updateNotesDraftField("pictureURL", e.target.value)}
+                    disabled={isSaving}
                   />
                 </label>
                 <label className="modal-label">
                   <span>Notes</span>
                   <textarea
                     className="player-stats-textarea"
-                    value={customDraft?.notes || ""}
-                    onChange={(event) => updateCustomDraftField("notes", event.target.value)}
+                    value={notesDraft?.notes || ""}
+                    onChange={(e) => updateNotesDraftField("notes", e.target.value)}
                     rows={3}
+                    disabled={isSaving}
                   />
                 </label>
                 <label className="modal-label">
                   <span>Personal Notes</span>
                   <textarea
                     className="player-stats-textarea"
-                    value={customDraft?.personalNotes || ""}
-                    onChange={(event) => updateCustomDraftField("personalNotes", event.target.value)}
+                    value={notesDraft?.personalNotes || ""}
+                    onChange={(e) => updateNotesDraftField("personalNotes", e.target.value)}
                     rows={3}
+                    disabled={isSaving}
                   />
                 </label>
                 {effectiveOwnerId ? (
@@ -510,8 +669,8 @@ function PlayerStatsPanel({
                     <input
                       className="modal-input"
                       type="text"
-                      value={customDraft?.contractStatus || ""}
-                      onChange={(event) => updateCustomDraftField("contractStatus", event.target.value)}
+                      value={notesDraft?.contractStatus || ""}
+                      onChange={(e) => updateNotesDraftField("contractStatus", e.target.value)}
                       placeholder="Enter contract status"
                       disabled={isSaving}
                     />
@@ -527,7 +686,7 @@ function PlayerStatsPanel({
                       className="modal-input"
                       type="text"
                       value={editContractStatus}
-                      onChange={(event) => setEditContractStatus(event.target.value)}
+                      onChange={(e) => setEditContractStatus(e.target.value)}
                       placeholder="Enter contract status"
                       disabled={isSaving}
                     />
@@ -535,36 +694,20 @@ function PlayerStatsPanel({
                 ) : null}
                 <textarea
                   className="player-stats-textarea"
-                  value={editDraft}
-                  onChange={(e) => setEditDraft(e.target.value)}
+                  value={editPersonalNotes}
+                  onChange={(e) => setEditPersonalNotes(e.target.value)}
                   rows={4}
                   placeholder="Write your notes about this player..."
+                  disabled={isSaving}
                 />
               </>
             )}
-            {saveError && <p className="error">{saveError}</p>}
-            <div className="player-stats-notes-actions">
-              <button
-                className="btn btn-primary player-stats-edit-btn"
-                type="button"
-                onClick={handleSave}
-                disabled={
-                  isSaving ||
-                  (effectiveOwnerId &&
-                    !String(isCustomPlayer ? customDraft?.contractStatus ?? "" : editContractStatus).trim())
-                }
-              >
-                {isSaving ? "Saving..." : "Save"}
-              </button>
-              <button
-                className="btn btn-secondary player-stats-edit-btn"
-                type="button"
-                onClick={handleCancel}
-                disabled={isSaving}
-              >
-                Cancel
-              </button>
-            </div>
+            <SectionEditActions
+              onSave={handleSaveNotes}
+              onCancel={handleCancelNotes}
+              isSaving={isSaving}
+              saveError={saveError}
+            />
           </div>
         ) : (
           <div className="player-stats-notes-display">
@@ -572,7 +715,7 @@ function PlayerStatsPanel({
               <div>
                 <p><strong>Notes:</strong> {displayData?.notes || "N/A"}</p>
                 <p><strong>Personal Notes:</strong> {personalNotes || "N/A"}</p>
-                {effectiveOwnerId && displayData?.contractStatus && CONTRACT_STATUS_OPTIONS.includes(displayData.contractStatus) ? (
+                {effectiveOwnerId && displayData?.contractStatus ? (
                   <p><strong>Contract status:</strong> {displayData.contractStatus}</p>
                 ) : null}
               </div>
@@ -587,7 +730,7 @@ function PlayerStatsPanel({
                         : "No notes yet. Click Edit to add notes."}
                   </p>
                 )}
-                {effectiveOwnerId && displayData?.contractStatus && CONTRACT_STATUS_OPTIONS.includes(displayData.contractStatus) ? (
+                {effectiveOwnerId && displayData?.contractStatus ? (
                   <p><strong>Contract status:</strong> {displayData.contractStatus}</p>
                 ) : null}
               </div>
@@ -596,20 +739,112 @@ function PlayerStatsPanel({
         )}
       </div>
 
+      {/* ── Player Details section ── */}
       <div className="player-stats-section">
-        <h3>Player Details</h3>
-        <dl className="player-stats-details">
-          {playerDetails.map((detail) => (
-            <div className="player-stats-detail-row" key={detail.label}>
-              <dt>{detail.label}</dt>
-              <dd>{formatDetailValue(detail.value, detail.fallback)}</dd>
+        <div className="player-stats-section-head">
+          <h3>Player Details</h3>
+          {isCustomPlayer && !isEditingDetails && (
+            <button
+              className="btn btn-secondary player-stats-edit-btn"
+              type="button"
+              onClick={handleEditDetails}
+              disabled={notesDisabled}
+            >
+              Edit
+            </button>
+          )}
+        </div>
+
+        {isEditingDetails && isCustomPlayer ? (
+          <div className="player-stats-notes-editor">
+            <div style={{ display: "grid", gap: "0.6rem" }}>
+              <label className="modal-label">
+                <span>Age</span>
+                <input
+                  className="modal-input"
+                  type="number"
+                  value={detailsDraft?.age ?? ""}
+                  onChange={(e) => updateDetailsDraftField("age", e.target.value)}
+                  disabled={isSaving}
+                />
+              </label>
+              <label className="modal-label">
+                <span>Height (inches)</span>
+                <input
+                  className="modal-input"
+                  type="number"
+                  value={detailsDraft?.height ?? ""}
+                  onChange={(e) => updateDetailsDraftField("height", e.target.value)}
+                  disabled={isSaving}
+                  placeholder={`e.g. 73 for 6'1"`}
+                />
+              </label>
+              <label className="modal-label">
+                <span>Weight (lb)</span>
+                <input
+                  className="modal-input"
+                  type="number"
+                  value={detailsDraft?.weight ?? ""}
+                  onChange={(e) => updateDetailsDraftField("weight", e.target.value)}
+                  disabled={isSaving}
+                />
+              </label>
+              <label className="modal-label">
+                <span>Injury Status</span>
+                <input
+                  className="modal-input"
+                  type="text"
+                  value={detailsDraft?.injuryStatus ?? ""}
+                  onChange={(e) => updateDetailsDraftField("injuryStatus", e.target.value)}
+                  disabled={isSaving}
+                />
+              </label>
+              <label className="modal-label">
+                <span>Latest News</span>
+                <textarea
+                  className="player-stats-textarea"
+                  value={detailsDraft?.latestNews ?? ""}
+                  onChange={(e) => updateDetailsDraftField("latestNews", e.target.value)}
+                  rows={2}
+                  disabled={isSaving}
+                />
+              </label>
             </div>
-          ))}
-        </dl>
+            <SectionEditActions
+              onSave={handleSaveDetails}
+              onCancel={handleCancelDetails}
+              isSaving={isSaving}
+              saveError={saveError}
+            />
+          </div>
+        ) : (
+          <dl className="player-stats-details">
+            {playerDetails.map((detail) => (
+              <div className="player-stats-detail-row" key={detail.label}>
+                <dt>{detail.label}</dt>
+                <dd>{formatDetailValue(detail.value, detail.fallback)}</dd>
+              </div>
+            ))}
+          </dl>
+        )}
       </div>
 
+      {/* ── Batting Stats section ── */}
       <div className="player-stats-section">
-        <h3>Batting Stats</h3>
+        <div className="player-stats-section-head">
+          <h3>Batting Stats</h3>
+          {isCustomPlayer && !isEditingStats && (
+            <button
+              className="btn btn-secondary player-stats-edit-btn"
+              type="button"
+              onClick={handleEditStats}
+              disabled={notesDisabled}
+            >
+              Edit
+            </button>
+          )}
+        </div>
+
         <div className="player-stats-table-wrap">
           <table className="player-stats-table">
             <thead>
@@ -623,14 +858,15 @@ function PlayerStatsPanel({
                 <tr key={stat.key}>
                   <td>{stat.label}</td>
                   <td>
-                    {isCustomPlayer && isEditing ? (
+                    {isCustomPlayer && isEditingStats ? (
                       <input
                         className="modal-input"
                         type="number"
-                        value={customDraft?.currentStats?.[stat.key] ?? 0}
-                        onChange={(event) =>
-                          updateCustomStatBlock("currentStats", stat.key, event.target.value)
+                        value={statsDraft?.currentStats?.[stat.key] ?? 0}
+                        onChange={(e) =>
+                          updateStatsDraftBlock("currentStats", stat.key, e.target.value)
                         }
+                        disabled={isSaving}
                       />
                     ) : (
                       stats[stat.key] != null ? stats[stat.key] : "---"
@@ -641,6 +877,15 @@ function PlayerStatsPanel({
             </tbody>
           </table>
         </div>
+
+        {isEditingStats && isCustomPlayer && (
+          <SectionEditActions
+            onSave={handleSaveStats}
+            onCancel={handleCancelStats}
+            isSaving={isSaving}
+            saveError={saveError}
+          />
+        )}
       </div>
 
       {!isCustomPlayer && teamDepthChart && teamDepthChart.length > 0 && (

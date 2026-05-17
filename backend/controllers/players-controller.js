@@ -456,10 +456,18 @@ const updateCustomPlayer = async (req, res) => {
       return res.status(404).json({ errorMessage: "Custom player not found in this league." });
     }
 
-    const editableStringFields = ["name", "status", "injuryStatus", "notes", "positions", "team", "pictureURL", "personalNotes"];
+    const editableStringFields = ["name", "status", "injuryStatus", "notes", "positions", "team", "pictureURL", "personalNotes", "latestNews"];
     editableStringFields.forEach((field) => {
       if (req.body[field] != null) {
         playerDoc[field] = String(req.body[field]).trim();
+      }
+    });
+
+    const editableNumberFields = ["age", "height", "weight"];
+    editableNumberFields.forEach((field) => {
+      if (req.body[field] !== undefined) {
+        const parsed = Number(req.body[field]);
+        playerDoc[field] = (req.body[field] === null || req.body[field] === "" || !Number.isFinite(parsed)) ? null : parsed;
       }
     });
 
@@ -471,10 +479,6 @@ const updateCustomPlayer = async (req, res) => {
     }
     if (req.body.threeYearAverageStats != null) {
       playerDoc.threeYearAverageStats = normalizeStatBlock(req.body.threeYearAverageStats);
-    }
-
-    if (!playerDoc.notes) {
-      playerDoc.notes = playerDoc.status || "";
     }
 
     if (playerDoc.ownerId) {
@@ -674,7 +678,7 @@ const getPlayers = async (req, res) => {
     if (apiPlayerIds.length > 0) {
       const localPlayerDocs = await Player.find(
         { leagueId, APIplayerId: { $in: apiPlayerIds }, isCustom: false },
-        "APIplayerId ownerId bidStartedById price taxiRosterId taxiDraftedAt"
+        "APIplayerId ownerId bidStartedById price taxiRosterId taxiDraftedAt contractStatus"
       ).lean();
       localPlayerMap = new Map(
         localPlayerDocs.map((doc) => [String(doc.APIplayerId), doc])
@@ -694,6 +698,7 @@ const getPlayers = async (req, res) => {
         taxiDraftedAt: localDoc?.taxiDraftedAt ?? null,
         bidStartedById: localDoc?.bidStartedById ? String(localDoc.bidStartedById) : null,
         leaguePrice: localDoc?.price ?? null,
+        contractStatus: localDoc?.contractStatus ?? null,
       };
     });
 
@@ -802,6 +807,7 @@ const getPlayerDoc = async (req, res) => {
       ...(licensedPlayer || {}),
       price: playerDoc.price,
       personalNotes: playerDoc.personalNotes,
+      contractStatus: playerDoc.contractStatus,
       bidStartedById: playerDoc.bidStartedById,
       ownerId: playerDoc.ownerId,
       leagueId: playerDoc.leagueId,
