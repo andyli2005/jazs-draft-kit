@@ -666,6 +666,66 @@ describe("players-controller endpoints", () => {
     });
   });
 
+  it("upsertPlayerDoc requires contractStatus when the player is drafted", async () => {
+    vi.spyOn(League, "findById").mockReturnValue(
+      createSelectLeanQuery({ user: USER_ID })
+    );
+    vi.spyOn(db, "getPlayerDoc").mockResolvedValue({
+      personalNotes: "before",
+      price: 12,
+      ownerId: "roster-1",
+      contractStatus: "S1",
+    });
+    const res = createResponse();
+
+    await playersController.upsertPlayerDoc(
+      {
+        params: { APIplayerId: API_PLAYER_ID },
+        body: {
+          leagueId: LEAGUE_ID,
+          personalNotes: "after",
+          name: "Player One",
+          status: "Active",
+          positions: "SP",
+          team: "SEA",
+          currentStats: {},
+          projectedStats: {},
+          threeYearAverageStats: {},
+        },
+        userId: USER_ID,
+      },
+      res
+    );
+
+    expect(res.statusCode).toBe(400);
+    expect(res.jsonPayload.errorMessage).toContain("contractStatus is required");
+
+    vi.spyOn(db, "upsertPlayerDoc").mockResolvedValue({ name: "Player One" });
+    vi.spyOn(db, "getUserById").mockResolvedValue({ userName: "Owner" });
+    vi.spyOn(db, "createTransaction").mockResolvedValue({});
+    const resOk = createResponse();
+    await playersController.upsertPlayerDoc(
+      {
+        params: { APIplayerId: API_PLAYER_ID },
+        body: {
+          leagueId: LEAGUE_ID,
+          personalNotes: "after",
+          name: "Player One",
+          status: "Active",
+          positions: "SP",
+          team: "SEA",
+          currentStats: {},
+          projectedStats: {},
+          threeYearAverageStats: {},
+          contractStatus: "F2",
+        },
+        userId: USER_ID,
+      },
+      resOk
+    );
+    expect(resOk.statusCode).toBe(200);
+  });
+
   it("upsertPlayerDoc returns 500 when persistence fails", async () => {
     vi.spyOn(League, "findById").mockReturnValue(
       createSelectLeanQuery({ user: USER_ID })
@@ -706,6 +766,7 @@ describe("players-controller endpoints", () => {
           draftedToRosterId: "roster-1",
           slotKey: "bench",
           draftCost: 10,
+          contractStatus: "S1",
         },
       },
       invalidSlotRes
@@ -722,6 +783,7 @@ describe("players-controller endpoints", () => {
           draftedToRosterId: "roster-1",
           slotKey: "pitcher1",
           draftCost: "NaN",
+          contractStatus: "S1",
         },
       },
       invalidCostRes
@@ -738,11 +800,49 @@ describe("players-controller endpoints", () => {
           draftedToRosterId: "roster-1",
           slotKey: "pitcher1",
           draftCost: -1,
+          contractStatus: "S1",
         },
       },
       negativeCostRes
     );
     expect(negativeCostRes.statusCode).toBe(400);
+  });
+
+  it("draftPlayer rejects missing or invalid contractStatus", async () => {
+    const missingRes = createResponse();
+    await playersController.draftPlayer(
+      {
+        params: { APIplayerId: "api-1" },
+        body: {
+          leagueId: "league-1",
+          bidStartedById: "roster-1",
+          draftedToRosterId: "roster-1",
+          slotKey: "pitcher1",
+          draftCost: 1,
+        },
+      },
+      missingRes
+    );
+    expect(missingRes.statusCode).toBe(400);
+    expect(missingRes.jsonPayload.errorMessage).toContain("contractStatus is required");
+
+    const invalidRes = createResponse();
+    await playersController.draftPlayer(
+      {
+        params: { APIplayerId: "api-1" },
+        body: {
+          leagueId: "league-1",
+          bidStartedById: "roster-1",
+          draftedToRosterId: "roster-1",
+          slotKey: "pitcher1",
+          draftCost: 1,
+          contractStatus: "Y",
+        },
+      },
+      invalidRes
+    );
+    expect(invalidRes.statusCode).toBe(400);
+    expect(invalidRes.jsonPayload.errorMessage).toContain("contractStatus must be one of");
   });
 
   it("draftPlayer requires explicit inactive override for inactive players", async () => {
@@ -773,6 +873,7 @@ describe("players-controller endpoints", () => {
         draftedToRosterId: "roster-1",
         slotKey: "pitcher1",
         draftCost: 10,
+        contractStatus: "S1",
       },
     };
     const res = createResponse();
@@ -830,6 +931,7 @@ describe("players-controller endpoints", () => {
         slotKey: "pitcher1",
         draftCost: 10,
         inactiveOverrideAccepted: true,
+        contractStatus: "F1",
       },
     };
     const res = createResponse();
@@ -876,6 +978,7 @@ describe("players-controller endpoints", () => {
         slotKey: "pitcher1",
         draftCost: 10,
         inactiveOverrideAccepted: true,
+        contractStatus: "X",
       },
     };
     const res = createResponse();

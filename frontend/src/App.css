@@ -1463,6 +1463,135 @@
   text-decoration: underline;
 }
 
+/* ── Player Search Modal ─────────────────────────── */
+
+.player-search-modal-panel {
+  width: min(1100px, 96vw);
+  max-height: 88vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.player-search-modal-tabs {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
+}
+
+.tab-btn {
+  padding: 0.45rem 1.1rem;
+  border: 1px solid rgba(49, 61, 89, 0.22);
+  border-radius: 8px;
+  background: transparent;
+  color: #2a3759;
+  font: inherit;
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+
+.tab-btn:hover {
+  background: rgba(49, 61, 89, 0.07);
+}
+
+.tab-btn.tab-btn-active {
+  background: #2a3759;
+  color: #fff;
+  border-color: #2a3759;
+}
+
+.player-search-override-wrap {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.player-search-override-label {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: #5a6a8a;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+}
+
+.player-search-override-btn {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  font: inherit;
+}
+
+.override-track {
+  position: relative;
+  width: 36px;
+  height: 20px;
+  border-radius: 999px;
+  background: #c8d2e9;
+  transition: background 0.2s;
+  flex-shrink: 0;
+}
+
+.player-search-override-btn.override-on .override-track {
+  background: #2a3759;
+}
+
+.override-thumb {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+  transition: left 0.2s;
+}
+
+.player-search-override-btn.override-on .override-thumb {
+  left: 19px;
+}
+
+.override-state-label {
+  font-size: 0.83rem;
+  color: #2a3759;
+  white-space: nowrap;
+}
+
+.player-search-override-btn.override-on .override-state-label {
+  font-weight: 600;
+}
+
+.player-search-modal-body {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 360px;
+  gap: 1rem;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.player-search-modal-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  overflow: hidden;
+}
+
+.player-search-modal-search {
+  flex-shrink: 0;
+}
+
+.modal-search-input {
+  width: 100%;
+}
+
 .modal-overlay {
   position: fixed;
   inset: 0;
@@ -1554,10 +1683,39 @@
   border-radius: 10px;
   padding: 0.6rem 0.75rem;
   font: inherit;
+  font-size: 0.95rem;
   font-weight: 400;
   color: #1e2a47;
   background: #fff;
+  box-sizing: border-box;
   transition: border-color 0.15s, outline-color 0.15s;
+}
+
+.modal-search-input:focus {
+  outline: none;
+  border-color: #4668c5;
+  box-shadow: 0 0 0 3px rgba(70, 104, 197, 0.15);
+}
+
+.player-search-modal-list .players-table-wrap {
+  flex: 1;
+  overflow-y: auto;
+  min-height: 0;
+}
+
+.player-search-modal-panel-wrap {
+  overflow-y: auto;
+  min-height: 0;
+}
+
+@media (max-width: 860px) {
+  .player-search-modal-body {
+    grid-template-columns: 1fr;
+  }
+
+  .player-search-modal-panel-wrap {
+    max-height: 300px;
+  }
 }
 
 .modal-input:focus,

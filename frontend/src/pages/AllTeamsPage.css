@@ -184,3 +184,50 @@
     grid-template-columns: 1fr;
   }
 }
+
+/* ── Pre-draft page additions ─────────────────────── */
+
+.predraft-divider {
+  border: none;
+  border-top: 1px solid rgba(49, 61, 89, 0.15);
+  margin: 1.5rem 0 1rem;
+}
+
+.predraft-empty-slot {
+  color: #98a4bc;
+  font-weight: 500;
+  font-size: 0.9rem;
+}
+
+.predraft-add-btn {
+  margin-top: 0.3rem;
+  padding: 0.3rem 0.75rem;
+  font-size: 0.8rem;
+  align-self: start;
+}
+
+.btn-sm {
+  padding: 0.3rem 0.65rem;
+  font-size: 0.82rem;
+  border-radius: 8px;
+}
+
+.roster-slot-card-selected {
+  background: rgba(31, 111, 255, 0.06);
+  outline: 2px solid rgba(31, 111, 255, 0.3);
+  outline-offset: -2px;
+  border-radius: 4px;
+}
+
+.predraft-source-row {
+  margin-top: 0.6rem;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.predraft-source-error {
+  font-size: 0.85rem;
+  color: #d0433a;
+}

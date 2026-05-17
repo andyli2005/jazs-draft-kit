@@ -6,11 +6,21 @@ import {
   getEligibleSlotKeySet,
 } from "../leagues/rosterSlots";
 
+
 function normalizeStatus(status) {
   return String(status || "").trim().toLowerCase();
 }
 
-function DraftPlayerModal({ open, player, league, onClose, onDrafted, isCustom = false }) {
+function DraftPlayerModal({
+  open,
+  player,
+  league,
+  onClose,
+  onDrafted,
+  isCustom = false,
+  lockedRosterId = null,
+  lockedSlotKey = null,
+}) {
   const overlayRef = useRef(null);
   const [bidStartedById, setBidStartedById] = useState("");
   const [draftedToRosterId, setDraftedToRosterId] = useState("");
@@ -20,6 +30,9 @@ function DraftPlayerModal({ open, player, league, onClose, onDrafted, isCustom =
   const [inactiveOverrideAccepted, setInactiveOverrideAccepted] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState("");
+  const [contractStatus, setContractStatus] = useState("");
+
+  const isLocked = Boolean(lockedRosterId && lockedSlotKey);
 
   const rosters = useMemo(
     () => (Array.isArray(league?.rosterIds) ? league.rosterIds : []),
@@ -58,22 +71,25 @@ function DraftPlayerModal({ open, player, league, onClose, onDrafted, isCustom =
   useEffect(() => {
     if (!open) return;
 
-    const defaultRosterId = rosters[0]?._id || "";
+    const defaultRosterId = lockedRosterId || rosters[0]?._id || "";
     setBidStartedById(defaultRosterId);
     setDraftedToRosterId(defaultRosterId);
-    setSlotKey("");
+    setSlotKey(lockedSlotKey || "");
     setPositionOverrideEnabled(false);
     setInactiveOverrideAccepted(false);
     setError("");
+    setContractStatus("");
     const defaultCost = Number.isFinite(Number(player?.cost)) ? Number(player.cost) : 0;
     setDraftCost(String(defaultCost));
-  }, [open, player?.APIplayerId, player?._id, player?.cost, rosters]);
+  }, [open, player?.APIplayerId, player?._id, player?.cost, rosters, lockedRosterId, lockedSlotKey]);
 
+  // When not locked, auto-pick first eligible slot whenever the displayed slots change.
   useEffect(() => {
+    if (isLocked) return;
     if (!displayedSlots.some((slot) => slot.key === slotKey)) {
       setSlotKey(displayedSlots[0]?.key || "");
     }
-  }, [displayedSlots, slotKey]);
+  }, [displayedSlots, slotKey, isLocked]);
 
   useEffect(() => {
     if (!open) return;
@@ -93,6 +109,7 @@ function DraftPlayerModal({ open, player, league, onClose, onDrafted, isCustom =
     Boolean(draftedToRosterId) &&
     Boolean(slotKey) &&
     draftCostIsValid &&
+    Boolean(contractStatus.trim()) &&
     (!requiresInactiveOverride || inactiveOverrideAccepted) &&
     !isSubmitting;
 
@@ -109,6 +126,7 @@ function DraftPlayerModal({ open, player, league, onClose, onDrafted, isCustom =
         slotKey,
         draftCost: numericDraftCost,
         inactiveOverrideAccepted,
+        contractStatus,
       });
       await onDrafted?.(data);
       onClose();
@@ -139,60 +157,87 @@ function DraftPlayerModal({ open, player, league, onClose, onDrafted, isCustom =
           <div className="modal-fields">
             <label className="modal-label">
               <span>Bid Started By</span>
-              <select
-                className="modal-select"
-                value={bidStartedById}
-                onChange={(event) => setBidStartedById(event.target.value)}
-              >
-                {rosters.map((roster) => (
-                  <option key={roster._id} value={roster._id}>
-                    {roster.name}
-                  </option>
-                ))}
-              </select>
+              {isLocked ? (
+                <input
+                  className="modal-input"
+                  value={activeRoster?.name || ""}
+                  readOnly
+                  disabled
+                />
+              ) : (
+                <select
+                  className="modal-select"
+                  value={bidStartedById}
+                  onChange={(event) => setBidStartedById(event.target.value)}
+                >
+                  {rosters.map((roster) => (
+                    <option key={roster._id} value={roster._id}>
+                      {roster.name}
+                    </option>
+                  ))}
+                </select>
+              )}
             </label>
 
             <label className="modal-label">
               <span>Drafted To Team</span>
-              <select
-                className="modal-select"
-                value={draftedToRosterId}
-                onChange={(event) => setDraftedToRosterId(event.target.value)}
-              >
-                {rosters.map((roster) => (
-                  <option key={roster._id} value={roster._id}>
-                    {roster.name}
-                  </option>
-                ))}
-              </select>
+              {isLocked ? (
+                <input
+                  className="modal-input"
+                  value={activeRoster?.name || ""}
+                  readOnly
+                  disabled
+                />
+              ) : (
+                <select
+                  className="modal-select"
+                  value={draftedToRosterId}
+                  onChange={(event) => setDraftedToRosterId(event.target.value)}
+                >
+                  {rosters.map((roster) => (
+                    <option key={roster._id} value={roster._id}>
+                      {roster.name}
+                    </option>
+                  ))}
+                </select>
+              )}
             </label>
 
             <label className="modal-label">
               <span>Roster Slot</span>
-              <select
-                className="modal-select"
-                value={slotKey}
-                onChange={(event) => {
-                  const nextValue = event.target.value;
-                  if (nextValue === "__override__") {
-                    setPositionOverrideEnabled(true);
-                    return;
-                  }
-                  setSlotKey(nextValue);
-                }}
-              >
-                {displayedSlots.map((slot) => (
-                  <option key={slot.key} value={slot.key}>
-                    {slot.label}
-                  </option>
-                ))}
-                {!positionOverrideEnabled ? (
-                  <>
-                    <option disabled>──────────</option>
-                    <option value="__override__">⚠ Override: Allow any open slot</option>
-                  </>
-                ) : null}
-              </select>
+              {isLocked ? (
+                <input
+                  className="modal-input"
+                  value={SLOT_DEFS.find((s) => s.key === lockedSlotKey)?.label || lockedSlotKey || ""}
+                  readOnly
+                  disabled
+                />
+              ) : (
+                <select
+                  className="modal-select"
+                  value={slotKey}
+                  onChange={(event) => {
+                    const nextValue = event.target.value;
+                    if (nextValue === "__override__") {
+                      setPositionOverrideEnabled(true);
+                      return;
+                    }
+                    setSlotKey(nextValue);
+                  }}
+                >
+                  {displayedSlots.map((slot) => (
+                    <option key={slot.key} value={slot.key}>
+                      {slot.label}
+                    </option>
+                  ))}
+                  {!positionOverrideEnabled ? (
+                    <>
+                      <option disabled>──────────</option>
+                      <option value="__override__">⚠ Override: Allow any open slot</option>
+                    </>
+                  ) : null}
+                </select>
+              )}
             </label>
 
             {requiresInactiveOverride ? (
@@ -210,6 +255,18 @@ function DraftPlayerModal({ open, player, league, onClose, onDrafted, isCustom =
                 </label>
               </div>
             ) : null}
+
+            <label className="modal-label">
+              <span>Contract status <span className="required-asterisk">*</span></span>
+              <input
+                className="modal-input"
+                type="text"
+                value={contractStatus}
+                onChange={(event) => setContractStatus(event.target.value)}
+                placeholder="Enter contract status"
+                required
+              />
+            </label>
 
             <label className="modal-label">
               <span>Draft Cost</span>

@@ -6,6 +6,7 @@ import { useLeague } from "./leagues";
 import { LiveUpdateProvider } from "./live-updates";
 import LiveUpdateNoticeCenter from "./live-updates/LiveUpdateNoticeCenter";
 import AllTeamsPage from "./pages/AllTeamsPage";
+import PreDraftPage from "./pages/PreDraftPage";
 import ApiDashboardPage from "./pages/ApiDashboardPage";
 import CustomPlayersPage from "./pages/CustomPlayersPage";
 import LoggedInHomePage from "./pages/LoggedInHomePage";
@@ -63,6 +64,14 @@ function App() {
       <LiveUpdateNoticeCenter />
       <Routes>
         <Route path="/" element={homeElement} />
+        <Route
+          path="/pre-draft"
+          element={
+            <LeagueProtectedRoute isLoggedIn={isLoggedIn} hasSelectedLeague={hasSelectedLeague}>
+              <PreDraftPage />
+            </LeagueProtectedRoute>
+          }
+        />
         <Route
           path="/all-teams"
           element={

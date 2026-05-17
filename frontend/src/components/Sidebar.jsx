@@ -5,6 +5,7 @@ import { SLOT_DEFS } from "../leagues/rosterSlots";
 
 const NAV_ITEMS = [
   { to: "/", label: "Home" },
+  { to: "/pre-draft", label: "Pre-draft", requiresLeague: true },
   { to: "/all-teams", label: "All Teams", requiresLeague: true },
   { to: "/my-team", label: "My Team", requiresLeague: true },
   { to: "/player-search", label: "Player Search", requiresLeague: true },
@@ -104,12 +105,12 @@ function Sidebar() {
           );
         }
 
-        return item.to === "/transactions" ? (
-          <div key="rosters-and-transactions" className="side-nav-group">
-            {renderRostersMenu()}
+        return item.to === "/my-team" ? (
+          <div key="my-team-and-rosters" className="side-nav-group">
             <NavLink to={item.to} end={item.to === "/"} className="side-link">
               {item.label}
             </NavLink>
+            {renderRostersMenu()}
           </div>
         ) : (
           <NavLink
