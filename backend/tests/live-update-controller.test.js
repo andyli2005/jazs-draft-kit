@@ -107,6 +107,21 @@ describe("live-update-controller", () => {
     ).toMatchObject({ latestNews: "Moved to leadoff." });
   });
 
+  it("builds local update fields for injury notices", () => {
+    expect(
+      buildPlayerDocUpdateFields({
+        type: "injury",
+        player: {
+          status: "Inactive",
+          injuryStatus: "10-Day IL",
+        },
+      })
+    ).toMatchObject({
+      status: "Inactive",
+      injuryStatus: "10-Day IL",
+    });
+  });
+
   it("rejects webhook requests with the wrong shared secret", async () => {
     process.env.LIVE_UPDATE_WEBHOOK_SECRET = "expected";
     const req = createRequest({ type: "news", player: { APIplayerId: "api-player-1" } }, "wrong");
@@ -166,6 +181,64 @@ describe("live-update-controller", () => {
         player: {
           APIplayerId: "api-player-1",
           latestNews: "Player One will bat leadoff tonight.",
+        },
+      },
+    });
+  });
+
+  it("updates injury status player docs and broadcasts the notice", async () => {
+    vi.spyOn(Player, "updateMany").mockResolvedValue({ matchedCount: 2, modifiedCount: 2 });
+    vi.spyOn(liveUpdateHub, "addNotice").mockImplementation((notice) => ({
+      id: "notice-2",
+      receivedAt: "2026-05-08T12:00:00.000Z",
+      ...notice,
+    }));
+
+    const req = createRequest({
+      type: "injury",
+      message: "Player One to the 10-day IL.",
+      player: {
+        APIplayerId: "api-player-1",
+        name: "Player One",
+        status: "Inactive",
+        injuryStatus: "10-Day IL",
+      },
+      updates: {
+        injuryStatus: "10-Day IL",
+        status: "Inactive",
+      },
+    });
+    const res = createResponse();
+
+    await LiveUpdateController.receivePlayerLiveUpdate(req, res);
+
+    expect(Player.updateMany).toHaveBeenCalledWith(
+      { APIplayerId: "api-player-1", isCustom: false },
+      {
+        $set: {
+          name: "Player One",
+          status: "Inactive",
+          injuryStatus: "10-Day IL",
+        },
+      }
+    );
+    expect(liveUpdateHub.addNotice).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: "injury",
+        affectedPlayerDocs: 2,
+      })
+    );
+    expect(res.statusCode).toBe(202);
+    expect(res.jsonPayload).toMatchObject({
+      success: true,
+      matchedPlayerDocs: 2,
+      affectedPlayerDocs: 2,
+      notice: {
+        id: "notice-2",
+        player: {
+          APIplayerId: "api-player-1",
+          injuryStatus: "10-Day IL",
+          status: "Inactive",
         },
       },
     });

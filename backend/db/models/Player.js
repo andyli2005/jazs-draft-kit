@@ -37,6 +37,7 @@ const playerSchema = new mongoose.Schema(
   {
     name:                  { type: String, required: true, trim: true },
     status:                { type: String, required: true },
+    injuryStatus:          { type: String, default: "" },
     notes:                 { type: String, required: true },
     positions:             { type: String, required: true },
     personalNotes:         { type: String, default: "" },

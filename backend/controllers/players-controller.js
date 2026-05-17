@@ -87,6 +87,23 @@ function normalizeTextField(value) {
   return String(value);
 }
 
+function normalizeInjuryStatusField(value) {
+  const text = normalizeTextField(value).trim();
+  if (!text) return "";
+  const lower = text.toLowerCase();
+  if (lower === "active" || lower === "inactive") return "";
+  return text;
+}
+
+function normalizeAvailabilityStatusField(status, injuryStatus = "") {
+  const normalized = normalizeTextField(status).trim();
+  const lower = normalized.toLowerCase();
+  if (lower === "active" || lower === "inactive") {
+    return normalized || (injuryStatus ? "Inactive" : "Active");
+  }
+  return injuryStatus ? "Inactive" : "Active";
+}
+
 function normalizeDepthChart(value) {
   if (!value || typeof value !== "object") {
     return { ...EMPTY_DEPTH_CHART };
@@ -103,11 +120,13 @@ function normalizeDepthChart(value) {
 function normalizeApiPlayer(rawPlayer) {
   if (!rawPlayer) return null;
   const depthChart = normalizeDepthChart(rawPlayer.depthChart);
+  const injuryStatus = normalizeInjuryStatusField(rawPlayer.injuryStatus || rawPlayer.status);
   return {
     APIplayerId: rawPlayer.playerId || rawPlayer.APIplayerId || rawPlayer._id,
     name: rawPlayer.name || "",
-    status: rawPlayer.status || "",
-    notes: rawPlayer.note || rawPlayer.notes || rawPlayer.status || "",
+    status: normalizeAvailabilityStatusField(rawPlayer.status, injuryStatus),
+    injuryStatus,
+    notes: rawPlayer.note || rawPlayer.notes || injuryStatus || rawPlayer.status || "",
     positions: rawPlayer.positions || "",
     team: rawPlayer.team || "",
     pictureURL: rawPlayer.pictureURL || "",
@@ -168,10 +187,12 @@ function buildLicensedPlayerIdentifierQuery(playerIdentifier, leagueId) {
 }
 
 function mapPlayerToDocFields(licensedPlayer, existingDoc) {
+  const injuryStatus = normalizeInjuryStatusField(licensedPlayer.injuryStatus || licensedPlayer.status);
   return {
     name: licensedPlayer.name,
-    status: licensedPlayer.status,
-    notes: licensedPlayer.notes || licensedPlayer.status || "",
+    status: normalizeAvailabilityStatusField(licensedPlayer.status, injuryStatus),
+    injuryStatus,
+    notes: licensedPlayer.notes || licensedPlayer.injuryStatus || licensedPlayer.status || "",
     positions: licensedPlayer.positions,
     team: licensedPlayer.team,
     pictureURL: licensedPlayer.pictureURL || "",
@@ -283,8 +304,9 @@ function extractPlayers(payload) {
   return source.map((player) => ({
     APIplayerId: player.playerId || player.APIplayerId || player._id,
     name: player.name,
-    status: player.status,
-    notes: player.note || player.notes || player.status || "",
+    status: normalizeAvailabilityStatusField(player.status, normalizeInjuryStatusField(player.injuryStatus || player.status)),
+    injuryStatus: normalizeInjuryStatusField(player.injuryStatus || player.status),
+    notes: player.note || player.notes || normalizeInjuryStatusField(player.injuryStatus || player.status) || player.status || "",
     pictureURL: player.pictureURL,
     positions: player.positions,
     team: player.team,
@@ -341,6 +363,7 @@ const createCustomPlayer = async (req, res) => {
       leagueId,
       name,
       status,
+      injuryStatus,
       notes,
       positions,
       team,
@@ -366,6 +389,7 @@ const createCustomPlayer = async (req, res) => {
       APIplayerId: null,
       name: String(name).trim(),
       status: String(status).trim(),
+      injuryStatus: String(injuryStatus || "").trim(),
       notes: (notes || status || "").trim(),
       positions: String(positions).trim(),
       team: String(team).trim(),
@@ -401,7 +425,7 @@ const updateCustomPlayer = async (req, res) => {
       return res.status(404).json({ errorMessage: "Custom player not found in this league." });
     }
 
-    const editableStringFields = ["name", "status", "notes", "positions", "team", "pictureURL", "personalNotes"];
+    const editableStringFields = ["name", "status", "injuryStatus", "notes", "positions", "team", "pictureURL", "personalNotes"];
     editableStringFields.forEach((field) => {
       if (req.body[field] != null) {
         playerDoc[field] = String(req.body[field]).trim();
@@ -741,7 +765,7 @@ const upsertPlayerDoc = async (req, res) => {
   try {
     const { APIplayerId } = req.params;
     const {
-      leagueId, personalNotes, name, status, notes,
+      leagueId, personalNotes, name, status, injuryStatus, notes,
       positions, team, pictureURL, price, age, contractStatus, latestNews, depthChart, height, weight,
       currentStats, projectedStats, threeYearAverageStats,
     } = req.body;
@@ -764,6 +788,7 @@ const upsertPlayerDoc = async (req, res) => {
     const fields = {
       name,
       status,
+      injuryStatus: normalizeTextField(injuryStatus),
       notes: notes || status || "",
       positions,
       team,

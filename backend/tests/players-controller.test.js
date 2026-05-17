@@ -89,6 +89,7 @@ describe("players-controller helpers", () => {
       playerId: "api-1",
       name: "Player One",
       status: "DTD",
+      injuryStatus: "Day-to-day",
       note: "day-to-day",
       positions: "1B",
       team: "NYM",
@@ -102,7 +103,8 @@ describe("players-controller helpers", () => {
     expect(normalized).toMatchObject({
       APIplayerId: "api-1",
       name: "Player One",
-      status: "DTD",
+      status: "Inactive",
+      injuryStatus: "Day-to-day",
       notes: "day-to-day",
       positions: "1B",
       team: "NYM",
@@ -165,6 +167,7 @@ describe("players-controller helpers", () => {
       {
         name: "Player One",
         status: "Active",
+        injuryStatus: "Healthy",
         notes: "Healthy",
         positions: "SP",
         team: "SEA",
@@ -186,6 +189,7 @@ describe("players-controller helpers", () => {
     expect(fields.price).toBe(44);
     expect(fields.personalNotes).toBe("stash");
     expect(fields.notes).toBe("Healthy");
+    expect(fields.injuryStatus).toBe("Healthy");
     expect(fields.depthChart.role).toBe("Ace");
     expect(fields.depthChart.section).toBe("Pitchers");
     expect(fields.height).toBe(77);
@@ -262,6 +266,7 @@ describe("players-controller helpers", () => {
           name: "Depth Player",
           status: "Active",
           note: "Healthy",
+          injuryStatus: "Healthy",
           pictureURL: "img",
           positions: "2B",
           team: "SEA",
@@ -528,8 +533,9 @@ describe("players-controller endpoints", () => {
           playerId: API_PLAYER_ID,
           name: "Depth Player",
           status: "Active",
-          note: "Healthy",
-          pictureURL: "img",
+      note: "Healthy",
+      injuryStatus: "Healthy",
+      pictureURL: "img",
           positions: "2B",
           team: "SEA",
           depthChart: {

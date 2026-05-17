@@ -14,6 +14,14 @@ function normalizeTextField(value) {
   return String(value).trim();
 }
 
+function normalizeInjuryStatusField(value) {
+  const text = normalizeTextField(value);
+  if (!text) return "";
+  const lower = text.toLowerCase();
+  if (lower === "active" || lower === "inactive") return "";
+  return text;
+}
+
 function normalizeNumberField(value) {
   const number = Number(value);
   return Number.isFinite(number) ? number : null;
@@ -23,6 +31,7 @@ function normalizeUpdateType(value) {
   const normalized = normalizeTextField(value).toLowerCase();
   if (normalized === "depth_chart" || normalized === "depthchart") return "depthChart";
   if (normalized === "news") return normalized;
+  if (normalized === "injury" || normalized === "injury_status" || normalized === "injurystatus") return "injury";
   return "";
 }
 
@@ -44,6 +53,7 @@ function isAuthorizedWebhook(req) {
 
 function buildDefaultMessage(type, playerName) {
   if (type === "depthChart") return `${playerName} has a depth chart update.`;
+  if (type === "injury") return `${playerName} has an injury status update.`;
   return `${playerName} has a news update.`;
 }
 
@@ -73,11 +83,16 @@ function normalizePlayerLiveUpdate(payload) {
     team: normalizeTextField(player.team),
     positions: normalizeTextField(player.positions),
     status: normalizeTextField(updates.status || player.status),
+    injuryStatus: normalizeInjuryStatusField(updates.injuryStatus || updates.injury || player.injuryStatus || player.injury || player.status),
     latestNews: normalizeTextField(updates.latestNews || updates.news || player.latestNews || player.news),
     depthChart: normalizeDepthChart(updates.depthChart || player.depthChart),
     pictureURL: normalizeTextField(player.pictureURL),
   };
 
+  if (type === "injury") {
+    normalizedPlayer.injuryStatus = normalizedPlayer.injuryStatus || normalizeTextField(payload?.message);
+    normalizedPlayer.status = normalizedPlayer.injuryStatus ? "Inactive" : normalizedPlayer.status || "Inactive";
+  }
   if (type === "news") {
     normalizedPlayer.latestNews = normalizedPlayer.latestNews || normalizeTextField(payload?.message);
   }
@@ -107,6 +122,11 @@ function buildPlayerDocUpdateFields(notice) {
 
   if (notice.type === "depthChart") {
     fields.depthChart = normalizeDepthChart(player.depthChart);
+  }
+
+  if (notice.type === "injury") {
+    fields.injuryStatus = normalizeInjuryStatusField(player.injuryStatus || player.status);
+    fields.status = player.status || (fields.injuryStatus ? "Inactive" : "Active");
   }
 
   if (notice.type === "news") {

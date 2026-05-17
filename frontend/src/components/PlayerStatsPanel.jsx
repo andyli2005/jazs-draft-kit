@@ -134,6 +134,10 @@ function PlayerStatsPanel({
   const detailSources = [player, displayData];
   const age = valueFrom(detailSources, ["age"]);
   const latestNews = valueFrom(detailSources, ["latestNews"]);
+  const injuryStatus = valueFrom(detailSources, ["injuryStatus"]);
+  const playerNotes = valueFrom(detailSources, ["notes"]);
+  const normalizedStatus = String(displayData?.status || "").trim().toLowerCase();
+  const isActivePlayer = normalizedStatus === "active";
   const depthChartPosition = getDepthChartValue(detailSources, "position");
   const depthChartRank = getDepthChartValue(detailSources, "rank");
   const depthChartRole = getDepthChartValue(detailSources, "role");
@@ -142,6 +146,7 @@ function PlayerStatsPanel({
     { label: "Age", value: age },
     { label: "Height", value: formatHeight(valueFrom(detailSources, ["height"])) },
     { label: "Weight", value: formatWeight(valueFrom(detailSources, ["weight"])) },
+    { label: "Injury Status", value: injuryStatus },
     { label: "Latest News", value: latestNews },
     { label: "Depth Chart Position", value: depthChartPosition },
     { label: "Depth Chart Rank", value: depthChartRank },
@@ -313,7 +318,12 @@ function PlayerStatsPanel({
           <span className="player-stats-badge">{displayData.team}</span>
         )}
         {displayData.status && (
-          <span className="player-stats-badge badge-outline">{displayData.status}</span>
+          <span className={`player-stats-badge status-badge ${isActivePlayer ? "status-badge-active" : "status-badge-inactive"}`}>
+            {displayData.status}
+          </span>
+        )}
+        {displayData.injuryStatus && (
+          <span className="player-stats-badge injury-badge">{displayData.injuryStatus}</span>
         )}
       </div>
 
@@ -329,6 +339,19 @@ function PlayerStatsPanel({
           <span className="player-stats-kpi-value">${cost}</span>
         </div>
       </div>
+
+      {!isCustomPlayer && (
+        <div className="player-stats-section">
+          <h3>Player Notes</h3>
+          <div className="player-stats-notes-display">
+            {playerNotes ? (
+              <p>{playerNotes}</p>
+            ) : (
+              <p className="muted">No player notes available.</p>
+            )}
+          </div>
+        </div>
+      )}
 
       <div className="player-stats-section">
         <div className="player-stats-section-head">

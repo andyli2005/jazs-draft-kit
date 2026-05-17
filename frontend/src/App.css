@@ -1237,11 +1237,61 @@
 }
 
 .players-table tbody tr.inactive-row td {
-  color: #8a94aa;
+  color: #6f3440;
 }
 
 .players-table tbody tr.inactive-row:not(.selected-row) {
-  background: rgba(49, 61, 89, 0.03);
+  background: #fff2f4;
+}
+
+.players-table tbody tr.inactive-row td:first-child {
+  border-left: 4px solid #c03445;
+}
+
+.status-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 74px;
+  padding: 0.2rem 0.5rem;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 800;
+  line-height: 1.2;
+}
+
+.status-pill-active {
+  background: #edf8f0;
+  color: #1b7a44;
+  border: 1px solid #b8dfc4;
+}
+
+.status-pill-inactive {
+  background: #fff0f1;
+  color: #9c2028;
+  border: 1px solid #f1b8bd;
+}
+
+.player-stats-badge.status-badge {
+  border: 1px solid transparent;
+}
+
+.player-stats-badge.status-badge-active {
+  background: #edf8f0;
+  border-color: #b8dfc4;
+  color: #1b7a44;
+}
+
+.player-stats-badge.status-badge-inactive {
+  background: #fff0f1;
+  border-color: #f1b8bd;
+  color: #9c2028;
+}
+
+.player-stats-badge.injury-badge {
+  background: #fff6e6;
+  color: #8a4a00;
+  border: 1px solid #f3d39a;
 }
 
 .player-stats-draft-btn {

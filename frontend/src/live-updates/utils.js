@@ -12,6 +12,7 @@ export function formatNoticeTime(value) {
 export function getNoticeTitle(notice) {
   const playerName = notice?.player?.name || notice?.player?.APIplayerId || "Player";
   if (notice?.type === "depthChart") return `${playerName}: Depth Chart`;
+  if (notice?.type === "injury") return `${playerName}: Injury Status`;
   if (notice?.type === "news") return `${playerName}: News`;
   return notice?.title || "Player Update";
 }

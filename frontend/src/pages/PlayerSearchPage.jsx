@@ -44,6 +44,15 @@ function isDateLike(value) {
 }
 
 function renderCellValue(key, value) {
+  if (key === "status") {
+    const isActive = isStatusActive(value);
+    return (
+      <span className={`status-pill ${isActive ? "status-pill-active" : "status-pill-inactive"}`}>
+        {renderValue(value)}
+      </span>
+    );
+  }
+
   if (key === "pictureURL") {
     if (!value) return "N/A";
     return (
@@ -144,6 +153,7 @@ function PlayerSearchPage() {
         return {
           ...player,
           status: playerUpdate.status || player.status,
+          injuryStatus: playerUpdate.injuryStatus || player.injuryStatus,
           latestNews: playerUpdate.latestNews || player.latestNews,
           depthChart:
             notice.type === "depthChart"
