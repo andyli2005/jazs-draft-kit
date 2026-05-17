@@ -15,6 +15,7 @@ import PlayerSearchPage from "./pages/PlayerSearchPage";
 import PublicHomePage from "./pages/PublicHomePage";
 import RegisterPage from "./pages/RegisterPage";
 import RostersPage from "./pages/RostersPage";
+import TaxiDraftPage from "./pages/TaxiDraftPage.jsx";
 import SettingsPage from "./pages/SettingsPage";
 import TransactionsPage from "./pages/TransactionsPage";
 
@@ -58,6 +59,90 @@ function App() {
   }
 
   return (
+    <Routes>
+      <Route path="/" element={homeElement} />
+      <Route
+        path="/all-teams"
+        element={
+          <ProtectedRoute isLoggedIn={isLoggedIn}>
+            <AllTeamsPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/my-team"
+        element={
+          <LeagueProtectedRoute isLoggedIn={isLoggedIn} hasSelectedLeague={hasSelectedLeague}>
+            <MyTeamPage />
+          </LeagueProtectedRoute>
+        }
+      />
+      <Route
+        path="/player-search"
+        element={
+          <LeagueProtectedRoute isLoggedIn={isLoggedIn} hasSelectedLeague={hasSelectedLeague}>
+            <PlayerSearchPage />
+          </LeagueProtectedRoute>
+        }
+      />
+      <Route
+        path="/custom-players"
+        element={
+          <LeagueProtectedRoute isLoggedIn={isLoggedIn} hasSelectedLeague={hasSelectedLeague}>
+            <CustomPlayersPage />
+          </LeagueProtectedRoute>
+        }
+      />
+      <Route
+        path="/rosters/:rosterId"
+        element={
+          <LeagueProtectedRoute isLoggedIn={isLoggedIn} hasSelectedLeague={hasSelectedLeague}>
+            <RostersPage />
+          </LeagueProtectedRoute>
+        }
+      />
+      <Route 
+        path="/taxi"
+        element={
+          <LeagueProtectedRoute isLoggedIn={isLoggedIn} hasSelectedLeague={hasSelectedLeague}>
+            <TaxiDraftPage />
+          </LeagueProtectedRoute>
+        }
+      />
+      <Route
+        path="/transactions"
+        element={
+          <LeagueProtectedRoute isLoggedIn={isLoggedIn} hasSelectedLeague={hasSelectedLeague}>
+            <TransactionsPage />
+          </LeagueProtectedRoute>
+        }
+      />
+      <Route
+        path="/api-dashboard"
+        element={
+          <ProtectedRoute isLoggedIn={isLoggedIn}>
+            <ApiDashboardPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/settings"
+        element={
+          <ProtectedRoute isLoggedIn={isLoggedIn}>
+            <SettingsPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/login"
+        element={isLoggedIn ? <Navigate to="/" replace /> : <LoginPage />}
+      />
+      <Route
+        path="/register"
+        element={isLoggedIn ? <Navigate to="/" replace /> : <RegisterPage />}
+      />
+      <Route path="*" element={<Navigate to="/" replace />} />
+    </Routes>
     <LiveUpdateProvider key={isLoggedIn ? "live-updates-active" : "live-updates-idle"} enabled={isLoggedIn}>
       <LiveUpdateNoticeCenter />
       <Routes>

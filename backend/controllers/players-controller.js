@@ -49,6 +49,7 @@ const STAT_KEYS = [
   "sluggingPercentage",
   "fantasyPoints",
 ];
+const MAX_TAXI_PLAYERS = 9;
 const EMPTY_DEPTH_CHART = Object.freeze({
   position: "",
   rank: null,
@@ -324,7 +325,7 @@ function extractPlayers(payload) {
   }));
 }
 
-function buildUpstreamUrl(query, path="/api/players") {
+function buildUpstreamUrl(query, path = "/api/players") {
   const searchParams = new URLSearchParams();
   Object.entries(query || {}).forEach(([key, value]) => {
     if (Array.isArray(value)) {
@@ -551,7 +552,7 @@ const getPlayers = async (req, res) => {
     });
   }
 
-  const { leagueId } = req.query;
+  const { leagueId, position } = req.query;
   if (!leagueId) {
     return res.status(400).json({ errorMessage: "leagueId query parameter is required." });
   }
@@ -576,11 +577,11 @@ const getPlayers = async (req, res) => {
   // temporarily change rankBy to a valid data column
   const upstreamQuery = { ...req.query };
   if (upstreamQuery.rankBy === "cost") upstreamQuery.rankBy = "fantasyPoints";
-    
+
   // Similarly, leagueId is not necessary for the query
   delete upstreamQuery.leagueId;
   upstreamQuery.moneyAboveMinimum = moneyAboveMinimum;
-  
+
   const url = buildUpstreamUrl(upstreamQuery, "/api/players/evaluations");
   const draftedPlayers = await db.getDraftedPlayers(leagueId);
   const draftHistory = draftedPlayers.map((player) => ({
@@ -589,13 +590,13 @@ const getPlayers = async (req, res) => {
   }));
 
   try {
-    const response = await fetch(url, { 
+    const response = await fetch(url, {
       method: 'POST',
-      headers: { 
+      headers: {
         "Content-Type": "application/json",
-        "x-api-token": process.env.API_TOKEN 
+        "x-api-token": process.env.API_TOKEN
       },
-      body: JSON.stringify({ 
+      body: JSON.stringify({
         draftHistory,
         leagueState,
       }),
@@ -624,7 +625,7 @@ const getPlayers = async (req, res) => {
     if (apiPlayerIds.length > 0) {
       const localPlayerDocs = await Player.find(
         { leagueId, APIplayerId: { $in: apiPlayerIds }, isCustom: false },
-        "APIplayerId ownerId bidStartedById price"
+        "APIplayerId ownerId bidStartedById price taxiRosterId taxiDraftedAt"
       ).lean();
       localPlayerMap = new Map(
         localPlayerDocs.map((doc) => [String(doc.APIplayerId), doc])
@@ -634,10 +635,14 @@ const getPlayers = async (req, res) => {
     players = players.map((player) => {
       const localDoc = localPlayerMap.get(String(player.APIplayerId));
       const isDrafted = Boolean(localDoc?.ownerId);
+      const isTaxiDrafted = Boolean(localDoc?.taxiRosterId);
       return {
         ...player,
         isDrafted,
+        isTaxiDrafted,
         draftOwnerId: localDoc?.ownerId ? String(localDoc.ownerId) : null,
+        taxiRosterId: localDoc?.taxiRosterId ? String(localDoc.taxiRosterId) : null,
+        taxiDraftedAt: localDoc?.taxiDraftedAt ?? null,
         bidStartedById: localDoc?.bidStartedById ? String(localDoc.bidStartedById) : null,
         leaguePrice: localDoc?.price ?? null,
       };
@@ -822,7 +827,7 @@ const upsertPlayerDoc = async (req, res) => {
       };
       await db.createTransaction(data);
     }
-    
+
     return res.status(200).json({ playerDoc });
   } catch (err) {
     console.error(err);
@@ -920,6 +925,9 @@ const draftPlayer = async (req, res) => {
           throw createHttpError(409, "Player is already drafted to the selected roster.");
         }
         throw createHttpError(409, "Player is already drafted in this league.");
+      }
+      if (existingDoc?.taxiRosterId) {
+        throw createHttpError(409, "Player is already on a taxi roster.");
       }
 
       const docFields = mapPlayerToDocFields(licensedPlayer, existingDoc);
@@ -1201,7 +1209,7 @@ const movePlayer = async (req, res) => {
       const data = {
         teamOwner: updatedRoster?.name || "Unknown Team",
         player: updatedPlayerDoc?.name || "Unknown Player",
-        actionType: "ChangedPosition",
+        actionType: "UpdatedPosition",
         draftCost: Number(updatedPlayerDoc?.price) || 0,
         budgetLeft: Number(updatedRoster?.budgetLeft ?? 0),
         leagueId,
@@ -1568,7 +1576,7 @@ const moveCustomPlayer = async (req, res) => {
       const data = {
         teamOwner: updatedRoster?.name || "Unknown Team",
         player: updatedPlayerDoc?.name || "Unknown Player",
-        actionType: "ChangedPosition",
+        actionType: "UpdatedPosition",
         draftCost: Number(updatedPlayerDoc?.price) || 0,
         budgetLeft: Number(updatedRoster?.budgetLeft ?? 0),
         leagueId,
@@ -1600,6 +1608,133 @@ const moveCustomPlayer = async (req, res) => {
   }
 };
 
+const draftTaxiPlayer = async (req, res) => {
+  let session = null;
+  try {
+    const { APIplayerId } = req.params;
+    const { leagueId, rosterId, inactiveOverrideAccepted } = req.body || {};
+
+    if (!leagueId || !rosterId) {
+      return res.status(400).json({
+        errorMessage: "leagueId and rosterId are required.",
+      });
+    }
+
+    const licensedPlayer = await fetchLicensedPlayerById(APIplayerId);
+    const normalizedStatus = String(licensedPlayer.status || "").trim().toLowerCase();
+    const isActive = normalizedStatus === "active";
+    if (!isActive && !hasTruthyOverride(inactiveOverrideAccepted)) {
+      return res.status(400).json({
+        errorMessage: "Player is not currently active. Confirm inactive override to continue.",
+      });
+    }
+
+    let updatedPlayerDoc = null;
+    let updatedRoster = null;
+
+    const applyTaxiDraftMutation = async (activeSession = null) => {
+      const queryOptions = activeSession ? { session: activeSession } : {};
+      const leagueQuery = League.findById(leagueId);
+      if (activeSession) leagueQuery.session(activeSession);
+      const league = await leagueQuery;
+      if (!league) {
+        throw createHttpError(404, "League not found.");
+      }
+
+      if (String(league.user) !== String(req.userId)) {
+        throw createHttpError(403, "You do not have access to this league.");
+      }
+
+      const rosterIdsInLeague = new Set((league.rosterIds || []).map((id) => String(id)));
+      if (!rosterIdsInLeague.has(String(rosterId))) {
+        throw createHttpError(400, "Selected roster does not belong to this league.");
+      }
+
+      const rosterQuery = MLBRoster.findById(rosterId);
+      if (activeSession) rosterQuery.session(activeSession);
+      const taxiRoster = await rosterQuery;
+      if (!taxiRoster) {
+        throw createHttpError(404, "Taxi roster not found.");
+      }
+
+      const numberOfTaxiPlayers = await db.countDraftedTaxiPlayers(leagueId, rosterId, queryOptions);
+      if (numberOfTaxiPlayers >= MAX_TAXI_PLAYERS) {
+        throw createHttpError(400, "Taxi roster is full.");
+      }
+
+      const existingDocQuery = Player.findOne({ APIplayerId, leagueId, isCustom: false });
+      if (activeSession) existingDocQuery.session(activeSession);
+      const existingDoc = await existingDocQuery;
+
+      if (existingDoc?.ownerId) {
+        throw createHttpError(409, "Player is already drafted.");
+      }
+
+      if (existingDoc?.taxiRosterId) {
+        throw createHttpError(409, "Player is already on a taxi roster.");
+      }
+
+      const docFields = mapPlayerToDocFields(licensedPlayer, existingDoc);
+      const playerDoc = await Player.findOneAndUpdate(
+        { APIplayerId, leagueId, isCustom: false },
+        { 
+          $set: { 
+            APIplayerId, 
+            leagueId, 
+            isCustom: false, 
+            ...docFields, 
+            price: 1, 
+            ownerId: null, 
+            bidStartedById: null,
+            taxiRosterId: rosterId,
+            taxiDraftedAt: new Date(), 
+          } 
+        },
+        { upsert: true, new: true, runValidators: true, ...queryOptions }
+      );
+
+      const updatedPlayerQuery = Player.findById(playerDoc._id);
+      if (activeSession) updatedPlayerQuery.session(activeSession);
+      updatedPlayerDoc = await updatedPlayerQuery;
+
+      // taxi rosters are not directly impacting MLBRoster, so no new query
+      updatedRoster = taxiRoster;
+
+      const data = {
+        teamOwner: updatedRoster?.name || "Unknown Team",
+        player: updatedPlayerDoc?.name || "Unknown Player",
+        actionType: "TaxiDrafted",
+        draftCost: 1,
+        budgetLeft: Number(updatedRoster?.budgetLeft ?? 0),
+        leagueId,
+        rosterId,
+      };
+      await db.createTransaction(data, queryOptions);
+    };
+
+    session = await mongoose.startSession();
+    try {
+      await session.withTransaction(async () => {
+        await applyTaxiDraftMutation(session);
+      });
+    } catch (error) {
+      if (!isTransactionUnsupportedError(error)) {
+        throw error;
+      }
+      await applyTaxiDraftMutation(null);
+    }
+
+    return res.status(200).json({ playerDoc: updatedPlayerDoc, roster: updatedRoster });
+  } catch (err) {
+    console.error(err);
+    return res.status(err.status || 500).json({ errorMessage: err.message || "Error drafting taxi player." });
+  } finally {
+    if (session) {
+      await session.endSession();
+    }
+  }
+};
+
 module.exports = {
   getPlayers,
   getCustomPlayers,
@@ -1610,6 +1745,7 @@ module.exports = {
   getPlayerDoc,
   upsertPlayerDoc,
   draftPlayer,
+  draftTaxiPlayer,
   draftCustomPlayer,
   dropPlayer,
   dropCustomPlayer,

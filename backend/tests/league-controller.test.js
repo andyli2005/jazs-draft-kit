@@ -311,6 +311,7 @@ describe("league-controller", () => {
     });
     vi.spyOn(MLBRoster, "create").mockResolvedValue({ _id: "roster-3", name: "Team 3" });
     vi.spyOn(MLBRoster, "updateOne").mockResolvedValue({});
+    vi.spyOn(MLBRoster, "updateMany").mockResolvedValue({});
     vi.spyOn(db, "getLeaguesByUser").mockResolvedValue([
       { _id: "league-1", name: "Updated League", budgetCap: 300, teamCount: 3 },
     ]);

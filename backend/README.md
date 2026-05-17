@@ -291,6 +291,7 @@ GET /api/transactions?leagueId=<leagueId>
 - Requires authentication
 - Creates a transaction entry for a league
 - Requires `teamOwner`, `player`, `actionType`, and `leagueId`
+- **Standardized Labels:** Player move transactions are now consistently labeled as `UpdatedPosition` to ensure seamless frontend rendering.
 - Optional fields include `draftCost` and `budgetLeft`
 
 Request body:

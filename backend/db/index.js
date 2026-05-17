@@ -114,7 +114,7 @@ class Database {
     }
 
     if (user.leagues.length > 0) {
-      return user.leagues;
+      return this.attachTaxiPlayersToLeagues(user.leagues);
     }
 
     const leagues = await League.find({ user: userId })
@@ -127,7 +127,55 @@ class Database {
       });
     }
 
-    return leagues;
+    return this.attachTaxiPlayersToLeagues(leagues);
+  }
+
+  // Make one query to retrieve all taxi players for every league, instead of constantly querying DB for individual players
+  async attachTaxiPlayersToLeagues(leagues) {
+    const leagueList = Array.isArray(leagues) ? leagues : [];
+    const leagueIds = leagueList.map((league) => league?._id).filter(Boolean);
+
+    // Each League => [Roster 1, Roster 2, etc.], flatMap => [Roster 1, Roster 2, Roster 3, etc]
+    const rosterIds = leagueList.flatMap((league) =>
+      (league?.rosterIds || []).map((roster) => roster?._id || roster).filter(Boolean)
+    );
+
+    if (leagueIds.length === 0 || rosterIds.length === 0) {
+      return leagues;
+    }
+
+    const taxiPlayers = await Player.find({
+      leagueId: { $in: leagueIds },
+      taxiRosterId: { $in: rosterIds },
+    })
+      .select(`${this.rosterPlayerSelect} taxiRosterId taxiDraftedAt isCustom`)
+      .lean();
+
+    const taxiPlayersByRosterId = new Map();
+    taxiPlayers.forEach((player) => {
+      const rosterId = String(player.taxiRosterId || "");
+      if (!rosterId) return;
+
+      const rosterPlayers = taxiPlayersByRosterId.get(rosterId) || [];
+      rosterPlayers.push(player);
+
+      taxiPlayersByRosterId.set(rosterId, rosterPlayers);
+    });
+
+    // Add the taxi players as new field for league object so frontend has access
+    return leagueList.map((league) => {
+      const leagueObject = typeof league.toObject === "function" ? league.toObject() : { ...league };
+      leagueObject.rosterIds = (leagueObject.rosterIds || []).map((roster) => {
+        if (!roster || typeof roster !== "object") {
+          return roster;
+        }
+        return {
+          ...roster,
+          taxiPlayers: taxiPlayersByRosterId.get(String(roster._id)) || [],
+        };
+      });
+      return leagueObject;
+    });
   }
   async getLeagueById(id)                     { return League.findById(id); }
   async updateLeagueById(id, fieldsToUpdate)  { return League.findByIdAndUpdate(id, { $set: fieldsToUpdate }, { new: true }); }
@@ -157,6 +205,17 @@ class Database {
   }
 
   async getDraftedPlayers(leagueId) { return Player.find({ leagueId, ownerId: { $ne: null } }).lean(); }
+  async countDraftedTaxiPlayers(leagueId, rosterId, options={}) { 
+    const count = Player.countDocuments({ 
+      leagueId, 
+      taxiRosterId: rosterId,
+    }); 
+
+    if(options.session){
+      count.session(options.session);
+    }
+    return count;
+  }
 } 
 
 module.exports = new Database();
