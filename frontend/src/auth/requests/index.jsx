@@ -61,3 +61,14 @@ export function deleteUser() {
 export function logout() {
   return request("/api/auth/logout", { method: "POST" });
 }
+
+export function getSecurityQuestion(email) {
+  return request(`/api/auth/security-question?email=${encodeURIComponent(email)}`, { method: "GET" });
+}
+
+export function resetPassword(payload) {
+  return request("/api/auth/reset-password", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}

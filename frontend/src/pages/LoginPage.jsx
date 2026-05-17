@@ -45,6 +45,9 @@ function LoginPage() {
           </button>
         </form>
         <p className="muted small">
+          <Link to="/forgot-password">Forgot your password?</Link>
+        </p>
+        <p className="muted small">
           Need an account? <Link to="/register">Create one</Link>
         </p>
       </section>
