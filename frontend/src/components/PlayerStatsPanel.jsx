@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import ChangePositionMenu from "./ChangePositionMenu";
+import EditContractModal from "./EditContractModal";
 import PositionChecklistDropdown from "./PositionChecklistDropdown";
 import { useLeague } from "../leagues";
 import { formatPositionsString, parsePositionsString } from "../leagues/positions";
@@ -101,6 +102,7 @@ function PlayerStatsPanel({
   onDraftClick,
   onDropClick,
   onMoved,
+  onContractSaved = null,
   refreshKey = 0,
   scrollWithPage = false,
   teamDepthChart = null,
@@ -125,6 +127,7 @@ function PlayerStatsPanel({
   const [isSaving, setIsSaving] = useState(false);
   const [saveError, setSaveError] = useState("");
   const [showChangePositionMenu, setShowChangePositionMenu] = useState(false);
+  const [showEditContractModal, setShowEditContractModal] = useState(false);
   const isCustomPlayer = Boolean(player?.isCustom || !player?.APIplayerId);
 
   function resetAllEdits() {
@@ -135,6 +138,7 @@ function PlayerStatsPanel({
     setDetailsDraft(null);
     setStatsDraft(null);
     setSaveError("");
+    setShowEditContractModal(false);
   }
 
   useEffect(() => {
@@ -425,6 +429,45 @@ function PlayerStatsPanel({
     }
   }
 
+  // ─── Edit contract ────────────────────────────────────────────────────────
+
+  async function handleSaveContract({ contractStatus, price }) {
+    if (!activeLeagueId) throw new Error("No active league.");
+    let savedDoc = null;
+    if (isCustomPlayer) {
+      if (!player?._id) throw new Error("Player not found.");
+      const body = buildCustomSaveBody({ contractStatus, price });
+      const data = await updateCustomPlayer(player._id, body);
+      savedDoc = data.playerDoc;
+    } else {
+      if (!player?.APIplayerId) throw new Error("Player not found.");
+      const body = {
+        leagueId: activeLeagueId,
+        personalNotes: playerDoc?.personalNotes || "",
+        name: player.name,
+        status: player.status || "Active",
+        notes: player.notes || "",
+        positions: player.positions || "",
+        team: player.team || "",
+        pictureURL: player.pictureURL || "",
+        age: player.age ?? null,
+        contractStatus,
+        latestNews: player.latestNews || "",
+        depthChart: player.depthChart || {},
+        height: player.height ?? null,
+        weight: player.weight ?? null,
+        price,
+        currentStats: player.currentStats || {},
+        projectedStats: player.projectedStats || {},
+        threeYearAverageStats: player.threeYearAverageStats || {},
+      };
+      const data = await updatePlayerDoc(player.APIplayerId, body);
+      savedDoc = data.playerDoc;
+    }
+    setPlayerDoc(savedDoc);
+    await onContractSaved?.(savedDoc);
+  }
+
   // ─── Draft / drop ─────────────────────────────────────────────────────────
 
   const isDrafted = Boolean(player?.isDrafted ?? effectiveOwnerId ?? (onDropClick && !onDraftClick));
@@ -557,6 +600,15 @@ function PlayerStatsPanel({
                   />
                 ) : null}
               </div>
+            ) : null}
+            {effectiveOwnerId && activeLeagueId ? (
+              <button
+                className="btn btn-secondary player-stats-edit-btn"
+                type="button"
+                onClick={() => setShowEditContractModal(true)}
+              >
+                Edit Contract
+              </button>
             ) : null}
             <button
               className={actionClassName}
@@ -913,6 +965,13 @@ function PlayerStatsPanel({
           </div>
         </div>
       )}
+      <EditContractModal
+        open={showEditContractModal}
+        player={player}
+        playerDoc={playerDoc}
+        onClose={() => setShowEditContractModal(false)}
+        onSaved={handleSaveContract}
+      />
     </aside>
   );
 }

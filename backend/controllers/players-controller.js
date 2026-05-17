@@ -481,12 +481,22 @@ const updateCustomPlayer = async (req, res) => {
       playerDoc.threeYearAverageStats = normalizeStatBlock(req.body.threeYearAverageStats);
     }
 
+    const priceBeforeSave = Number(playerDoc.price) || 0;
+
     if (playerDoc.ownerId) {
       const parse = parseRequiredContractStatus(req.body.contractStatus);
       if (!parse.ok) {
         return res.status(400).json({ errorMessage: parse.errorMessage });
       }
       playerDoc.contractStatus = parse.value;
+
+      if (req.body.price !== undefined) {
+        const parsedPrice = Number(req.body.price);
+        if (!Number.isFinite(parsedPrice) || parsedPrice < 0) {
+          return res.status(400).json({ errorMessage: "price must be a non-negative number." });
+        }
+        playerDoc.price = parsedPrice;
+      }
     } else if (req.body.contractStatus !== undefined && req.body.contractStatus !== null) {
       const trimmed = String(req.body.contractStatus).trim();
       if (!trimmed) {
@@ -501,6 +511,15 @@ const updateCustomPlayer = async (req, res) => {
     }
 
     await playerDoc.save();
+
+    const priceDelta = (Number(playerDoc.price) || 0) - priceBeforeSave;
+    if (priceDelta !== 0 && playerDoc.ownerId) {
+      await MLBRoster.updateOne(
+        { _id: playerDoc.ownerId },
+        { $inc: { budgetLeft: -priceDelta } }
+      );
+    }
+
     return res.status(200).json({ playerDoc });
   } catch (err) {
     console.error(err);
@@ -889,7 +908,18 @@ const upsertPlayerDoc = async (req, res) => {
     const prevNotes = prevDoc?.personalNotes ?? "";
     const hasChangedNotes = prevNotes !== fields.personalNotes;
 
+    const oldPrice = prevDoc?.price ?? 0;
+    const newPrice = fields.price;
+
     const playerDoc = await db.upsertPlayerDoc(APIplayerId, leagueId, fields);
+
+    const priceDelta = newPrice - oldPrice;
+    if (priceDelta !== 0 && prevDoc?.ownerId) {
+      await MLBRoster.updateOne(
+        { _id: prevDoc.ownerId },
+        { $inc: { budgetLeft: -priceDelta } }
+      );
+    }
 
     if (hasChangedNotes) {
       const user = await db.getUserById(req.userId);

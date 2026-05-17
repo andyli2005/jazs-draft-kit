@@ -147,6 +147,10 @@ function RostersPage() {
               await refreshLeagues();
               setSelectedPlayer(null);
             }}
+            onContractSaved={async (savedDoc) => {
+              setSelectedPlayer((prev) => prev ? { ...prev, price: savedDoc.price } : prev);
+              await refreshLeagues();
+            }}
             refreshKey={panelRefreshKey}
             teamDepthChart={teamDepthChart}
             scrollWithPage
