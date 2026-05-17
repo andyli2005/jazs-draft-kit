@@ -179,6 +179,10 @@ export function moveCustomPlayer(playerId, payload) {
   });
 }
 
+export function getDepthCharts() {
+  return request("/api/players/depth-charts", { method: "GET" });
+}
+
 export function getTransactions(leagueId) {
   const params = new URLSearchParams({ leagueId: String(leagueId) });
   return request(`/api/transactions?${params.toString()}`, { method: "GET" });

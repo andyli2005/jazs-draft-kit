@@ -77,6 +77,7 @@ function PlayerStatsPanel({
   onMoved,
   refreshKey = 0,
   scrollWithPage = false,
+  teamDepthChart = null,
 }) {
   const { selectedLeague } = useLeague();
   const [playerDoc, setPlayerDoc] = useState(null);
@@ -641,6 +642,32 @@ function PlayerStatsPanel({
           </table>
         </div>
       </div>
+
+      {!isCustomPlayer && teamDepthChart && teamDepthChart.length > 0 && (
+        <div className="player-stats-section">
+          <h3>Team Depth Chart</h3>
+          <p className="muted depth-chart-team-label">{displayData?.team}</p>
+          <div className="depth-chart-positions">
+            {teamDepthChart.map(({ position, players: posPlayers }) => (
+              <div key={position} className="depth-chart-position-group">
+                <div className="depth-chart-position-label">{position}</div>
+                <ol className="depth-chart-player-list">
+                  {posPlayers.map((p, idx) => (
+                    <li
+                      key={`${p.name}-${idx}`}
+                      className={`depth-chart-player-row${p.isSelected ? " depth-chart-player-selected" : ""}`}
+                    >
+                      <span className="depth-chart-player-name">{p.name}</span>
+                      {p.role ? <span className="depth-chart-role">{p.role}</span> : null}
+                      {p.section ? <span className="depth-chart-section">{p.section}</span> : null}
+                    </li>
+                  ))}
+                </ol>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </aside>
   );
 }

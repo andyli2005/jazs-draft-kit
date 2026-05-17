@@ -4,14 +4,14 @@ import { useLeague } from "../leagues";
 import { SLOT_DEFS } from "../leagues/rosterSlots";
 
 const NAV_ITEMS = [
-  { to: "/", label: "Home" },
-  { to: "/pre-draft", label: "Pre-draft", requiresLeague: true },
+  { to: "/", label: "Home", dividerAfter: true },
+  { to: "/pre-draft", label: "Pre-draft", requiresLeague: true, dividerAfter: true },
   { to: "/all-teams", label: "All Teams", requiresLeague: true },
-  { to: "/my-team", label: "My Team", requiresLeague: true },
+  { to: "/my-team", label: "My Team", requiresLeague: true, dividerAfter: true },
   { to: "/player-search", label: "Player Search", requiresLeague: true },
-  { to: "/custom-players", label: "Custom Players", requiresLeague: true },
-  { to: "/taxi", label: "Taxi Draft", requiresLeague: true, requiresFullRosters: true },
-  { to: "/transactions", label: "Transactions", requiresLeague: true },
+  { to: "/custom-players", label: "Custom Players", requiresLeague: true, dividerAfter: true },
+  { to: "/taxi", label: "Taxi Draft", requiresLeague: true, requiresFullRosters: true, dividerAfter: true },
+  { to: "/transactions", label: "Transactions", requiresLeague: true, dividerAfter: true },
   { to: "/api-dashboard", label: "API Dashboard" },
   { to: "/settings", label: "Settings" },
 ];
@@ -92,10 +92,10 @@ function Sidebar() {
           ? "Finish drafting main roster to unlock this page."
           : "Select a league on the dashboard to unlock this page.";
 
+        let node;
         if (isDisabled) {
-          return (
+          node = (
             <span
-              key={item.to}
               className="side-link side-link-disabled"
               aria-disabled="true"
               title={disabledTitle}
@@ -103,24 +103,32 @@ function Sidebar() {
               {item.label}
             </span>
           );
-        }
-
-        return item.to === "/my-team" ? (
-          <div key="my-team-and-rosters" className="side-nav-group">
-            <NavLink to={item.to} end={item.to === "/"} className="side-link">
+        } else if (item.to === "/my-team") {
+          node = (
+            <div className="side-nav-group">
+              <NavLink to={item.to} end={item.to === "/"} className="side-link">
+                {item.label}
+              </NavLink>
+              {renderRostersMenu()}
+            </div>
+          );
+        } else {
+          node = (
+            <NavLink
+              to={item.to}
+              end={item.to === "/"}
+              className="side-link"
+            >
               {item.label}
             </NavLink>
-            {renderRostersMenu()}
+          );
+        }
+
+        return (
+          <div key={item.to} className="side-nav-item">
+            {node}
+            {item.dividerAfter && <hr className="sidebar-divider" />}
           </div>
-        ) : (
-          <NavLink
-            key={item.to}
-            to={item.to}
-            end={item.to === "/"}
-            className="side-link"
-          >
-            {item.label}
-          </NavLink>
         );
       })}
 

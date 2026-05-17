@@ -616,6 +616,17 @@
   margin-left: 0.8rem;
 }
 
+.sidebar-divider {
+  border: none;
+  border-top: 1px solid rgba(49, 61, 89, 0.12);
+  margin: 0.2rem 0.4rem 0;
+}
+
+.side-nav-item {
+  display: grid;
+  gap: 0.35rem;
+}
+
 .sidebar-hint {
   margin: 0.4rem 0 0;
   padding: 0.55rem 0.7rem 0;
@@ -1062,6 +1073,83 @@
   font-size: 0.72rem;
   padding: 0.3rem 0.6rem;
   border-radius: 8px;
+}
+
+.depth-chart-team-label {
+  margin: -0.2rem 0 0.6rem;
+  font-size: 0.8rem;
+}
+
+.depth-chart-positions {
+  display: grid;
+  gap: 0.6rem;
+}
+
+.depth-chart-position-group {
+  border: 1px solid rgba(49, 61, 89, 0.1);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.depth-chart-position-label {
+  background: #1f6fff;
+  color: #fff;
+  font-size: 0.7rem;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  padding: 0.3rem 0.6rem;
+}
+
+.depth-chart-player-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.depth-chart-player-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.35rem 0.6rem;
+  border-bottom: 1px solid rgba(49, 61, 89, 0.07);
+  font-size: 0.82rem;
+}
+
+.depth-chart-player-row:last-child {
+  border-bottom: none;
+}
+
+.depth-chart-player-selected {
+  background: rgba(31, 111, 255, 0.08);
+  font-weight: 700;
+}
+
+.depth-chart-player-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: #1e2a47;
+}
+
+.depth-chart-role {
+  flex-shrink: 0;
+  font-size: 0.68rem;
+  color: #5a6788;
+  background: rgba(49, 61, 89, 0.07);
+  border-radius: 4px;
+  padding: 0.1rem 0.35rem;
+}
+
+.depth-chart-section {
+  flex-shrink: 0;
+  font-size: 0.68rem;
+  color: #4866a2;
+  background: rgba(31, 111, 255, 0.08);
+  border-radius: 4px;
+  padding: 0.1rem 0.35rem;
 }
 
 .player-stats-list {
