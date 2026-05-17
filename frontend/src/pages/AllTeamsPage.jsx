@@ -30,19 +30,29 @@ const ROSTER_SLOTS = [
   { key: "pitcher9", label: "P9" },
 ];
 
-function playerLabel(player) {
-  if (!player) {
-    return "Open Slot";
-  }
+const SORT_OPTIONS = [
+  { key: "fill", label: "Roster Fill" },
+  { key: "totalValue", label: "Est. Value" },
+  { key: "budgetLeft", label: "Budget Left" },
+  { key: "spent", label: "Budget Spent" },
+  { key: "name", label: "Team Name" },
+];
 
-  const bits = [player.name, player.team].filter(Boolean);
-  return bits.length > 0 ? bits.join(" • ") : "Rostered Player";
+function rosterFill(roster) {
+  return ROSTER_SLOTS.filter((slot) => roster[slot.key]).length;
+}
+
+function rosterTotalValue(roster) {
+  return ROSTER_SLOTS.reduce((sum, slot) => sum + (roster[slot.key]?.price || 0), 0);
 }
 
 function AllTeamsPage() {
   const { leagues, selectedLeagueId, isLoadingLeagues, setMyTeam } = useLeague();
   const [isSavingMyTeam, setIsSavingMyTeam] = useState(false);
   const [saveMyTeamError, setSaveMyTeamError] = useState("");
+  const [sortKey, setSortKey] = useState("fill");
+  const [sortDir, setSortDir] = useState("desc");
+  const [hiddenIds, setHiddenIds] = useState(new Set());
 
   const activeLeague = useMemo(() => {
     if (leagues.length === 0) return null;
@@ -51,15 +61,69 @@ function AllTeamsPage() {
 
   const rosters = Array.isArray(activeLeague?.rosterIds) ? activeLeague.rosterIds : [];
 
+  function toggleTeam(id) {
+    setHiddenIds((prev) => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+  }
+
+  function toggleAllTeams() {
+    if (hiddenIds.size === 0) {
+      setHiddenIds(new Set(rosters.map((r) => r._id)));
+    } else {
+      setHiddenIds(new Set());
+    }
+  }
+
+  function handleSort(key) {
+    if (sortKey === key) {
+      setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+    } else {
+      setSortKey(key);
+      setSortDir(key === "name" ? "asc" : "desc");
+    }
+  }
+
+  const sortedRosters = useMemo(() => {
+    const copy = [...rosters];
+    copy.sort((a, b) => {
+      if (sortKey === "name") {
+        const av = (a.name || "").toLowerCase();
+        const bv = (b.name || "").toLowerCase();
+        return sortDir === "asc" ? av.localeCompare(bv) : bv.localeCompare(av);
+      }
+      let av, bv;
+      if (sortKey === "budgetLeft") {
+        av = a.budgetLeft ?? activeLeague?.budgetCap ?? 0;
+        bv = b.budgetLeft ?? activeLeague?.budgetCap ?? 0;
+      } else if (sortKey === "spent") {
+        const cap = activeLeague?.budgetCap ?? 0;
+        av = cap - (a.budgetLeft ?? cap);
+        bv = cap - (b.budgetLeft ?? cap);
+      } else if (sortKey === "totalValue") {
+        av = rosterTotalValue(a);
+        bv = rosterTotalValue(b);
+      } else {
+        av = rosterFill(a);
+        bv = rosterFill(b);
+      }
+      return sortDir === "asc" ? av - bv : bv - av;
+    });
+    return copy;
+  }, [rosters, sortKey, sortDir, activeLeague]);
+
+  const visibleRosters = useMemo(
+    () => sortedRosters.filter((r) => !hiddenIds.has(r._id)),
+    [sortedRosters, hiddenIds]
+  );
+
   async function handleMyTeamChange(event) {
     const nextMyTeamId = event.target.value;
-    if (!activeLeague || !nextMyTeamId) {
-      return;
-    }
-
+    if (!activeLeague || !nextMyTeamId) return;
     setIsSavingMyTeam(true);
     setSaveMyTeamError("");
-
     try {
       await setMyTeam(activeLeague._id, nextMyTeamId);
     } catch (err) {
@@ -77,9 +141,7 @@ function AllTeamsPage() {
         <section className="app-content card">
           <p className="eyebrow">All Teams</p>
           <h1>League Team Summary</h1>
-          <p className="muted">
-            Compare every roster side by side in a draft-board style summary.
-          </p>
+          <p className="muted">Compare every roster side by side in a draft-board style summary.</p>
 
           {activeLeague ? (
             <div className="league-summary-strip">
@@ -120,9 +182,7 @@ function AllTeamsPage() {
                   onChange={handleMyTeamChange}
                   disabled={isSavingMyTeam}
                 >
-                  <option value="" disabled>
-                    -- Select a team --
-                  </option>
+                  <option value="" disabled>-- Select a team --</option>
                   {rosters.map((roster, index) => (
                     <option key={roster._id || `my-team-option-${index}`} value={roster._id}>
                       {roster.name || `Team ${index + 1}`}
@@ -132,46 +192,104 @@ function AllTeamsPage() {
               </div>
               {saveMyTeamError ? <p className="error">{saveMyTeamError}</p> : null}
 
+              <div className="sort-controls">
+                <span className="league-summary-label">Sort by</span>
+                {SORT_OPTIONS.map((opt) => {
+                  const active = sortKey === opt.key;
+                  return (
+                    <button
+                      key={opt.key}
+                      className={`sort-btn${active ? " sort-btn-active" : ""}`}
+                      onClick={() => handleSort(opt.key)}
+                    >
+                      {opt.label}
+                      {active ? (sortDir === "desc" ? " ↓" : " ↑") : ""}
+                    </button>
+                  );
+                })}
+              </div>
+
+              <div className="team-filter-row">
+                <span className="league-summary-label">Show Teams</span>
+                <button
+                  className={`sort-btn${hiddenIds.size === 0 ? " sort-btn-active" : ""}`}
+                  onClick={toggleAllTeams}
+                >
+                  All
+                </button>
+                {rosters.map((roster, index) => {
+                  const visible = !hiddenIds.has(roster._id);
+                  return (
+                    <button
+                      key={roster._id || index}
+                      className={`sort-btn team-filter-btn${visible ? " sort-btn-active" : ""}`}
+                      onClick={() => toggleTeam(roster._id)}
+                      title={roster.name || `Team ${index + 1}`}
+                    >
+                      {roster.name || `Team ${index + 1}`}
+                    </button>
+                  );
+                })}
+              </div>
+
               <div className="roster-board-wrap">
                 <div className="roster-board">
-                  {rosters.map((roster, index) => {
+                  {visibleRosters.length === 0 ? (
+                    <p className="muted" style={{ padding: "1rem" }}>No teams selected. Toggle teams above to show them.</p>
+                  ) : null}
+                  {visibleRosters.map((roster, index) => {
                     const isMyTeam = Boolean(activeLeague.myTeam) && String(activeLeague.myTeam) === String(roster._id);
+                    const fill = rosterFill(roster);
+                    const budgetLeft = roster.budgetLeft ?? activeLeague.budgetCap;
+                    const spent = activeLeague.budgetCap - budgetLeft;
+                    const estValue = rosterTotalValue(roster);
                     return (
-                      <article className="roster-column" key={roster._id || `${roster.name}-${index}`}>
+                      <article className={`roster-column${isMyTeam ? " roster-column-mine" : ""}`} key={roster._id || `${roster.name}-${index}`}>
                         <div className="roster-column-head">
-                          <h2>{roster.name || `Team ${index + 1}`}</h2>
-                          {isMyTeam ? <span className="my-team-badge">My Team</span> : null}
-                          <p className="muted">Budget Left: ${roster.budgetLeft ?? activeLeague.budgetCap}</p>
+                          <div className="roster-column-head-top">
+                            <h2>{roster.name || `Team ${index + 1}`}</h2>
+                            {isMyTeam ? <span className="my-team-badge">My Team</span> : null}
+                          </div>
+                          <div className="roster-head-stats">
+                            <span><span className="stat-label">Left</span> ${budgetLeft}</span>
+                            <span><span className="stat-label">Spent</span> ${spent}</span>
+                            <span><span className="stat-label">Val</span> ${estValue}</span>
+                            <span><span className="stat-label">Fill</span> {fill}/{ROSTER_SLOTS.length}</span>
+                          </div>
                         </div>
 
                         <div className="roster-slot-list">
                           {ROSTER_SLOTS.map((slot) => {
                             const player = roster[slot.key];
                             return (
-                              <div className="roster-slot-card" key={slot.key}>
+                              <div className={`roster-slot-card${!player ? " roster-slot-empty" : ""}`} key={slot.key}>
                                 <span className="roster-slot-label">{slot.label}</span>
-                                <div className="roster-slot-content">
-                                  <strong>{playerLabel(player)}</strong>
-                                  <span className="muted">
-                                    {player?.positions || (player ? "Rostered" : "Waiting for draft pick")}
-                                  </span>
-                                </div>
+                                {player ? (
+                                  <div className="roster-slot-content">
+                                    <span className="slot-name" title={player.name}>{player.name}</span>
+                                    <span className="slot-meta">
+                                      {[player.team, player.positions, player.price != null ? `$${player.price}` : null].filter(Boolean).join(" · ")}
+                                    </span>
+                                  </div>
+                                ) : (
+                                  <span className="slot-empty-label">Open</span>
+                                )}
                               </div>
                             );
                           })}
 
                           {Array.isArray(roster.taxiPlayers) && roster.taxiPlayers.length > 0 && (
-                            <div className="taxi-squad-divider" style={{ marginTop: "1rem", borderTop: "2px dashed #c8d2e9", paddingTop: "0.5rem" }}>
-                              <p className="eyebrow" style={{ textAlign: "center", marginBottom: "0.5rem" }}>Taxi Squad</p>
+                            <div className="taxi-squad-divider">
+                              <span className="eyebrow">Taxi Squad</span>
                             </div>
                           )}
-                          {Array.isArray(roster.taxiPlayers) && roster.taxiPlayers.map((player, index) => (
-                            <div className="roster-slot-card taxi-slot-card" key={`taxi-${player._id || index}`}>
+                          {Array.isArray(roster.taxiPlayers) && roster.taxiPlayers.map((player, i) => (
+                            <div className="roster-slot-card" key={`taxi-${player._id || i}`}>
                               <span className="roster-slot-label taxi-label">TAXI</span>
                               <div className="roster-slot-content">
-                                <strong>{player.name}{player.team ? ` • ${player.team}` : ""}</strong>
-                                <span className="muted">
-                                  {player.positions}
+                                <span className="slot-name" title={player.name}>{player.name}</span>
+                                <span className="slot-meta">
+                                  {[player.team, player.positions].filter(Boolean).join(" · ")}
                                 </span>
                               </div>
                             </div>
