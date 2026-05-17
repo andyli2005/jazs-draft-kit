@@ -8,7 +8,7 @@ import { dropCustomPlayer, dropPlayer, getDepthCharts } from "../leagues/request
 import RosterPageContent from "./RosterPageContent";
 
 function MyTeamPage() {
-  const { selectedLeague, selectedLeagueId, refreshLeagues } = useLeague();
+  const { selectedLeague, selectedLeagueId, refreshLeagues, patchRoster } = useLeague();
   const [selectedPlayer, setSelectedPlayer] = useState(null);
   const [panelRefreshKey, setPanelRefreshKey] = useState(0);
   const [depthCharts, setDepthCharts] = useState(null);
@@ -146,7 +146,13 @@ function MyTeamPage() {
               setSelectedPlayer(null);
             }}
             onContractSaved={async (savedDoc) => {
+              const priceDelta = (savedDoc.price ?? 0) - (selectedPlayer?.price ?? 0);
               setSelectedPlayer((prev) => prev ? { ...prev, price: savedDoc.price } : prev);
+              if (priceDelta !== 0 && myTeamRoster?._id) {
+                patchRoster(myTeamRoster._id, {
+                  budgetLeft: (myTeamRoster.budgetLeft ?? 0) - priceDelta,
+                });
+              }
               await refreshLeagues();
             }}
             refreshKey={panelRefreshKey}
