@@ -207,7 +207,6 @@ function mapPlayerToDocFields(licensedPlayer, existingDoc) {
     team: licensedPlayer.team,
     pictureURL: licensedPlayer.pictureURL || "",
     age: licensedPlayer.age ?? null,
-    contractStatus: licensedPlayer.contractStatus || "",
     latestNews: licensedPlayer.latestNews || "",
     depthChart: normalizeDepthChart(licensedPlayer.depthChart),
     height: licensedPlayer.height ?? null,
@@ -802,7 +801,6 @@ const upsertPlayerDoc = async (req, res) => {
       leagueId, personalNotes, name, status, injuryStatus, notes,
       positions, team, pictureURL, price, age, contractStatus, latestNews, depthChart, height, weight,
       currentStats, projectedStats, threeYearAverageStats,
-      contractStatus,
     } = req.body;
 
     if (!leagueId) {

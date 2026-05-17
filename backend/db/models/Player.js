@@ -45,7 +45,6 @@ const playerSchema = new mongoose.Schema(
     price:                 { type: Number, required: true },
     team:                  { type: String, required: true },
     age:                   { type: Number, default: null },
-    contractStatus:        { type: String, default: "" },
     latestNews:            { type: String, default: "" },
     depthChart:            { type: depthChartSchema, default: () => ({}) },
     weight:                { type: Number, default: null },

@@ -1590,6 +1590,8 @@
 
 .modal-search-input {
   width: 100%;
+}
+
 .modal-overlay {
   position: fixed;
   inset: 0;
@@ -1682,7 +1684,11 @@
   padding: 0.6rem 0.75rem;
   font: inherit;
   font-size: 0.95rem;
+  font-weight: 400;
+  color: #1e2a47;
+  background: #fff;
   box-sizing: border-box;
+  transition: border-color 0.15s, outline-color 0.15s;
 }
 
 .modal-search-input:focus {
@@ -1710,10 +1716,6 @@
   .player-search-modal-panel-wrap {
     max-height: 300px;
   }
-  font-weight: 400;
-  color: #1e2a47;
-  background: #fff;
-  transition: border-color 0.15s, outline-color 0.15s;
 }
 
 .modal-input:focus,

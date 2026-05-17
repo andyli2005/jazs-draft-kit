@@ -105,12 +105,12 @@ function Sidebar() {
           );
         }
 
-        return item.to === "/transactions" ? (
-          <div key="rosters-and-transactions" className="side-nav-group">
-            {renderRostersMenu()}
+        return item.to === "/my-team" ? (
+          <div key="my-team-and-rosters" className="side-nav-group">
             <NavLink to={item.to} end={item.to === "/"} className="side-link">
               {item.label}
             </NavLink>
+            {renderRostersMenu()}
           </div>
         ) : (
           <NavLink

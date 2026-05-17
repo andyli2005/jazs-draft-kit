@@ -2,6 +2,7 @@ const db = require("../db");
 const League = require("../db/models/League");
 const MLBRoster = require("../db/models/MLBRoster");
 const Player = require("../db/models/Player");
+const Transaction = require("../db/models/Transaction");
 
 const DEFAULT_TEAM_PREFIX = "Team";
 
@@ -374,7 +375,10 @@ const importFromLeague = async (req, res) => {
 
     const sourceRosters = populatedSource.rosterIds || [];
 
-    await Player.deleteMany({ leagueId: targetLeagueId });
+    await Promise.all([
+      Player.deleteMany({ leagueId: targetLeagueId }),
+      Transaction.deleteMany({ leagueId: targetLeagueId }),
+    ]);
 
     const newTargetRosterIds = [...(targetLeague.rosterIds || [])];
 
@@ -445,6 +449,24 @@ const importFromLeague = async (req, res) => {
     });
 
     await Promise.all(rosterUpdatePromises);
+
+    // Build source roster ID → target roster ID map for remapping transaction rosterId
+    const rosterIdMap = new Map();
+    sourceRosters.forEach((sourceRoster, index) => {
+      if (index < newTargetRosterIds.length) {
+        rosterIdMap.set(String(sourceRoster._id), String(newTargetRosterIds[index]));
+      }
+    });
+
+    const sourceTransactions = await Transaction.find({ leagueId: sourceId }).lean();
+    if (sourceTransactions.length > 0) {
+      const transactionCopies = sourceTransactions.map(({ _id, __v, createdAt, updatedAt, ...fields }) => ({
+        ...fields,
+        leagueId: targetLeagueId,
+        rosterId: fields.rosterId ? (rosterIdMap.get(String(fields.rosterId)) || null) : null,
+      }));
+      await Transaction.insertMany(transactionCopies);
+    }
 
     let newMyTeam = null;
     if (sourceLeague.myTeam) {
