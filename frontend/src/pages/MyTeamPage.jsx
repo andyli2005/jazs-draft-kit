@@ -1,16 +1,77 @@
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Header from "../components/Header";
 import PlayerStatsPanel from "../components/PlayerStatsPanel";
 import Sidebar from "../components/Sidebar";
 import { Link } from "react-router-dom";
 import { useLeague } from "../leagues";
-import { dropCustomPlayer, dropPlayer } from "../leagues/requests";
+import { dropCustomPlayer, dropPlayer, getDepthCharts } from "../leagues/requests";
 import RosterPageContent from "./RosterPageContent";
 
 function MyTeamPage() {
   const { selectedLeague, selectedLeagueId, refreshLeagues } = useLeague();
   const [selectedPlayer, setSelectedPlayer] = useState(null);
+  const [panelRefreshKey, setPanelRefreshKey] = useState(0);
+  const [depthCharts, setDepthCharts] = useState(null);
   const [actionError, setActionError] = useState("");
+
+  useEffect(() => {
+    let isMounted = true;
+    async function loadDepthCharts() {
+      try {
+        const data = await getDepthCharts();
+        if (isMounted) setDepthCharts(data.teams ?? null);
+      } catch {
+        // Depth charts are supplemental — fail silently.
+      }
+    }
+    loadDepthCharts();
+    return () => { isMounted = false; };
+  }, []);
+
+  const teamDepthChart = useMemo(() => {
+    if (!selectedPlayer?.team || !depthCharts) return null;
+    const teamData = depthCharts[selectedPlayer.team];
+    if (!teamData) return null;
+    return Object.entries(teamData)
+      .map(([position, posPlayers]) => ({
+        position,
+        players: posPlayers.map((p) => ({
+          name: p.name,
+          role: p.depthChart?.role,
+          section: p.depthChart?.section,
+          isSelected:
+            p.playerId === selectedPlayer.APIplayerId ||
+            p.name === selectedPlayer.name,
+        })),
+      }))
+      .sort((a, b) => a.position.localeCompare(b.position));
+  }, [selectedPlayer, depthCharts]);
+
+  useEffect(() => {
+    function handleLiveUpdate(event) {
+      const notice = event.detail;
+      const playerUpdate = notice?.player || {};
+      if (!playerUpdate.APIplayerId) return;
+
+      setSelectedPlayer((prev) => {
+        if (!prev || String(prev.APIplayerId) !== String(playerUpdate.APIplayerId)) return prev;
+        return {
+          ...prev,
+          status: playerUpdate.status || prev.status,
+          injuryStatus: playerUpdate.injuryStatus || prev.injuryStatus,
+          latestNews: playerUpdate.latestNews || prev.latestNews,
+          depthChart:
+            notice.type === "depthChart"
+              ? { ...(prev.depthChart || {}), ...(playerUpdate.depthChart || {}) }
+              : prev.depthChart,
+        };
+      });
+      setPanelRefreshKey((prev) => prev + 1);
+    }
+
+    window.addEventListener("draft-kit:player-live-update", handleLiveUpdate);
+    return () => window.removeEventListener("draft-kit:player-live-update", handleLiveUpdate);
+  }, []);
   const leagueRosters = Array.isArray(selectedLeague?.rosterIds) ? selectedLeague.rosterIds : [];
   const myTeamRoster = selectedLeague?.myTeam
     ? leagueRosters.find((roster) => String(roster._id) === String(selectedLeague.myTeam)) || null
@@ -84,6 +145,8 @@ function MyTeamPage() {
               await refreshLeagues();
               setSelectedPlayer(null);
             }}
+            refreshKey={panelRefreshKey}
+            teamDepthChart={teamDepthChart}
             scrollWithPage
             onClose={() => setSelectedPlayer(null)}
           />
