@@ -670,6 +670,26 @@ const getPlayers = async (req, res) => {
 
     let players = extractPlayers(data);
 
+    const customQuery = { leagueId, isCustom: true, ownerId: null, taxiRosterId: null };
+    if (req.query.name) {
+      customQuery.name = { $regex: new RegExp(req.query.name, "i") };
+    }
+    if (req.query.position) {
+      customQuery.positions = { $regex: new RegExp(req.query.position, "i") };
+    }
+    const customPlayers = await Player.find(customQuery).lean();
+
+    const mergedCustomPlayers = customPlayers.map((player) => ({
+      ...player,
+      APIplayerId: String(player._id),
+      isDrafted: false,
+      isTaxiDrafted: false,
+      cost: null,
+    }));
+
+    // Merge undrafted custom players
+    players = [...players, ...mergedCustomPlayers];
+
     const apiPlayerIds = players
       .map((player) => player.APIplayerId)
       .filter((id) => id != null && id !== "");
@@ -1722,7 +1742,22 @@ const draftTaxiPlayer = async (req, res) => {
       });
     }
 
-    const licensedPlayer = await fetchLicensedPlayerById(APIplayerId);
+    // Try fetching from upstream first, then fallback to local custom player
+    let licensedPlayer = null;
+    let isCustom = false;
+    try {
+      licensedPlayer = await fetchLicensedPlayerById(APIplayerId);
+    } catch (err) {
+      licensedPlayer = await Player.findOne({ _id: APIplayerId, leagueId, isCustom: true }).lean();
+      if (licensedPlayer) {
+        isCustom = true;
+      }
+    }
+
+    if (!licensedPlayer) {
+      return res.status(404).json({ errorMessage: "Player not found." });
+    }
+
     const normalizedStatus = String(licensedPlayer.status || "").trim().toLowerCase();
     const isActive = normalizedStatus === "active";
     if (!isActive && !hasTruthyOverride(inactiveOverrideAccepted)) {
@@ -1764,7 +1799,12 @@ const draftTaxiPlayer = async (req, res) => {
         throw createHttpError(400, "Taxi roster is full.");
       }
 
-      const existingDocQuery = Player.findOne({ APIplayerId, leagueId, isCustom: false });
+      const existingDocQuery = Player.findOne({ 
+        $or: [
+          { APIplayerId, leagueId, isCustom: false },
+          { _id: APIplayerId, leagueId, isCustom: true }
+        ]
+      });
       if (activeSession) existingDocQuery.session(activeSession);
       const existingDoc = await existingDocQuery;
 
@@ -1776,23 +1816,40 @@ const draftTaxiPlayer = async (req, res) => {
         throw createHttpError(409, "Player is already on a taxi roster.");
       }
 
-      const docFields = mapPlayerToDocFields(licensedPlayer, existingDoc);
+      const docFields = isCustom ? {} : mapPlayerToDocFields(licensedPlayer, existingDoc);
+      
+      const query = isCustom 
+        ? { _id: APIplayerId, leagueId, isCustom: true }
+        : { APIplayerId, leagueId, isCustom: false };
+
+      const updateData = isCustom
+        ? { 
+            $set: { 
+              price: 1, 
+              ownerId: null, 
+              bidStartedById: null,
+              taxiRosterId: rosterId,
+              taxiDraftedAt: new Date(), 
+            } 
+          }
+        : { 
+            $set: { 
+              APIplayerId, 
+              leagueId, 
+              isCustom: false, 
+              ...docFields, 
+              price: 1, 
+              ownerId: null, 
+              bidStartedById: null,
+              taxiRosterId: rosterId,
+              taxiDraftedAt: new Date(), 
+            } 
+          };
+
       const playerDoc = await Player.findOneAndUpdate(
-        { APIplayerId, leagueId, isCustom: false },
-        { 
-          $set: { 
-            APIplayerId, 
-            leagueId, 
-            isCustom: false, 
-            ...docFields, 
-            price: 1, 
-            ownerId: null, 
-            bidStartedById: null,
-            taxiRosterId: rosterId,
-            taxiDraftedAt: new Date(), 
-          } 
-        },
-        { upsert: true, new: true, runValidators: true, ...queryOptions }
+        query,
+        updateData,
+        { upsert: !isCustom, new: true, runValidators: true, ...queryOptions }
       );
 
       const updatedPlayerQuery = Player.findById(playerDoc._id);

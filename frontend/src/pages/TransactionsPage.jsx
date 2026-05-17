@@ -18,13 +18,15 @@ function isDateLike(value) {
 }
 
 function renderMessage(transaction, rosterMap) {
+  const teamName = rosterMap[String(transaction.rosterId)] || transaction.teamOwner;
   switch (transaction.actionType) {
     case "UpdatedNotes":
       return `You updated ${transaction.player}'s player notes.`;
     case "UpdatedPosition":
       return `You updated ${transaction.player}'s position.`;
+    case "TaxiDrafted":
+      return `${teamName} taxi drafted ${transaction.player}.`;
     default: {
-      const teamName = rosterMap[String(transaction.rosterId)] || transaction.teamOwner;
       return `${teamName} ${transaction.actionType.toLowerCase()} ${transaction.player} for $${transaction.draftCost}. ($${transaction.budgetLeft} left)`;
     }
   }
@@ -41,6 +43,7 @@ function renderCellValue(key, value, transaction, rosterMap) {
   // Safety string check with .startsWith method
   if (key === "actionType") {
     const actionType = typeof value === "string" ? value : "";
+    if (actionType === "TaxiDrafted") return "Taxi Drafted";
     if (actionType.startsWith("Updated")) return "Updated";
   }
   if ((key === "createdAt" || key === "updatedAt") && isDateLike(value)) {

@@ -365,16 +365,6 @@ describe("players-controller endpoints", () => {
     vi.spyOn(db, "getMLBRosterById")
       .mockResolvedValueOnce({ budgetLeft: 100, catcher1: null })
       .mockResolvedValueOnce({ budgetLeft: 90, catcher1: "x" });
-    vi.spyOn(Player, "find").mockReturnValue(
-      createQuery([
-        {
-          APIplayerId: "api-2",
-          ownerId: "roster-1",
-          bidStartedById: "roster-1",
-          price: 25,
-        },
-      ])
-    );
     global.fetch = vi.fn().mockResolvedValue({
       ok: true,
       json: async () => ({
@@ -408,6 +398,20 @@ describe("players-controller endpoints", () => {
     const req = { query: { leagueId: "league-1", rankBy: "cost", order: "asc" } };
     const res = createResponse();
 
+    const playerFindSpy = vi.spyOn(Player, "find").mockImplementation((query) => {
+      if (query.isCustom === true) {
+        return { lean: vi.fn().mockResolvedValue([]) };
+      }
+      return createQuery([
+        {
+          APIplayerId: "api-2",
+          ownerId: "roster-1",
+          bidStartedById: "roster-1",
+          price: 25,
+        },
+      ]);
+    });
+
     await playersController.getPlayers(req, res);
 
     expect(res.statusCode).toBe(200);
@@ -420,6 +424,7 @@ describe("players-controller endpoints", () => {
       leaguePrice: 25,
     });
     expect(res.jsonPayload.leagueState.moneyAboveMinimum).toBeGreaterThanOrEqual(0);
+    playerFindSpy.mockRestore();
   });
 
   it("getPlayers returns upstream errors", async () => {
