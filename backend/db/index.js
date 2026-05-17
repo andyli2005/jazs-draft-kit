@@ -62,7 +62,7 @@ class Database {
   async getUsersByUserName(userName)          { return User.find({ userName }); }
   async getUserByEmail(email)                 { return User.findOne({ email }); }
   async createUser(userData)                  { const newUser = new User({ leagues: [], ...userData }); return newUser.save(); }
-  async updateUserById(id, fieldsToUpdate)    { return User.findByIdAndUpdate(id, { $set: fieldsToUpdate }, { new: true }); }
+  async updateUserById(id, fieldsToUpdate)    { return User.findByIdAndUpdate(id, { $set: fieldsToUpdate }, { returnDocument: 'after' }); }
   async deleteUserById(id) {
     const deletedUser = await User.findByIdAndDelete(id);
     if (!deletedUser) {
@@ -92,7 +92,7 @@ class Database {
     const updatedUser = await User.findByIdAndUpdate(
       leagueData.user,
       { $addToSet: { leagues: savedLeague._id } },
-      { new: true }
+      { returnDocument: 'after' }
     );
 
     if (!updatedUser) {
@@ -178,7 +178,7 @@ class Database {
     });
   }
   async getLeagueById(id)                     { return League.findById(id); }
-  async updateLeagueById(id, fieldsToUpdate)  { return League.findByIdAndUpdate(id, { $set: fieldsToUpdate }, { new: true }); }
+  async updateLeagueById(id, fieldsToUpdate)  { return League.findByIdAndUpdate(id, { $set: fieldsToUpdate }, { returnDocument: 'after' }); }
   async deleteLeagueById(id) {
     const deletedLeague = await League.findByIdAndDelete(id);
     if (!deletedLeague) {
@@ -200,7 +200,7 @@ class Database {
     return Player.findOneAndUpdate(
       { APIplayerId, leagueId, isCustom: false },
       { $set: { APIplayerId, leagueId, isCustom: false, ...fields } },
-      { upsert: true, new: true, runValidators: true }
+      { upsert: true, returnDocument: 'after', runValidators: true }
     );
   }
 

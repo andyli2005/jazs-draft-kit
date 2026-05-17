@@ -438,7 +438,7 @@ const importFromLeague = async (req, res) => {
                 bidStartedById: null,
               },
             },
-            { upsert: true, new: true, runValidators: true }
+            { upsert: true, returnDocument: 'after', runValidators: true }
           );
         }
 

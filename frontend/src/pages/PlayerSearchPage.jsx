@@ -395,6 +395,10 @@ function PlayerSearchPage() {
               await refreshLeagues();
               await reloadPlayers();
             }}
+            onContractSaved={async () => {
+              await refreshLeagues();
+              await reloadPlayers();
+            }}
             refreshKey={panelRefreshKey}
             onClose={() => setSelectedPlayer(null)}
             teamDepthChart={teamDepthChart}

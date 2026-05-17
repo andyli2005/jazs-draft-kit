@@ -115,6 +115,15 @@ export function LeagueProvider({ children }) {
     return nextLeagues;
   }, []);
 
+  const patchRoster = useCallback((rosterId, fields) => {
+    setLeagues((prev) => prev.map((league) => ({
+      ...league,
+      rosterIds: (league.rosterIds || []).map((roster) =>
+        String(roster._id) === String(rosterId) ? { ...roster, ...fields } : roster
+      ),
+    })));
+  }, []);
+
   const createLeague = useCallback(async (payload) => {
     const response = await createLeagueRequest(payload);
     await refreshLeagues();
@@ -153,6 +162,7 @@ export function LeagueProvider({ children }) {
       setMyTeam,
       editLeague,
       refreshLeagues,
+      patchRoster,
       selectLeague,
       clearSelectedLeague,
     }),
@@ -165,6 +175,7 @@ export function LeagueProvider({ children }) {
       setMyTeam,
       editLeague,
       refreshLeagues,
+      patchRoster,
       selectLeague,
       clearSelectedLeague,
     ]
