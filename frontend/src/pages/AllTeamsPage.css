@@ -55,6 +55,10 @@
   flex-wrap: wrap;
 }
 
+.draft-btn {
+  margin-left: auto;
+}
+
 .my-team-select {
   min-width: 220px;
   border: 1px solid #c8d2e9;

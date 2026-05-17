@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import Header from "../components/Header";
 import Sidebar from "../components/Sidebar";
 import { useLeague } from "../leagues";
@@ -40,6 +41,7 @@ function playerLabel(player) {
 }
 
 function AllTeamsPage() {
+  const navigate = useNavigate();
   const { leagues, selectedLeagueId, isLoadingLeagues, setMyTeam } = useLeague();
   const [isSavingMyTeam, setIsSavingMyTeam] = useState(false);
   const [saveMyTeamError, setSaveMyTeamError] = useState("");
@@ -129,6 +131,12 @@ function AllTeamsPage() {
                     </option>
                   ))}
                 </select>
+                <button
+                  className="btn btn-primary draft-btn"
+                  onClick={() => navigate("/player-search")}
+                >
+                  Draft
+                </button>
               </div>
               {saveMyTeamError ? <p className="error">{saveMyTeamError}</p> : null}
 
