@@ -302,6 +302,23 @@ function AllTeamsPage() {
                               </div>
                             </div>
                           ))}
+
+                          {Array.isArray(roster.minorLeaguePlayers) && roster.minorLeaguePlayers.length > 0 && (
+                            <div className="taxi-squad-divider">
+                              <span className="eyebrow">Minor League</span>
+                            </div>
+                          )}
+                          {Array.isArray(roster.minorLeaguePlayers) && roster.minorLeaguePlayers.map((player, i) => (
+                            <div className="roster-slot-card" key={`minor-league-${player._id || i}`}>
+                              <span className="roster-slot-label taxi-label">MIN</span>
+                              <div className="roster-slot-content">
+                                <span className="slot-name" title={player.name}>{player.name}</span>
+                                <span className="slot-meta">
+                                  {[player.team, player.positions].filter(Boolean).join(" · ")}
+                                </span>
+                              </div>
+                            </div>
+                          ))}
                         </div>
                       </article>
                     );

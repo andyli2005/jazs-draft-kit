@@ -11,6 +11,7 @@ import ApiDashboardPage from "./pages/ApiDashboardPage";
 import CustomPlayersPage from "./pages/CustomPlayersPage";
 import LoggedInHomePage from "./pages/LoggedInHomePage";
 import LoginPage from "./pages/LoginPage";
+import MinorLeagueDraftPage from "./pages/MinorLeagueDraftPage.jsx";
 import MyTeamPage from "./pages/MyTeamPage";
 import PlayerSearchPage from "./pages/PlayerSearchPage";
 import PublicHomePage from "./pages/PublicHomePage";
@@ -118,6 +119,14 @@ function App() {
           element={
             <LeagueProtectedRoute isLoggedIn={isLoggedIn} hasSelectedLeague={hasSelectedLeague}>
               <TaxiDraftPage />
+            </LeagueProtectedRoute>
+          }
+        />
+        <Route
+          path="/minor-league"
+          element={
+            <LeagueProtectedRoute isLoggedIn={isLoggedIn} hasSelectedLeague={hasSelectedLeague}>
+              <MinorLeagueDraftPage />
             </LeagueProtectedRoute>
           }
         />

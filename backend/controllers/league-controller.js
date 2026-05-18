@@ -270,6 +270,16 @@ const editLeague = async (req, res) => {
       await Player.updateMany(
         {
           leagueId: league._id,
+          minorLeagueRosterId: { $in: deleteArray },
+        },
+        {
+          $set: { minorLeagueRosterId: null, minorLeagueDraftedAt: null, price: 0 },
+        }
+      );
+
+      await Player.updateMany(
+        {
+          leagueId: league._id,
           bidStartedById: { $in: deleteArray },
         },
         {

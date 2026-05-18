@@ -158,6 +158,20 @@ export function draftTaxiPlayer(APIplayerId, payload) {
   });
 }
 
+export function draftMinorLeaguePlayer(APIplayerId, payload) {
+  return request(`/api/players/${normalizePathId(APIplayerId)}/minor-league`, {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export function moveMinorLeaguePlayer(APIplayerId, payload) {
+  return request(`/api/players/${normalizePathId(APIplayerId)}/minor-league/move`, {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
 export function draftCustomPlayer(playerId, payload) {
   return request(`/api/players/custom/${normalizePathId(playerId)}/draft`, {
     method: "POST",

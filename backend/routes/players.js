@@ -18,6 +18,8 @@ router.post("/:APIplayerId/draft", auth.verify, PlayersController.draftPlayer);
 router.post("/:APIplayerId/drop", auth.verify, PlayersController.dropPlayer);
 router.post("/:APIplayerId/move", auth.verify, PlayersController.movePlayer);
 router.post("/:APIplayerId/taxi", auth.verify, PlayersController.draftTaxiPlayer);
+router.post("/:APIplayerId/minor-league", auth.verify, PlayersController.draftMinorLeaguePlayer);
+router.post("/:APIplayerId/minor-league/move", auth.verify, PlayersController.moveMinorLeaguePlayer);
 router.get("/", auth.verify, PlayersController.getPlayers);
 
 module.exports = router;

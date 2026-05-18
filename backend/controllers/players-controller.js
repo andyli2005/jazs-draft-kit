@@ -51,6 +51,7 @@ const STAT_KEYS = [
   "fantasyPoints",
 ];
 const MAX_TAXI_PLAYERS = 9;
+const MAX_MINOR_LEAGUE_PLAYERS = 9;
 const EMPTY_DEPTH_CHART = Object.freeze({
   position: "",
   rank: null,
@@ -89,6 +90,12 @@ function normalizeStatBlock(block) {
 function normalizeNumberField(value) {
   const number = Number(value);
   return Number.isFinite(number) ? number : null;
+}
+
+function normalizeBooleanField(value, defaultValue = true) {
+  if (value === undefined || value === null || value === "") return defaultValue;
+  if (typeof value === "boolean") return value;
+  return String(value).trim().toLowerCase() !== "false";
 }
 
 function normalizeTextField(value) {
@@ -151,6 +158,7 @@ function normalizeApiPlayer(rawPlayer) {
     currentStats: normalizeStatBlock(rawPlayer.currentStats),
     projectedStats: normalizeStatBlock(rawPlayer.projectedStats),
     threeYearAverageStats: normalizeStatBlock(rawPlayer.threeYearAverageStats),
+    isMajor: rawPlayer.isMajor !== false,
   };
 }
 
@@ -196,6 +204,15 @@ function buildLicensedPlayerIdentifierQuery(playerIdentifier, leagueId) {
   };
 }
 
+function buildAnyPlayerIdentifierOrClauses(playerIdentifier) {
+  const identifier = String(playerIdentifier || "").trim();
+  const orClauses = [{ APIplayerId: identifier, isCustom: false }];
+  if (mongoose.Types.ObjectId.isValid(identifier)) {
+    orClauses.push({ _id: identifier, isCustom: true });
+  }
+  return orClauses;
+}
+
 function mapPlayerToDocFields(licensedPlayer, existingDoc) {
   const injuryStatus = normalizeInjuryStatusField(licensedPlayer.injuryStatus || licensedPlayer.status);
   return {
@@ -218,6 +235,7 @@ function mapPlayerToDocFields(licensedPlayer, existingDoc) {
     currentStats: licensedPlayer.currentStats,
     projectedStats: licensedPlayer.projectedStats,
     threeYearAverageStats: licensedPlayer.threeYearAverageStats,
+    isMajor: licensedPlayer.isMajor !== false,
   };
 }
 
@@ -330,6 +348,7 @@ function extractPlayers(payload) {
     currentStats: player.currentStats || {},
     projectedStats: player.projectedStats || {},
     threeYearAverageStats: player.threeYearAverageStats || {},
+    isMajor: player.isMajor !== false,
     ...player.currentStats,
   }));
 }
@@ -400,6 +419,7 @@ const createCustomPlayer = async (req, res) => {
       team,
       pictureURL,
       personalNotes,
+      isMajor,
     } = req.body || {};
 
     if (!leagueId) {
@@ -417,6 +437,7 @@ const createCustomPlayer = async (req, res) => {
     const playerDoc = await Player.create({
       leagueId,
       isCustom: true,
+      isMajor: normalizeBooleanField(isMajor, true),
       APIplayerId: null,
       name: String(name).trim(),
       status: String(status).trim(),
@@ -482,6 +503,15 @@ const updateCustomPlayer = async (req, res) => {
     }
     if (req.body.threeYearAverageStats != null) {
       playerDoc.threeYearAverageStats = normalizeStatBlock(req.body.threeYearAverageStats);
+    }
+
+    if (req.body.isMajor !== undefined) {
+      if (playerDoc.ownerId || playerDoc.taxiRosterId || playerDoc.minorLeagueRosterId) {
+        return res.status(400).json({
+          errorMessage: "Player level cannot be changed after the player is on a roster.",
+        });
+      }
+      playerDoc.isMajor = normalizeBooleanField(req.body.isMajor, true);
     }
 
     const priceBeforeSave = Number(playerDoc.price) || 0;
@@ -661,6 +691,10 @@ const getPlayers = async (req, res) => {
   if (league.playerLeagueType === "AL" || league.playerLeagueType === "NL") {
     upstreamQuery.leagueType = league.playerLeagueType;
   }
+  const wantsMinorPlayers = req.query.playerLevel === "minor" || req.query.isMajor === "false";
+  if (wantsMinorPlayers) {
+    upstreamQuery.playerLevel = "minor";
+  }
 
   const url = buildUpstreamUrl(upstreamQuery, "/api/players/evaluations");
   const draftedPlayers = await db.getDraftedPlayers(leagueId);
@@ -704,7 +738,14 @@ const getPlayers = async (req, res) => {
 
     // Custom players only appear on the first page to avoid duplicates
     if (upstreamPage === 1) {
-      const customQuery = { leagueId, isCustom: true, ownerId: null, taxiRosterId: null };
+      const customQuery = {
+        leagueId,
+        isCustom: true,
+        ownerId: null,
+        taxiRosterId: null,
+        minorLeagueRosterId: null,
+        isMajor: wantsMinorPlayers ? false : { $ne: false },
+      };
       if (req.query.name) {
         customQuery.name = { $regex: new RegExp(req.query.name, "i") };
       }
@@ -717,6 +758,7 @@ const getPlayers = async (req, res) => {
         APIplayerId: String(player._id),
         isDrafted: false,
         isTaxiDrafted: false,
+        isMinorLeagueDrafted: false,
         cost: null,
       }));
       players = [...players, ...mergedCustomPlayers];
@@ -730,7 +772,7 @@ const getPlayers = async (req, res) => {
     if (apiPlayerIds.length > 0) {
       const localPlayerDocs = await Player.find(
         { leagueId, APIplayerId: { $in: apiPlayerIds }, isCustom: false },
-        "APIplayerId ownerId bidStartedById price taxiRosterId taxiDraftedAt contractStatus"
+        "APIplayerId ownerId bidStartedById price taxiRosterId taxiDraftedAt minorLeagueRosterId minorLeagueDraftedAt contractStatus isMajor"
       ).lean();
       localPlayerMap = new Map(
         localPlayerDocs.map((doc) => [String(doc.APIplayerId), doc])
@@ -741,13 +783,18 @@ const getPlayers = async (req, res) => {
       const localDoc = localPlayerMap.get(String(player.APIplayerId));
       const isDrafted = Boolean(localDoc?.ownerId);
       const isTaxiDrafted = Boolean(localDoc?.taxiRosterId);
+      const isMinorLeagueDrafted = Boolean(localDoc?.minorLeagueRosterId);
       return {
         ...player,
+        isMajor: localDoc?.isMajor ?? player.isMajor ?? true,
         isDrafted,
         isTaxiDrafted,
+        isMinorLeagueDrafted,
         draftOwnerId: localDoc?.ownerId ? String(localDoc.ownerId) : null,
         taxiRosterId: localDoc?.taxiRosterId ? String(localDoc.taxiRosterId) : null,
         taxiDraftedAt: localDoc?.taxiDraftedAt ?? null,
+        minorLeagueRosterId: localDoc?.minorLeagueRosterId ? String(localDoc.minorLeagueRosterId) : null,
+        minorLeagueDraftedAt: localDoc?.minorLeagueDraftedAt ?? null,
         bidStartedById: localDoc?.bidStartedById ? String(localDoc.bidStartedById) : null,
         leaguePrice: localDoc?.price ?? null,
         contractStatus: localDoc?.contractStatus ?? null,
@@ -1015,6 +1062,9 @@ const draftPlayer = async (req, res) => {
     }
 
     const licensedPlayer = await fetchLicensedPlayerById(APIplayerId);
+    if (licensedPlayer.isMajor === false) {
+      return res.status(400).json({ errorMessage: "Minor league players cannot be drafted to a major league roster." });
+    }
     const normalizedStatus = String(licensedPlayer.status || "").trim().toLowerCase();
     const isActive = normalizedStatus === "active";
     if (!isActive && !hasTruthyOverride(inactiveOverrideAccepted)) {
@@ -1075,6 +1125,9 @@ const draftPlayer = async (req, res) => {
       }
       if (existingDoc?.taxiRosterId) {
         throw createHttpError(409, "Player is already on a taxi roster.");
+      }
+      if (existingDoc?.minorLeagueRosterId) {
+        throw createHttpError(409, "Player is already on a minor league roster.");
       }
 
       const docFields = mapPlayerToDocFields(licensedPlayer, existingDoc);
@@ -1471,6 +1524,9 @@ const draftCustomPlayer = async (req, res) => {
       if (!playerDoc) {
         throw createHttpError(404, "Custom player not found for this league.");
       }
+      if (playerDoc.isMajor === false) {
+        throw createHttpError(400, "Minor league players cannot be drafted to a major league roster.");
+      }
 
       const normalizedStatus = String(playerDoc.status || "").trim().toLowerCase();
       const isActive = normalizedStatus === "active";
@@ -1483,6 +1539,12 @@ const draftCustomPlayer = async (req, res) => {
           throw createHttpError(409, "Player is already drafted to the selected roster.");
         }
         throw createHttpError(409, "Player is already drafted in this league.");
+      }
+      if (playerDoc.taxiRosterId) {
+        throw createHttpError(409, "Player is already on a taxi roster.");
+      }
+      if (playerDoc.minorLeagueRosterId) {
+        throw createHttpError(409, "Player is already on a minor league roster.");
       }
 
       const claimResult = await Player.updateOne(
@@ -1861,6 +1923,9 @@ const draftTaxiPlayer = async (req, res) => {
       if (existingDoc?.taxiRosterId) {
         throw createHttpError(409, "Player is already on a taxi roster.");
       }
+      if (existingDoc?.minorLeagueRosterId) {
+        throw createHttpError(409, "Player is already on a minor league roster.");
+      }
 
       const docFields = isCustom ? {} : mapPlayerToDocFields(licensedPlayer, existingDoc);
       
@@ -1940,6 +2005,267 @@ const draftTaxiPlayer = async (req, res) => {
   }
 };
 
+const draftMinorLeaguePlayer = async (req, res) => {
+  let session = null;
+  try {
+    const { APIplayerId } = req.params;
+    const { leagueId, rosterId, inactiveOverrideAccepted } = req.body || {};
+
+    if (!leagueId || !rosterId) {
+      return res.status(400).json({
+        errorMessage: "leagueId and rosterId are required.",
+      });
+    }
+
+    let licensedPlayer = null;
+    let isCustom = false;
+    try {
+      licensedPlayer = await fetchLicensedPlayerById(APIplayerId);
+    } catch {
+      licensedPlayer = await Player.findOne({ _id: APIplayerId, leagueId, isCustom: true }).lean();
+      if (licensedPlayer) {
+        isCustom = true;
+      }
+    }
+
+    if (!licensedPlayer) {
+      return res.status(404).json({ errorMessage: "Player not found." });
+    }
+
+    if (licensedPlayer.isMajor !== false) {
+      return res.status(400).json({ errorMessage: "Only minor league players can be added to a minor league roster." });
+    }
+
+    const normalizedStatus = String(licensedPlayer.status || "").trim().toLowerCase();
+    const isActive = normalizedStatus === "active";
+    if (!isActive && !hasTruthyOverride(inactiveOverrideAccepted)) {
+      return res.status(400).json({
+        errorMessage: "Player is not currently active. Confirm inactive override to continue.",
+      });
+    }
+
+    let updatedPlayerDoc = null;
+    let updatedRoster = null;
+
+    const applyMinorLeagueDraftMutation = async (activeSession = null) => {
+      const queryOptions = activeSession ? { session: activeSession } : {};
+      const league = await getAuthorizedLeague(leagueId, req.userId, activeSession);
+
+      const rosterIdsInLeague = new Set((league.rosterIds || []).map((id) => String(id)));
+      if (!rosterIdsInLeague.has(String(rosterId))) {
+        throw createHttpError(400, "Selected roster does not belong to this league.");
+      }
+
+      const rosterQuery = MLBRoster.findById(rosterId);
+      if (activeSession) rosterQuery.session(activeSession);
+      const minorLeagueRoster = await rosterQuery;
+      if (!minorLeagueRoster) {
+        throw createHttpError(404, "Minor league roster not found.");
+      }
+
+      const numberOfMinorLeaguePlayers = await db.countDraftedMinorLeaguePlayers(leagueId, rosterId, queryOptions);
+      if (numberOfMinorLeaguePlayers >= MAX_MINOR_LEAGUE_PLAYERS) {
+        throw createHttpError(400, "Minor league roster is full.");
+      }
+
+      const existingDocQuery = Player.findOne({
+        $or: [
+          { APIplayerId, leagueId, isCustom: false },
+          { _id: APIplayerId, leagueId, isCustom: true },
+        ],
+      });
+      if (activeSession) existingDocQuery.session(activeSession);
+      const existingDoc = await existingDocQuery;
+
+      if (existingDoc?.ownerId) {
+        throw createHttpError(409, "Player is already drafted.");
+      }
+      if (existingDoc?.taxiRosterId) {
+        throw createHttpError(409, "Player is already on a taxi roster.");
+      }
+      if (existingDoc?.minorLeagueRosterId) {
+        throw createHttpError(409, "Player is already on a minor league roster.");
+      }
+
+      const docFields = isCustom ? {} : mapPlayerToDocFields(licensedPlayer, existingDoc);
+      const query = isCustom
+        ? { _id: APIplayerId, leagueId, isCustom: true, isMajor: false }
+        : { APIplayerId, leagueId, isCustom: false };
+      const updateData = isCustom
+        ? {
+            $set: {
+              price: 0,
+              ownerId: null,
+              bidStartedById: null,
+              minorLeagueRosterId: rosterId,
+              minorLeagueDraftedAt: new Date(),
+            },
+          }
+        : {
+            $set: {
+              APIplayerId,
+              leagueId,
+              isCustom: false,
+              ...docFields,
+              isMajor: false,
+              price: 0,
+              ownerId: null,
+              bidStartedById: null,
+              minorLeagueRosterId: rosterId,
+              minorLeagueDraftedAt: new Date(),
+            },
+          };
+
+      const playerDoc = await Player.findOneAndUpdate(
+        query,
+        updateData,
+        { upsert: !isCustom, returnDocument: "after", runValidators: true, ...queryOptions }
+      );
+      if (!playerDoc) {
+        throw createHttpError(404, "Minor league player not found.");
+      }
+
+      const updatedPlayerQuery = Player.findById(playerDoc._id);
+      if (activeSession) updatedPlayerQuery.session(activeSession);
+      updatedPlayerDoc = await updatedPlayerQuery;
+      updatedRoster = minorLeagueRoster;
+
+      const data = {
+        teamOwner: updatedRoster?.name || "Unknown Team",
+        player: updatedPlayerDoc?.name || "Unknown Player",
+        actionType: "MinorLeagueDrafted",
+        draftCost: 0,
+        budgetLeft: Number(updatedRoster?.budgetLeft ?? 0),
+        leagueId,
+        rosterId,
+      };
+      await db.createTransaction(data, queryOptions);
+    };
+
+    session = await mongoose.startSession();
+    try {
+      await session.withTransaction(async () => {
+        await applyMinorLeagueDraftMutation(session);
+      });
+    } catch (error) {
+      if (!isTransactionUnsupportedError(error)) {
+        throw error;
+      }
+      await applyMinorLeagueDraftMutation(null);
+    }
+
+    return res.status(200).json({ playerDoc: updatedPlayerDoc, roster: updatedRoster });
+  } catch (err) {
+    console.error(err);
+    return res.status(err.status || 500).json({ errorMessage: err.message || "Error drafting minor league player." });
+  } finally {
+    if (session) {
+      await session.endSession();
+    }
+  }
+};
+
+const moveMinorLeaguePlayer = async (req, res) => {
+  let session = null;
+  try {
+    const { APIplayerId } = req.params;
+    const { leagueId, fromRosterId, toRosterId } = req.body || {};
+
+    if (!leagueId || !fromRosterId || !toRosterId) {
+      return res.status(400).json({
+        errorMessage: "leagueId, fromRosterId, and toRosterId are required.",
+      });
+    }
+    if (String(fromRosterId) === String(toRosterId)) {
+      return res.status(400).json({ errorMessage: "Select a different destination team." });
+    }
+
+    let updatedPlayerDoc = null;
+    let updatedRoster = null;
+
+    const applyMoveMinorLeagueMutation = async (activeSession = null) => {
+      const queryOptions = activeSession ? { session: activeSession } : {};
+      const league = await getAuthorizedLeague(leagueId, req.userId, activeSession);
+
+      const rosterIdsInLeague = new Set((league.rosterIds || []).map((id) => String(id)));
+      if (!rosterIdsInLeague.has(String(fromRosterId)) || !rosterIdsInLeague.has(String(toRosterId))) {
+        throw createHttpError(400, "Selected roster does not belong to this league.");
+      }
+
+      const destinationRosterQuery = MLBRoster.findById(toRosterId);
+      if (activeSession) destinationRosterQuery.session(activeSession);
+      const destinationRoster = await destinationRosterQuery;
+      if (!destinationRoster) {
+        throw createHttpError(404, "Destination roster not found.");
+      }
+
+      const numberOfMinorLeaguePlayers = await db.countDraftedMinorLeaguePlayers(leagueId, toRosterId, queryOptions);
+      if (numberOfMinorLeaguePlayers >= MAX_MINOR_LEAGUE_PLAYERS) {
+        throw createHttpError(400, "Destination minor league roster is full.");
+      }
+
+      const playerDocQuery = Player.findOne({
+        leagueId,
+        $or: buildAnyPlayerIdentifierOrClauses(APIplayerId),
+      });
+      if (activeSession) playerDocQuery.session(activeSession);
+      const playerDoc = await playerDocQuery;
+      if (!playerDoc) {
+        throw createHttpError(404, "Minor league player not found.");
+      }
+      if (!playerDoc.minorLeagueRosterId || String(playerDoc.minorLeagueRosterId) !== String(fromRosterId)) {
+        throw createHttpError(400, "Player is not on the selected minor league roster.");
+      }
+
+      const moveResult = await Player.updateOne(
+        { _id: playerDoc._id, minorLeagueRosterId: fromRosterId },
+        { $set: { minorLeagueRosterId: toRosterId, minorLeagueDraftedAt: new Date() } },
+        queryOptions
+      );
+      if (moveResult.modifiedCount !== 1) {
+        throw createHttpError(409, "Minor league roster changed before move could be applied.");
+      }
+
+      const updatedPlayerQuery = Player.findById(playerDoc._id);
+      if (activeSession) updatedPlayerQuery.session(activeSession);
+      updatedPlayerDoc = await updatedPlayerQuery;
+      updatedRoster = destinationRoster;
+
+      const data = {
+        teamOwner: updatedRoster?.name || "Unknown Team",
+        player: updatedPlayerDoc?.name || "Unknown Player",
+        actionType: "MinorLeagueMoved",
+        draftCost: 0,
+        budgetLeft: Number(updatedRoster?.budgetLeft ?? 0),
+        leagueId,
+        rosterId: toRosterId,
+      };
+      await db.createTransaction(data, queryOptions);
+    };
+
+    session = await mongoose.startSession();
+    try {
+      await session.withTransaction(async () => {
+        await applyMoveMinorLeagueMutation(session);
+      });
+    } catch (error) {
+      if (!isTransactionUnsupportedError(error)) {
+        throw error;
+      }
+      await applyMoveMinorLeagueMutation(null);
+    }
+
+    return res.status(200).json({ playerDoc: updatedPlayerDoc, roster: updatedRoster });
+  } catch (err) {
+    console.error(err);
+    return res.status(err.status || 500).json({ errorMessage: err.message || "Error moving minor league player." });
+  } finally {
+    if (session) {
+      await session.endSession();
+    }
+  }
+};
+
 module.exports = {
   getPlayers,
   getDepthCharts,
@@ -1952,6 +2278,8 @@ module.exports = {
   upsertPlayerDoc,
   draftPlayer,
   draftTaxiPlayer,
+  draftMinorLeaguePlayer,
+  moveMinorLeaguePlayer,
   draftCustomPlayer,
   dropPlayer,
   dropCustomPlayer,
