@@ -16,6 +16,7 @@ import {
 const TABLE_COLUMNS = [
   { label: "Name", key: "name" },
   { label: "Status", key: "status" },
+  { label: "Level", key: "level" },
   { label: "Picture URL", key: "pictureURL" },
   { label: "Positions", key: "positions" },
   { label: "Team", key: "team" },
@@ -90,6 +91,8 @@ function flattenPlayerForTable(playerDoc) {
     isDrafted: Boolean(playerDoc?.ownerId),
     draftOwnerId: playerDoc?.ownerId ? String(playerDoc.ownerId) : null,
     leaguePrice: playerDoc?.price ?? 0,
+    isMajor: playerDoc?.isMajor !== false,
+    level: playerDoc?.isMajor === false ? "Minor League" : "Major League",
   };
 }
 
@@ -121,6 +124,18 @@ function CreateCustomPlayerModal({ open, formState, onChange, onCancel, onConfir
               />
             </label>
           ))}
+          <label className="modal-label">
+            <span>Player Level</span>
+            <select
+              className="modal-input"
+              value={formState.isMajor === false ? "minor" : "major"}
+              onChange={(event) => onChange("isMajor", event.target.value !== "minor")}
+              disabled={isSubmitting}
+            >
+              <option value="major">Major League</option>
+              <option value="minor">Minor League</option>
+            </select>
+          </label>
           <label className="modal-label">
             <span>Positions</span>
             <PositionChecklistDropdown
@@ -172,6 +187,7 @@ function CustomPlayersPage() {
     status: "Active",
     positions: [],
     team: "",
+    isMajor: true,
   });
 
   useEffect(() => {
@@ -226,7 +242,7 @@ function CustomPlayersPage() {
   const normalizedSearch = search.trim().toLowerCase();
   const searchedPlayers = normalizedSearch
     ? players.filter((player) =>
-        [player.name, player.team, player.positions, player.status]
+        [player.name, player.team, player.positions, player.status, player.level]
           .some((value) => String(value || "").toLowerCase().includes(normalizedSearch))
       )
     : players;
@@ -306,6 +322,7 @@ function CustomPlayersPage() {
       status: "Active",
       positions: [],
       team: "",
+      isMajor: true,
     });
     setCreateError("");
     setShowCreateModal(true);
@@ -329,6 +346,7 @@ function CustomPlayersPage() {
       status: createForm.status.trim(),
       positions: formatPositionsString(createForm.positions),
       team: createForm.team.trim(),
+      isMajor: createForm.isMajor !== false,
     };
     const hasAllRequired =
       CREATE_FIELDS.every((field) => payload[field.key].length > 0) &&

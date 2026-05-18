@@ -8,7 +8,7 @@ const Player = require("./models/Player");
 class Database {
   constructor() {
     this.rosterPlayerSelect =
-      "name status injuryStatus positions team pictureURL price age contractStatus latestNews depthChart height weight APIplayerId currentStats projectedStats threeYearAverageStats isCustom";
+      "name status injuryStatus positions team pictureURL price age contractStatus latestNews depthChart height weight APIplayerId currentStats projectedStats threeYearAverageStats isCustom isMajor";
     this.leaguePopulate = {
       path: "rosterIds",
       populate: [
@@ -115,7 +115,7 @@ class Database {
     }
 
     if (user.leagues.length > 0) {
-      return this.attachTaxiPlayersToLeagues(user.leagues);
+      return this.attachRosterReservePlayersToLeagues(user.leagues);
     }
 
     const leagues = await League.find({ user: userId })
@@ -128,11 +128,11 @@ class Database {
       });
     }
 
-    return this.attachTaxiPlayersToLeagues(leagues);
+    return this.attachRosterReservePlayersToLeagues(leagues);
   }
 
-  // Make one query to retrieve all taxi players for every league, instead of constantly querying DB for individual players
-  async attachTaxiPlayersToLeagues(leagues) {
+  // Make reserve-player queries once per league list instead of per roster.
+  async attachRosterReservePlayersToLeagues(leagues) {
     const leagueList = Array.isArray(leagues) ? leagues : [];
     const leagueIds = leagueList.map((league) => league?._id).filter(Boolean);
 
@@ -145,12 +145,20 @@ class Database {
       return leagues;
     }
 
-    const taxiPlayers = await Player.find({
-      leagueId: { $in: leagueIds },
-      taxiRosterId: { $in: rosterIds },
-    })
-      .select(`${this.rosterPlayerSelect} taxiRosterId taxiDraftedAt isCustom`)
-      .lean();
+    const [taxiPlayers, minorLeaguePlayers] = await Promise.all([
+      Player.find({
+        leagueId: { $in: leagueIds },
+        taxiRosterId: { $in: rosterIds },
+      })
+        .select(`${this.rosterPlayerSelect} taxiRosterId taxiDraftedAt isCustom`)
+        .lean(),
+      Player.find({
+        leagueId: { $in: leagueIds },
+        minorLeagueRosterId: { $in: rosterIds },
+      })
+        .select(`${this.rosterPlayerSelect} minorLeagueRosterId minorLeagueDraftedAt isCustom isMajor`)
+        .lean(),
+    ]);
 
     const taxiPlayersByRosterId = new Map();
     taxiPlayers.forEach((player) => {
@@ -163,7 +171,18 @@ class Database {
       taxiPlayersByRosterId.set(rosterId, rosterPlayers);
     });
 
-    // Add the taxi players as new field for league object so frontend has access
+    const minorLeaguePlayersByRosterId = new Map();
+    minorLeaguePlayers.forEach((player) => {
+      const rosterId = String(player.minorLeagueRosterId || "");
+      if (!rosterId) return;
+
+      const rosterPlayers = minorLeaguePlayersByRosterId.get(rosterId) || [];
+      rosterPlayers.push(player);
+
+      minorLeaguePlayersByRosterId.set(rosterId, rosterPlayers);
+    });
+
+    // Add reserve players as new fields for league object so frontend has access.
     return leagueList.map((league) => {
       const leagueObject = typeof league.toObject === "function" ? league.toObject() : { ...league };
       leagueObject.rosterIds = (leagueObject.rosterIds || []).map((roster) => {
@@ -173,6 +192,7 @@ class Database {
         return {
           ...roster,
           taxiPlayers: taxiPlayersByRosterId.get(String(roster._id)) || [],
+          minorLeaguePlayers: minorLeaguePlayersByRosterId.get(String(roster._id)) || [],
         };
       });
       return leagueObject;
@@ -211,6 +231,18 @@ class Database {
       leagueId, 
       taxiRosterId: rosterId,
     }); 
+
+    if(options.session){
+      count.session(options.session);
+    }
+    return count;
+  }
+
+  async countDraftedMinorLeaguePlayers(leagueId, rosterId, options={}) {
+    const count = Player.countDocuments({
+      leagueId,
+      minorLeagueRosterId: rosterId,
+    });
 
     if(options.session){
       count.session(options.session);

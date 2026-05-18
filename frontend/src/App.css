@@ -848,6 +848,92 @@
   white-space: nowrap;
 }
 
+.minor-league-table-wrap {
+  overflow-x: visible;
+}
+
+.minor-league-table-wrap .players-table-inner {
+  min-width: 0;
+  width: 100%;
+}
+
+.minor-league-table-wrap .players-table {
+  table-layout: fixed;
+}
+
+.minor-league-table-wrap .players-table th,
+.minor-league-table-wrap .players-table td {
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.minor-league-current-rosters {
+  margin-top: 1.5rem;
+}
+
+.minor-league-move-list {
+  display: grid;
+  gap: 0.65rem;
+}
+
+.minor-league-move-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(280px, 1.7fr);
+  gap: 0.75rem;
+  align-items: center;
+  padding: 0.75rem;
+  border: 1px solid rgba(49, 61, 89, 0.14);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.9);
+}
+
+.minor-league-move-player,
+.minor-league-move-controls {
+  min-width: 0;
+}
+
+.minor-league-move-player {
+  display: grid;
+  gap: 0.2rem;
+}
+
+.minor-league-move-name {
+  color: #253557;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
+.minor-league-move-controls {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.6rem;
+  align-items: center;
+}
+
+.minor-league-move-select {
+  width: 100%;
+  min-width: 0;
+  border: 1px solid #c8d2e9;
+  border-radius: 10px;
+  padding: 0.55rem 0.7rem;
+  font: inherit;
+}
+
+.minor-league-confirm-btn {
+  white-space: nowrap;
+}
+
+@media (max-width: 760px) {
+  .minor-league-move-row,
+  .minor-league-move-controls {
+    grid-template-columns: 1fr;
+  }
+
+  .minor-league-confirm-btn {
+    width: 100%;
+  }
+}
+
 .players-table tr:last-child td {
   border-bottom: none;
 }

@@ -26,6 +26,10 @@ function renderMessage(transaction, rosterMap) {
       return `You updated ${transaction.player}'s position.`;
     case "TaxiDrafted":
       return `${teamName} taxi drafted ${transaction.player}.`;
+    case "MinorLeagueDrafted":
+      return `${teamName} minor league drafted ${transaction.player}.`;
+    case "MinorLeagueMoved":
+      return `${transaction.player} was moved to ${teamName}'s minor league roster.`;
     default: {
       return `${teamName} ${transaction.actionType.toLowerCase()} ${transaction.player} for $${transaction.draftCost}. ($${transaction.budgetLeft} left)`;
     }
@@ -44,6 +48,8 @@ function renderCellValue(key, value, transaction, rosterMap) {
   if (key === "actionType") {
     const actionType = typeof value === "string" ? value : "";
     if (actionType === "TaxiDrafted") return "Taxi Drafted";
+    if (actionType === "MinorLeagueDrafted") return "Minor League Drafted";
+    if (actionType === "MinorLeagueMoved") return "Minor League Moved";
     if (actionType.startsWith("Updated")) return "Updated";
   }
   if ((key === "createdAt" || key === "updatedAt") && isDateLike(value)) {
