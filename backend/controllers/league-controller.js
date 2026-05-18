@@ -8,13 +8,18 @@ const DEFAULT_TEAM_PREFIX = "Team";
 
 const createLeague = async (req, res) => {
   try {
-    const { sport, name, draftType, teamCount, budgetCap } = req.body;
+    const { sport, name, draftType, teamCount, budgetCap, playerLeagueType } = req.body;
 
     if (!sport || !name || !draftType || teamCount == null || budgetCap == null) {
       return res
         .status(400)
         .json({ errorMessage: "Please enter all required fields." });
     }
+
+    const validPlayerLeagueTypes = ["AL", "NL", "MLB"];
+    const resolvedPlayerLeagueType = validPlayerLeagueTypes.includes(playerLeagueType)
+      ? playerLeagueType
+      : "MLB";
 
     const rosterPromises = Array.from({ length: teamCount }, (_, i) =>
       db.createMLBRoster({
@@ -30,6 +35,7 @@ const createLeague = async (req, res) => {
       sport,
       name: name.trim(),
       draftType,
+      playerLeagueType: resolvedPlayerLeagueType,
       teamCount,
       budgetCap,
       rosterIds,

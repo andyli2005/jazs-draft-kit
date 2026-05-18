@@ -653,9 +653,14 @@ const getPlayers = async (req, res) => {
   const upstreamQuery = { ...req.query };
   if (upstreamQuery.rankBy === "cost") upstreamQuery.rankBy = "fantasyPoints";
 
-  // Similarly, leagueId is not necessary for the query
+  // leagueId is not necessary for the upstream query
   delete upstreamQuery.leagueId;
   upstreamQuery.moneyAboveMinimum = moneyAboveMinimum;
+
+  // Forward AL/NL filter if the league restricts to a specific MLB league
+  if (league.playerLeagueType === "AL" || league.playerLeagueType === "NL") {
+    upstreamQuery.leagueType = league.playerLeagueType;
+  }
 
   const url = buildUpstreamUrl(upstreamQuery, "/api/players/evaluations");
   const draftedPlayers = await db.getDraftedPlayers(leagueId);
@@ -693,26 +698,29 @@ const getPlayers = async (req, res) => {
     }
 
     let players = extractPlayers(data);
+    const upstreamPage = Number(data.page) || 1;
+    const upstreamLimit = Number(data.limit) || players.length;
+    const upstreamTotal = Number(data.total) || players.length;
 
-    const customQuery = { leagueId, isCustom: true, ownerId: null, taxiRosterId: null };
-    if (req.query.name) {
-      customQuery.name = { $regex: new RegExp(req.query.name, "i") };
+    // Custom players only appear on the first page to avoid duplicates
+    if (upstreamPage === 1) {
+      const customQuery = { leagueId, isCustom: true, ownerId: null, taxiRosterId: null };
+      if (req.query.name) {
+        customQuery.name = { $regex: new RegExp(req.query.name, "i") };
+      }
+      if (req.query.position) {
+        customQuery.positions = { $regex: new RegExp(req.query.position, "i") };
+      }
+      const customPlayers = await Player.find(customQuery).lean();
+      const mergedCustomPlayers = customPlayers.map((player) => ({
+        ...player,
+        APIplayerId: String(player._id),
+        isDrafted: false,
+        isTaxiDrafted: false,
+        cost: null,
+      }));
+      players = [...players, ...mergedCustomPlayers];
     }
-    if (req.query.position) {
-      customQuery.positions = { $regex: new RegExp(req.query.position, "i") };
-    }
-    const customPlayers = await Player.find(customQuery).lean();
-
-    const mergedCustomPlayers = customPlayers.map((player) => ({
-      ...player,
-      APIplayerId: String(player._id),
-      isDrafted: false,
-      isTaxiDrafted: false,
-      cost: null,
-    }));
-
-    // Merge undrafted custom players
-    players = [...players, ...mergedCustomPlayers];
 
     const apiPlayerIds = players
       .map((player) => player.APIplayerId)
@@ -757,6 +765,9 @@ const getPlayers = async (req, res) => {
       success: true,
       players,
       leagueState,
+      page: upstreamPage,
+      limit: upstreamLimit,
+      total: upstreamTotal,
     });
   } catch (err) {
     return res.status(502).json({

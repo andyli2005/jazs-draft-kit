@@ -81,6 +81,7 @@ describe("league-controller", () => {
         sport: "MLB",
         name: "Weekend League",
         draftType: "auction",
+        playerLeagueType: "MLB",
         teamCount: 2,
         budgetCap: 260,
         rosterIds: ["roster-1", "roster-2"],
