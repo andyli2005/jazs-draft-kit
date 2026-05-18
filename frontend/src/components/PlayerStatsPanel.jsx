@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import ChangePositionMenu from "./ChangePositionMenu";
 import ChangeTeamModal from "./ChangeTeamModal";
 import EditContractModal from "./EditContractModal";
@@ -129,6 +129,7 @@ function PlayerStatsPanel({
   const [isSaving, setIsSaving] = useState(false);
   const [saveError, setSaveError] = useState("");
   const [showChangePositionMenu, setShowChangePositionMenu] = useState(false);
+  const changePositionAnchorRef = useRef(null);
   const [showChangeTeamModal, setShowChangeTeamModal] = useState(false);
   const [showEditContractModal, setShowEditContractModal] = useState(false);
   const isCustomPlayer = Boolean(player?.isCustom || !player?.APIplayerId);
@@ -607,7 +608,7 @@ function PlayerStatsPanel({
                   onClose={() => setShowChangeTeamModal(false)}
                   onTeamChanged={onTeamChanged}
                 />
-                <div className="change-position-anchor">
+                <div className="change-position-anchor" ref={changePositionAnchorRef}>
                   <button
                     className="btn btn-secondary player-stats-edit-btn"
                     type="button"
@@ -627,6 +628,7 @@ function PlayerStatsPanel({
                       activeLeagueId={activeLeagueId}
                       onMoved={onMoved}
                       onClose={() => setShowChangePositionMenu(false)}
+                      anchorRef={changePositionAnchorRef}
                     />
                   ) : null}
                 </div>

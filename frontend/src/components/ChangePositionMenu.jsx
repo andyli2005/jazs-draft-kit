@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { moveCustomPlayer, movePlayer } from "../leagues/requests";
 import {
   SLOT_DEFS,
@@ -14,12 +15,14 @@ function ChangePositionMenu({
   activeLeagueId,
   onMoved,
   onClose,
+  anchorRef,
 }) {
   const menuRef = useRef(null);
   const [slotKey, setSlotKey] = useState("");
   const [positionOverrideEnabled, setPositionOverrideEnabled] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState("");
+  const [menuStyle, setMenuStyle] = useState({ visibility: "hidden" });
 
   const rosters = useMemo(
     () => (Array.isArray(league?.rosterIds) ? league.rosterIds : []),
@@ -92,6 +95,28 @@ function ChangePositionMenu({
     };
   }, [onClose]);
 
+  useEffect(() => {
+    if (!anchorRef?.current) return;
+
+    function updatePosition() {
+      const rect = anchorRef.current.getBoundingClientRect();
+      setMenuStyle({
+        position: "fixed",
+        top: rect.bottom + 6,
+        left: rect.left + rect.width / 2,
+        transform: "translateX(-50%)",
+      });
+    }
+
+    updatePosition();
+    window.addEventListener("scroll", updatePosition, true);
+    window.addEventListener("resize", updatePosition);
+    return () => {
+      window.removeEventListener("scroll", updatePosition, true);
+      window.removeEventListener("resize", updatePosition);
+    };
+  }, [anchorRef]);
+
   const canSubmit =
     Boolean(activeLeagueId) &&
     Boolean(isCustom ? (player?._id || playerDoc?._id) : (player?.APIplayerId || playerDoc?.APIplayerId)) &&
@@ -131,8 +156,8 @@ function ChangePositionMenu({
     }
   }
 
-  return (
-    <div className="change-position-menu" ref={menuRef}>
+  return createPortal(
+    <div className="change-position-menu" ref={menuRef} style={menuStyle}>
       <p className="change-position-menu-title">Change Position</p>
 
       <label className="modal-label">
@@ -202,7 +227,8 @@ function ChangePositionMenu({
           {isSubmitting ? "Confirming..." : "Confirm"}
         </button>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
 
