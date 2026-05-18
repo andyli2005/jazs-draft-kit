@@ -254,12 +254,9 @@ function ChangeTeamModal({
 
               <label className="modal-label">
                 <span>Contract Status</span>
-                <input
-                  className="modal-input"
-                  value={contractStatus}
-                  readOnly
-                  disabled
-                />
+                <div className="modal-static-field">
+                  <strong>{contractStatus || <em>None</em>}</strong>
+                </div>
               </label>
               {!contractStatus.trim() ? (
                 <p className="muted">
@@ -269,13 +266,7 @@ function ChangeTeamModal({
 
               <label className="modal-label">
                 <span>Draft Cost</span>
-                <input
-                  className="modal-input"
-                  type="number"
-                  value={originalPrice}
-                  readOnly
-                  disabled
-                />
+                <div className="modal-static-field"><strong>${originalPrice}</strong></div>
               </label>
               <p className="muted">
                 Budget left: ${budgetLeft} · Original price: ${originalPrice}

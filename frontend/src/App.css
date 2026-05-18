@@ -1779,6 +1779,16 @@
   transition: border-color 0.15s, outline-color 0.15s;
 }
 
+.modal-static-field {
+  padding: 0.6rem 0.75rem;
+  font-size: 0.95rem;
+  font-weight: 400;
+  color: #5a6788;
+  background: #f3f5fb;
+  border-radius: 10px;
+  border: 1px solid #e3e8f4;
+}
+
 .modal-search-input:focus {
   outline: none;
   border-color: #4668c5;
