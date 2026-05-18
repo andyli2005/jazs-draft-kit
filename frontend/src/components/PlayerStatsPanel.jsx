@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import ChangePositionMenu from "./ChangePositionMenu";
+import ChangeTeamModal from "./ChangeTeamModal";
 import EditContractModal from "./EditContractModal";
 import PositionChecklistDropdown from "./PositionChecklistDropdown";
 import { useLeague } from "../leagues";
@@ -102,6 +103,7 @@ function PlayerStatsPanel({
   onDraftClick,
   onDropClick,
   onMoved,
+  onTeamChanged,
   onContractSaved = null,
   refreshKey = 0,
   scrollWithPage = false,
@@ -127,6 +129,7 @@ function PlayerStatsPanel({
   const [isSaving, setIsSaving] = useState(false);
   const [saveError, setSaveError] = useState("");
   const [showChangePositionMenu, setShowChangePositionMenu] = useState(false);
+  const [showChangeTeamModal, setShowChangeTeamModal] = useState(false);
   const [showEditContractModal, setShowEditContractModal] = useState(false);
   const isCustomPlayer = Boolean(player?.isCustom || !player?.APIplayerId);
 
@@ -146,6 +149,7 @@ function PlayerStatsPanel({
       setPlayerDoc(null);
       resetAllEdits();
       setShowChangePositionMenu(false);
+      setShowChangeTeamModal(false);
       return;
     }
 
@@ -153,6 +157,7 @@ function PlayerStatsPanel({
       setPlayerDoc(player || null);
       resetAllEdits();
       setShowChangePositionMenu(false);
+      setShowChangeTeamModal(false);
       return;
     }
 
@@ -160,6 +165,7 @@ function PlayerStatsPanel({
       setPlayerDoc(null);
       resetAllEdits();
       setShowChangePositionMenu(false);
+      setShowChangeTeamModal(false);
       return;
     }
 
@@ -176,6 +182,7 @@ function PlayerStatsPanel({
 
     resetAllEdits();
     setShowChangePositionMenu(false);
+    setShowChangeTeamModal(false);
     fetchPlayerDoc();
     return () => { isMounted = false; };
   }, [player, player?.APIplayerId, activeLeagueId, isCustomPlayer, refreshKey]);
@@ -575,33 +582,55 @@ function PlayerStatsPanel({
       )}
 
       <div className="player-stats-section">
+        <h3>Player Action</h3>
         <div className="player-stats-section-head">
-          <h3>Player Action</h3>
           <div className="player-stats-notes-actions">
             {canChangePosition ? (
-              <div className="change-position-anchor">
+              <>
                 <button
                   className="btn btn-secondary player-stats-edit-btn"
                   type="button"
-                  onClick={() => setShowChangePositionMenu(true)}
+                  onClick={() => setShowChangeTeamModal(true)}
                 >
-                  Change Position
+                  Change Team
                 </button>
-                {showChangePositionMenu && canChangePosition ? (
-                  <ChangePositionMenu
-                    player={player}
-                    playerDoc={{
-                      ...(playerDoc || {}),
-                      ownerId: effectiveOwnerId,
-                    }}
-                    isCustom={isCustomPlayer}
-                    league={selectedLeague}
-                    activeLeagueId={activeLeagueId}
-                    onMoved={onMoved}
-                    onClose={() => setShowChangePositionMenu(false)}
-                  />
-                ) : null}
-              </div>
+                <ChangeTeamModal
+                  open={showChangeTeamModal}
+                  player={player}
+                  playerDoc={{
+                    ...(playerDoc || {}),
+                    ownerId: effectiveOwnerId,
+                  }}
+                  league={selectedLeague}
+                  activeLeagueId={activeLeagueId}
+                  isCustom={isCustomPlayer}
+                  onClose={() => setShowChangeTeamModal(false)}
+                  onTeamChanged={onTeamChanged}
+                />
+                <div className="change-position-anchor">
+                  <button
+                    className="btn btn-secondary player-stats-edit-btn"
+                    type="button"
+                    onClick={() => setShowChangePositionMenu(true)}
+                  >
+                    Change Position
+                  </button>
+                  {showChangePositionMenu && canChangePosition ? (
+                    <ChangePositionMenu
+                      player={player}
+                      playerDoc={{
+                        ...(playerDoc || {}),
+                        ownerId: effectiveOwnerId,
+                      }}
+                      isCustom={isCustomPlayer}
+                      league={selectedLeague}
+                      activeLeagueId={activeLeagueId}
+                      onMoved={onMoved}
+                      onClose={() => setShowChangePositionMenu(false)}
+                    />
+                  ) : null}
+                </div>
+              </>
             ) : null}
             {effectiveOwnerId && activeLeagueId ? (
               <button
