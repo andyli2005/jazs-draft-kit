@@ -4,7 +4,7 @@ import DraftPlayerModal from "../components/DraftPlayerModal";
 import PlayerStatsPanel from "../components/PlayerStatsPanel";
 import Sidebar from "../components/Sidebar";
 import { useLeague } from "../leagues";
-import { getPlayers, dropPlayer, getDepthCharts } from "../leagues/requests";
+import { getPlayers, dropCustomPlayer, dropPlayer, getDepthCharts } from "../leagues/requests";
 import { POSITION_OPTIONS } from "../leagues/positions";
 
 const PAGE_SIZE = 50;
@@ -49,6 +49,10 @@ function isDateLike(value) {
 
 function isStatusActive(status) {
   return String(status || "").trim().toLowerCase() === "active";
+}
+
+function isCustomPlayer(player) {
+  return Boolean(player?.isCustom || (player?._id && !player?.playerId));
 }
 
 function renderCellValue(key, value) {
@@ -303,12 +307,15 @@ function PlayerSearchPage() {
   }
 
   async function handleDropClick(player) {
-    if (!selectedLeagueId || !player?.APIplayerId || !player?.draftOwnerId) return;
+    const customPlayer = isCustomPlayer(player);
+    const playerActionId = customPlayer ? player?._id : player?.APIplayerId;
+    if (!selectedLeagueId || !playerActionId || !player?.draftOwnerId) return;
     const didConfirm = window.confirm(`Drop ${player.name || "this player"} from their roster?`);
     if (!didConfirm) return;
 
     try {
-      await dropPlayer(player.APIplayerId, {
+      const requestFn = customPlayer ? dropCustomPlayer : dropPlayer;
+      await requestFn(playerActionId, {
         leagueId: selectedLeagueId,
         rosterId: player.draftOwnerId,
       });
@@ -470,6 +477,7 @@ function PlayerSearchPage() {
         open={showDraftModal}
         player={selectedPlayer}
         league={selectedLeague}
+        isCustom={isCustomPlayer(selectedPlayer)}
         onClose={() => setShowDraftModal(false)}
         onDrafted={async () => {
           await refreshLeagues();

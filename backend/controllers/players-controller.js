@@ -678,10 +678,7 @@ const getPlayers = async (req, res) => {
   const moneyAboveMinimum = computeMoneyAboveMinimum(totalMoneyRemaining, spotsRemaining);
   leagueState = { totalMoneyRemaining, spotsRemaining, moneyAboveMinimum, remainingSlotsPerPosition };
 
-  // Cost is NOT part of API Licensing database, so if user wants to sort by cost,
-  // temporarily change rankBy to a valid data column
   const upstreamQuery = { ...req.query };
-  if (upstreamQuery.rankBy === "cost") upstreamQuery.rankBy = "fantasyPoints";
 
   // leagueId is not necessary for the upstream query
   delete upstreamQuery.leagueId;
@@ -735,23 +732,38 @@ const getPlayers = async (req, res) => {
     const upstreamPage = Number(data.page) || 1;
     const upstreamLimit = Number(data.limit) || players.length;
     const upstreamTotal = Number(data.total) || players.length;
+    const isCostSort = req.query.rankBy === "cost";
+    const costSortDirection = String(req.query.order || "desc").toLowerCase() === "asc" ? "asc" : "desc";
 
-    // Custom players only appear on the first page to avoid duplicates
-    if (upstreamPage === 1) {
-      const customQuery = {
-        leagueId,
-        isCustom: true,
-        ownerId: null,
-        taxiRosterId: null,
-        minorLeagueRosterId: null,
-        isMajor: wantsMinorPlayers ? false : { $ne: false },
-      };
-      if (req.query.name) {
-        customQuery.name = { $regex: new RegExp(req.query.name, "i") };
-      }
-      if (req.query.position) {
-        customQuery.positions = { $regex: new RegExp(req.query.position, "i") };
-      }
+    // Custom players have no value per se
+    // For cost descending, show them after all licensed players so they do not interrupt page order
+    const customQuery = {
+      leagueId,
+      isCustom: true,
+      ownerId: null,
+      taxiRosterId: null,
+      minorLeagueRosterId: null,
+      isMajor: wantsMinorPlayers ? false : { $ne: false },
+    };
+    if (req.query.name) {
+      customQuery.name = { $regex: new RegExp(req.query.name, "i") };
+    }
+    if (req.query.position) {
+      customQuery.positions = { $regex: new RegExp(req.query.position, "i") };
+    }
+    const shouldLoadCustomPlayers =
+      !isCostSort
+        ? upstreamPage === 1
+        : costSortDirection === "asc"
+          ? upstreamPage === 1
+          : upstreamPage > Math.ceil(upstreamTotal / Math.max(upstreamLimit, 1));
+
+    let customPlayerCount = 0;
+    if (isCostSort) {
+      customPlayerCount = await Player.countDocuments(customQuery).catch(() => 0);
+    }
+
+    if (shouldLoadCustomPlayers) {
       const customPlayers = await Player.find(customQuery).lean();
       const mergedCustomPlayers = customPlayers.map((player) => ({
         ...player,
@@ -759,10 +771,11 @@ const getPlayers = async (req, res) => {
         isDrafted: false,
         isTaxiDrafted: false,
         isMinorLeagueDrafted: false,
-        cost: null,
+        cost: 0,
       }));
       players = [...players, ...mergedCustomPlayers];
     }
+    const responseTotal = isCostSort ? upstreamTotal + customPlayerCount : upstreamTotal;
 
     const apiPlayerIds = players
       .map((player) => player.APIplayerId)
@@ -801,8 +814,6 @@ const getPlayers = async (req, res) => {
       };
     });
 
-    // The query from original request should contain the true rankBy, 
-    // since it is overridden in the upstreamQuery previously
     if (req.query.rankBy === "cost") {
       const dir = String(req.query.order || "desc").toLowerCase() === "asc" ? 1 : -1;
       players = [...players].sort((a, b) => ((a.cost || 0) - (b.cost || 0)) * dir);
@@ -814,7 +825,7 @@ const getPlayers = async (req, res) => {
       leagueState,
       page: upstreamPage,
       limit: upstreamLimit,
-      total: upstreamTotal,
+      total: responseTotal,
     });
   } catch (err) {
     return res.status(502).json({
