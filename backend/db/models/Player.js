@@ -69,7 +69,7 @@ playerSchema.index(
   {
     unique: true,
     partialFilterExpression: {
-      APIplayerId: { $exists: true, $ne: null },
+      isCustom: false,
     },
   }
 );
