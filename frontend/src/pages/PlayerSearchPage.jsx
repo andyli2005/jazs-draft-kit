@@ -104,6 +104,7 @@ function PlayerSearchPage() {
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [hasMore, setHasMore] = useState(false);
   const [page, setPage] = useState(1);
+  const [reloadKey, setReloadKey] = useState(0);
   const [errorMessage, setErrorMessage] = useState("");
   const [sortBy, setSortBy] = useState("fantasyPoints");
   const [sortOrder, setSortOrder] = useState("desc");
@@ -180,7 +181,7 @@ function PlayerSearchPage() {
 
     loadPlayers();
     return () => { isMounted = false; };
-  }, [page, sortBy, sortOrder, search, selectedLeagueId, positionFilter]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [page, sortBy, sortOrder, search, selectedLeagueId, positionFilter, reloadKey]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // IntersectionObserver: load next page when sentinel enters viewport
   useEffect(() => {
@@ -288,11 +289,13 @@ function PlayerSearchPage() {
   }
 
   const reloadPlayers = useCallback(() => {
-    // Reset to page 1 — the filter-change effect picks it up
+    // Reset to page 1 and force a refetch even when already on page 1.
     setPage(1);
     setPlayers([]);
     setHasMore(false);
+    setIsLoading(true);
     setPanelRefreshKey((prev) => prev + 1);
+    setReloadKey((prev) => prev + 1);
   }, []);
 
   function handleDraftClick() {
