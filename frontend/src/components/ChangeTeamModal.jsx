@@ -62,7 +62,8 @@ function ChangeTeamModal({
 
   const openSlotsRemaining = openSlots.length;
   const budgetLeft = Number(activeRoster?.budgetLeft ?? 0);
-  const originalPrice = Number(player?.price ?? 0);
+  // Use the stored draft price from the local Player doc, not the API-evaluated cost
+  const originalPrice = Number(playerDoc?.price ?? player?.price ?? player?.leaguePrice ?? 0);
   const maxAffordable = budgetLeft - Math.max(openSlotsRemaining - 1, 0);
   const budgetIsValid = !activeRoster || originalPrice <= maxAffordable;
 
@@ -119,11 +120,14 @@ function ChangeTeamModal({
 
   if (!open) return null;
 
+  const contractStatus = playerDoc?.contractStatus || "";
+
   const canSubmit =
     Boolean(playerActionId) &&
     Boolean(activeLeagueId) &&
     Boolean(draftedToRosterId) &&
     Boolean(slotKey) &&
+    Boolean(contractStatus.trim()) &&
     budgetIsValid &&
     (!requiresInactiveOverride || inactiveOverrideAccepted) &&
     !isSubmitting;
@@ -143,7 +147,7 @@ function ChangeTeamModal({
         slotKey,
         draftCost: originalPrice,
         inactiveOverrideAccepted,
-        contractStatus: playerDoc?.contractStatus || "",
+        contractStatus,
       });
       await onTeamChanged?.();
       onClose();
@@ -252,11 +256,16 @@ function ChangeTeamModal({
                 <span>Contract Status</span>
                 <input
                   className="modal-input"
-                  value={playerDoc?.contractStatus || ""}
+                  value={contractStatus}
                   readOnly
                   disabled
                 />
               </label>
+              {!contractStatus.trim() ? (
+                <p className="muted">
+                  No contract status on record. Edit the player&apos;s contract before changing teams.
+                </p>
+              ) : null}
 
               <label className="modal-label">
                 <span>Draft Cost</span>
