@@ -214,6 +214,8 @@ function TaxiDraftPage() {
         leagueId: selectedLeagueId,
         rosterId: selectedTaxiRosterId,
         inactiveOverrideAccepted,
+        // add snapshot of current player as fallback if player can't be fetched
+        playerSnapshot: selectedPlayer,
       });
 
       const rosterName =

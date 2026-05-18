@@ -213,6 +213,15 @@ function buildAnyPlayerIdentifierOrClauses(playerIdentifier) {
   return orClauses;
 }
 
+async function findCustomPlayerByIdentifier(playerIdentifier, leagueId) {
+  const identifier = String(playerIdentifier || "").trim();
+  if (!mongoose.Types.ObjectId.isValid(identifier)) {
+    return null;
+  }
+
+  return Player.findOne({ _id: identifier, leagueId, isCustom: true }).lean();
+}
+
 function mapPlayerToDocFields(licensedPlayer, existingDoc) {
   const injuryStatus = normalizeInjuryStatusField(licensedPlayer.injuryStatus || licensedPlayer.status);
   return {
@@ -1853,7 +1862,7 @@ const draftTaxiPlayer = async (req, res) => {
   let session = null;
   try {
     const { APIplayerId } = req.params;
-    const { leagueId, rosterId, inactiveOverrideAccepted } = req.body || {};
+    const { leagueId, rosterId, inactiveOverrideAccepted, playerSnapshot } = req.body || {};
 
     if (!leagueId || !rosterId) {
       return res.status(400).json({
@@ -1867,9 +1876,17 @@ const draftTaxiPlayer = async (req, res) => {
     try {
       licensedPlayer = await fetchLicensedPlayerById(APIplayerId);
     } catch (err) {
-      licensedPlayer = await Player.findOne({ _id: APIplayerId, leagueId, isCustom: true }).lean();
+      licensedPlayer = await findCustomPlayerByIdentifier(APIplayerId, leagueId);
       if (licensedPlayer) {
         isCustom = true;
+      } else {
+        const normalizedSnapshot = normalizeApiPlayer(playerSnapshot);
+        if (
+          normalizedSnapshot &&
+          String(normalizedSnapshot.APIplayerId) === String(APIplayerId)
+        ) {
+          licensedPlayer = normalizedSnapshot;
+        }
       }
     }
 
@@ -1919,10 +1936,8 @@ const draftTaxiPlayer = async (req, res) => {
       }
 
       const existingDocQuery = Player.findOne({ 
-        $or: [
-          { APIplayerId, leagueId, isCustom: false },
-          { _id: APIplayerId, leagueId, isCustom: true }
-        ]
+        leagueId,
+        $or: buildAnyPlayerIdentifierOrClauses(APIplayerId),
       });
       if (activeSession) existingDocQuery.session(activeSession);
       const existingDoc = await existingDocQuery;
@@ -2033,7 +2048,7 @@ const draftMinorLeaguePlayer = async (req, res) => {
     try {
       licensedPlayer = await fetchLicensedPlayerById(APIplayerId);
     } catch {
-      licensedPlayer = await Player.findOne({ _id: APIplayerId, leagueId, isCustom: true }).lean();
+      licensedPlayer = await findCustomPlayerByIdentifier(APIplayerId, leagueId);
       if (licensedPlayer) {
         isCustom = true;
       }
@@ -2080,10 +2095,8 @@ const draftMinorLeaguePlayer = async (req, res) => {
       }
 
       const existingDocQuery = Player.findOne({
-        $or: [
-          { APIplayerId, leagueId, isCustom: false },
-          { _id: APIplayerId, leagueId, isCustom: true },
-        ],
+        leagueId,
+        $or: buildAnyPlayerIdentifierOrClauses(APIplayerId),
       });
       if (activeSession) existingDocQuery.session(activeSession);
       const existingDoc = await existingDocQuery;
