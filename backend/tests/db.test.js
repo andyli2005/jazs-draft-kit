@@ -40,6 +40,7 @@ describe("db", () => {
     process.env.MONGO_URL = "mongodb://example.test/db";
     const connectSpy = vi.spyOn(mongoose, "connect").mockResolvedValue();
     const closeSpy = vi.spyOn(mongoose.connection, "close").mockResolvedValue();
+    vi.spyOn(Player, "syncIndexes").mockResolvedValue();
 
     await db.connect();
     await db.disconnect();
