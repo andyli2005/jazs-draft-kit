@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Header from "../components/Header";
 import DraftPlayerModal from "../components/DraftPlayerModal";
 import PlayerStatsPanel from "../components/PlayerStatsPanel";
@@ -6,6 +6,9 @@ import Sidebar from "../components/Sidebar";
 import { useLeague } from "../leagues";
 import { getPlayers, dropPlayer, getDepthCharts } from "../leagues/requests";
 import { POSITION_OPTIONS } from "../leagues/positions";
+
+const PAGE_SIZE = 50;
+
 const TABLE_COLUMNS = [
   { label: "Name", key: "name" },
   { label: "Status", key: "status" },
@@ -44,6 +47,10 @@ function isDateLike(value) {
   return !Number.isNaN(parsed);
 }
 
+function isStatusActive(status) {
+  return String(status || "").trim().toLowerCase() === "active";
+}
+
 function renderCellValue(key, value) {
   if (key === "status") {
     const isActive = isStatusActive(value);
@@ -78,17 +85,15 @@ function renderCellValue(key, value) {
   return renderValue(value);
 }
 
-function isStatusActive(status) {
-  return String(status || "").trim().toLowerCase() === "active";
-}
-
-function buildPlayersQuery({ sortBy, sortOrder, search, selectedLeagueId, position }) {
+function buildPlayersQuery({ sortBy, sortOrder, search, selectedLeagueId, position, page }) {
   return {
     rankBy: sortBy,
     order: sortOrder,
     name: search,
     leagueId: selectedLeagueId,
     position,
+    page,
+    limit: PAGE_SIZE,
   };
 }
 
@@ -96,6 +101,9 @@ function PlayerSearchPage() {
   const { selectedLeagueId, selectedLeague, refreshLeagues } = useLeague();
   const [players, setPlayers] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const [hasMore, setHasMore] = useState(false);
+  const [page, setPage] = useState(1);
   const [errorMessage, setErrorMessage] = useState("");
   const [sortBy, setSortBy] = useState("fantasyPoints");
   const [sortOrder, setSortOrder] = useState("desc");
@@ -105,50 +113,94 @@ function PlayerSearchPage() {
   const [panelRefreshKey, setPanelRefreshKey] = useState(0);
   const [positionFilter, setPositionFilter] = useState("");
   const [depthCharts, setDepthCharts] = useState(null);
+  const sentinelRef = useRef(null);
 
+  // Reset to page 1 and clear players whenever filters/sort change
+  useEffect(() => {
+    setPage(1);
+    setPlayers([]);
+    setHasMore(false);
+  }, [sortBy, sortOrder, search, selectedLeagueId, positionFilter]);
+
+  // Load players whenever page or filters change
   useEffect(() => {
     let isMounted = true;
+    const isFirstPage = page === 1;
 
     async function loadPlayers() {
-      setIsLoading(true);
+      if (isFirstPage) {
+        setIsLoading(true);
+      } else {
+        setIsLoadingMore(true);
+      }
       setErrorMessage("");
 
       if (!selectedLeagueId) {
         setIsLoading(false);
+        setIsLoadingMore(false);
         setErrorMessage("Select a league first.");
         return;
       }
 
       try {
-        const data = await getPlayers(buildPlayersQuery({ 
-          sortBy, 
-          sortOrder, 
-          search, 
+        const data = await getPlayers(buildPlayersQuery({
+          sortBy,
+          sortOrder,
+          search,
           selectedLeagueId,
-          position: positionFilter
+          position: positionFilter,
+          page,
         }));
 
         if (!isMounted) return;
+
         const nextPlayers = Array.isArray(data.players) ? data.players : [];
-        setPlayers(nextPlayers);
+        setPlayers((prev) => isFirstPage ? nextPlayers : [...prev, ...nextPlayers]);
+
+        const returnedPage = data.page || page;
+        const returnedLimit = data.limit || PAGE_SIZE;
+        const total = data.total || 0;
+        setHasMore(returnedPage * returnedLimit < total);
+
         setSelectedPlayer((prev) => {
           if (!prev?.APIplayerId) return prev;
-          return nextPlayers.find((player) => player.APIplayerId === prev.APIplayerId) || prev;
+          const all = isFirstPage ? nextPlayers : [...players, ...nextPlayers];
+          return all.find((p) => p.APIplayerId === prev.APIplayerId) || prev;
         });
       } catch (err) {
         if (!isMounted) return;
         setErrorMessage(err.message || "Unable to load players.");
       } finally {
-        if (isMounted) setIsLoading(false);
+        if (isMounted) {
+          setIsLoading(false);
+          setIsLoadingMore(false);
+        }
       }
     }
 
     loadPlayers();
-    return () => {
-      isMounted = false;
-    };
-  }, [sortBy, sortOrder, search, selectedLeagueId, positionFilter]);
+    return () => { isMounted = false; };
+  }, [page, sortBy, sortOrder, search, selectedLeagueId, positionFilter]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // IntersectionObserver: load next page when sentinel enters viewport
+  useEffect(() => {
+    const sentinel = sentinelRef.current;
+    if (!sentinel) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting && hasMore && !isLoadingMore && !isLoading) {
+          setPage((prev) => prev + 1);
+        }
+      },
+      { threshold: 0.1 }
+    );
+
+    observer.observe(sentinel);
+    return () => observer.disconnect();
+  }, [hasMore, isLoadingMore, isLoading]);
+
+  // Live update handler
   useEffect(() => {
     function handleLiveUpdate(event) {
       const notice = event.detail;
@@ -159,7 +211,6 @@ function PlayerSearchPage() {
         if (!player || String(player.APIplayerId) !== String(playerUpdate.APIplayerId)) {
           return player;
         }
-
         return {
           ...player,
           status: playerUpdate.status || player.status,
@@ -178,11 +229,10 @@ function PlayerSearchPage() {
     }
 
     window.addEventListener("draft-kit:player-live-update", handleLiveUpdate);
-    return () => {
-      window.removeEventListener("draft-kit:player-live-update", handleLiveUpdate);
-    };
+    return () => window.removeEventListener("draft-kit:player-live-update", handleLiveUpdate);
   }, []);
 
+  // Depth charts
   useEffect(() => {
     let isMounted = true;
     async function loadDepthCharts() {
@@ -196,8 +246,6 @@ function PlayerSearchPage() {
     loadDepthCharts();
     return () => { isMounted = false; };
   }, []);
-
-  const hasPlayers = players.length > 0;
 
   const teamDepthChart = useMemo(() => {
     if (!selectedPlayer?.team || !depthCharts) return null;
@@ -239,22 +287,13 @@ function PlayerSearchPage() {
     return sortOrder === "asc" ? " ▲" : " ▼";
   }
 
-  async function reloadPlayers() {
-    const data = await getPlayers(buildPlayersQuery({ 
-      sortBy, 
-      sortOrder, 
-      search, 
-      selectedLeagueId,
-      position: positionFilter
-    }));
-    const nextPlayers = Array.isArray(data.players) ? data.players : [];
-    setPlayers(nextPlayers);
-    setSelectedPlayer((prev) => {
-      if (!prev?.APIplayerId) return prev;
-      return nextPlayers.find((player) => player.APIplayerId === prev.APIplayerId) || prev;
-    });
+  const reloadPlayers = useCallback(() => {
+    // Reset to page 1 — the filter-change effect picks it up
+    setPage(1);
+    setPlayers([]);
+    setHasMore(false);
     setPanelRefreshKey((prev) => prev + 1);
-  }
+  }, []);
 
   function handleDraftClick() {
     setShowDraftModal(true);
@@ -271,11 +310,13 @@ function PlayerSearchPage() {
         rosterId: player.draftOwnerId,
       });
       await refreshLeagues();
-      await reloadPlayers();
+      reloadPlayers();
     } catch (err) {
       setErrorMessage(err.message || "Failed to drop player.");
     }
   }
+
+  const hasPlayers = players.length > 0;
 
   return (
     <main className="app-shell page-private">
@@ -300,9 +341,7 @@ function PlayerSearchPage() {
               >
                 <option value="">Filter by Positions</option>
                 {POSITION_OPTIONS.map((pos) => (
-                  <option key={pos} value={pos}>
-                    {pos}
-                  </option>
+                  <option key={pos} value={pos}>{pos}</option>
                 ))}
               </select>
               <input
@@ -329,14 +368,14 @@ function PlayerSearchPage() {
             <p className="muted">No players found.</p>
           ) : null}
 
-          {!isLoading && !errorMessage && hasPlayers ? (
+          {hasPlayers ? (
             <div className="players-table-wrap">
               <div className="players-table-inner">
                 <table className="players-table">
                   <thead>
                     <tr>
                       {TABLE_COLUMNS.map((column) => (
-                        column.key !== "pictureURL" ?
+                        column.key !== "pictureURL" ? (
                           <th key={column.key} scope="col">
                             <button
                               className="table-sort-button"
@@ -346,10 +385,10 @@ function PlayerSearchPage() {
                               {column.label}
                               {sortIndicator(column.key)}
                             </button>
-                          </th> :
-                          <th key={column.key} scope="col">
-                            {column.label}
                           </th>
+                        ) : (
+                          <th key={column.key} scope="col">{column.label}</th>
+                        )
                       ))}
                     </tr>
                   </thead>
@@ -379,6 +418,20 @@ function PlayerSearchPage() {
                   </tbody>
                 </table>
               </div>
+
+              {/* Sentinel for IntersectionObserver */}
+              <div ref={sentinelRef} style={{ height: 1 }} />
+
+              {isLoadingMore ? (
+                <p className="muted" style={{ textAlign: "center", padding: "1rem" }}>
+                  Loading more players...
+                </p>
+              ) : null}
+              {!isLoadingMore && !hasMore && hasPlayers ? (
+                <p className="muted" style={{ textAlign: "center", padding: "0.75rem", fontSize: "0.82rem" }}>
+                  All {players.length} players loaded
+                </p>
+              ) : null}
             </div>
           ) : null}
         </section>
@@ -393,11 +446,11 @@ function PlayerSearchPage() {
             onDropClick={handleDropClick}
             onMoved={async () => {
               await refreshLeagues();
-              await reloadPlayers();
+              reloadPlayers();
             }}
             onContractSaved={async () => {
               await refreshLeagues();
-              await reloadPlayers();
+              reloadPlayers();
             }}
             refreshKey={panelRefreshKey}
             onClose={() => setSelectedPlayer(null)}
@@ -412,7 +465,7 @@ function PlayerSearchPage() {
         onClose={() => setShowDraftModal(false)}
         onDrafted={async () => {
           await refreshLeagues();
-          await reloadPlayers();
+          reloadPlayers();
         }}
       />
     </main>

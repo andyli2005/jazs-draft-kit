@@ -20,6 +20,7 @@ function CreateLeagueModal({ open, onClose, onCreated }) {
   const { createLeague } = useLeague();
   const [name, setName] = useState("");
   const [draftType, setDraftType] = useState("Salary Cap");
+  const [playerLeagueType, setPlayerLeagueType] = useState("MLB");
   const [teamCount, setTeamCount] = useState(12);
   const [budgetCap, setBudgetCap] = useState(260);
   const [isSaving, setIsSaving] = useState(false);
@@ -49,11 +50,13 @@ function CreateLeagueModal({ open, onClose, onCreated }) {
         sport: "MLB",
         name: name.trim(),
         draftType,
+        playerLeagueType,
         teamCount,
         budgetCap,
       });
       setName("");
       setDraftType("Salary Cap");
+      setPlayerLeagueType("MLB");
       setTeamCount(12);
       setBudgetCap(260);
       if (onCreated) {
@@ -117,6 +120,19 @@ function CreateLeagueModal({ open, onClose, onCreated }) {
                     {type}
                   </option>
                 ))}
+              </select>
+            </label>
+
+            <label className="modal-label">
+              <span>Player Pool</span>
+              <select
+                className="modal-select"
+                value={playerLeagueType}
+                onChange={(e) => setPlayerLeagueType(e.target.value)}
+              >
+                <option value="MLB">All MLB (AL + NL)</option>
+                <option value="AL">AL Only</option>
+                <option value="NL">NL Only</option>
               </select>
             </label>
 
