@@ -217,6 +217,10 @@ function PreDraftPage() {
               await refreshLeagues();
               setPanelRefreshKey((prev) => prev + 1);
             }}
+            onTeamChanged={async () => {
+              await refreshLeagues();
+              setPanelRefreshKey((prev) => prev + 1);
+            }}
             refreshKey={panelRefreshKey}
             onClose={() => setPanelInfo(null)}
           />

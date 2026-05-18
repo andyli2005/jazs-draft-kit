@@ -463,6 +463,11 @@ function CustomPlayersPage() {
               await refreshLeagues();
               await reloadPlayers();
             }}
+            onTeamChanged={async () => {
+              await refreshLeagues();
+              await reloadPlayers();
+              setPanelRefreshKey((k) => k + 1);
+            }}
             refreshKey={panelRefreshKey}
             onClose={() => setSelectedPlayer(null)}
           />

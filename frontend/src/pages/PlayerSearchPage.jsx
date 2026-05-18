@@ -448,6 +448,11 @@ function PlayerSearchPage() {
               await refreshLeagues();
               reloadPlayers();
             }}
+            onTeamChanged={async () => {
+              await refreshLeagues();
+              reloadPlayers();
+              setPanelRefreshKey((k) => k + 1);
+            }}
             onContractSaved={async () => {
               await refreshLeagues();
               reloadPlayers();

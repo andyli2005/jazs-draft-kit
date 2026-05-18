@@ -149,6 +149,7 @@ function PlayerStatsPanel({
       setPlayerDoc(null);
       resetAllEdits();
       setShowChangePositionMenu(false);
+      setShowChangeTeamModal(false);
       return;
     }
 
@@ -156,6 +157,7 @@ function PlayerStatsPanel({
       setPlayerDoc(player || null);
       resetAllEdits();
       setShowChangePositionMenu(false);
+      setShowChangeTeamModal(false);
       return;
     }
 
@@ -163,6 +165,7 @@ function PlayerStatsPanel({
       setPlayerDoc(null);
       resetAllEdits();
       setShowChangePositionMenu(false);
+      setShowChangeTeamModal(false);
       return;
     }
 
@@ -179,6 +182,7 @@ function PlayerStatsPanel({
 
     resetAllEdits();
     setShowChangePositionMenu(false);
+    setShowChangeTeamModal(false);
     fetchPlayerDoc();
     return () => { isMounted = false; };
   }, [player, player?.APIplayerId, activeLeagueId, isCustomPlayer, refreshKey]);
