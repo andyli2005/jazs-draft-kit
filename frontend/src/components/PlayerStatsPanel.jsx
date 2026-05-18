@@ -582,8 +582,8 @@ function PlayerStatsPanel({
       )}
 
       <div className="player-stats-section">
+        <h3>Player Action</h3>
         <div className="player-stats-section-head">
-          <h3>Player Action</h3>
           <div className="player-stats-notes-actions">
             {canChangePosition ? (
               <>
