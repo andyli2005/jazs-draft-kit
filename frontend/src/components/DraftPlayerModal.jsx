@@ -225,6 +225,9 @@ function DraftPlayerModal({
                     setSlotKey(nextValue);
                   }}
                 >
+                  {!positionOverrideEnabled && eligibleOpenSlots.length === 0 && (
+                    <option value="" disabled>No eligible positions</option>
+                  )}
                   {displayedSlots.map((slot) => (
                     <option key={slot.key} value={slot.key}>
                       {slot.label}
