@@ -43,6 +43,7 @@ class Database {
     const uri = process.env.MONGO_URL;
     if (!uri) throw new Error("MONGO_URL not set");
     await mongoose.connect(uri);
+    await Player.syncIndexes();
     console.log("MongoDB connected");
   }
 
