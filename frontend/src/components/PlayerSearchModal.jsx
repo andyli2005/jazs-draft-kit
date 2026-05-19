@@ -14,6 +14,8 @@ import {
   parseEligiblePositions,
 } from "../leagues/rosterSlots";
 
+const PAGE_SIZE = 50;
+
 const LICENSED_COLUMNS = [
   { label: "Name", key: "name" },
   { label: "Positions", key: "positions" },
@@ -125,6 +127,7 @@ function PlayerTable({ columns, players, selectedPlayer, onSelectPlayer, sortBy,
 function PlayerSearchModal({ open, onClose, slotKey, rosterId, onDrafted }) {
   const { selectedLeagueId, selectedLeague, refreshLeagues } = useLeague();
   const overlayRef = useRef(null);
+  const sentinelRef = useRef(null);
 
   const [activeTab, setActiveTab] = useState("licensed");
 
@@ -134,6 +137,9 @@ function PlayerSearchModal({ open, onClose, slotKey, rosterId, onDrafted }) {
   const [licensedSortOrder, setLicensedSortOrder] = useState("desc");
   const [licensedPlayers, setLicensedPlayers] = useState([]);
   const [licensedLoading, setLicensedLoading] = useState(false);
+  const [licensedLoadingMore, setLicensedLoadingMore] = useState(false);
+  const [licensedHasMore, setLicensedHasMore] = useState(false);
+  const [licensedPage, setLicensedPage] = useState(1);
   const [licensedError, setLicensedError] = useState("");
 
   // Custom player state — all loaded once, search/sort are client-side
