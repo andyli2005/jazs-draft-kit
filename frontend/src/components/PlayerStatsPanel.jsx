@@ -748,35 +748,9 @@ function PlayerStatsPanel({
                     disabled={isSaving}
                   />
                 </label>
-                {effectiveOwnerId ? (
-                  <label className="modal-label">
-                    <span>Contract status</span>
-                    <input
-                      className="modal-input"
-                      type="text"
-                      value={notesDraft?.contractStatus || ""}
-                      onChange={(e) => updateNotesDraftField("contractStatus", e.target.value)}
-                      placeholder="Enter contract status"
-                      disabled={isSaving}
-                    />
-                  </label>
-                ) : null}
               </div>
             ) : (
               <>
-                {effectiveOwnerId ? (
-                  <label className="modal-label">
-                    <span>Contract status</span>
-                    <input
-                      className="modal-input"
-                      type="text"
-                      value={editContractStatus}
-                      onChange={(e) => setEditContractStatus(e.target.value)}
-                      placeholder="Enter contract status"
-                      disabled={isSaving}
-                    />
-                  </label>
-                ) : null}
                 <textarea
                   className="player-stats-textarea"
                   value={editPersonalNotes}
@@ -800,9 +774,6 @@ function PlayerStatsPanel({
               <div>
                 <p><strong>Notes:</strong> {displayData?.notes || "N/A"}</p>
                 <p><strong>Personal Notes:</strong> {personalNotes || "N/A"}</p>
-                {effectiveOwnerId && displayData?.contractStatus ? (
-                  <p><strong>Contract status:</strong> {displayData.contractStatus}</p>
-                ) : null}
               </div>
             ) : (
               <div>
@@ -815,9 +786,6 @@ function PlayerStatsPanel({
                         : "No notes yet. Click Edit to add notes."}
                   </p>
                 )}
-                {effectiveOwnerId && displayData?.contractStatus ? (
-                  <p><strong>Contract status:</strong> {displayData.contractStatus}</p>
-                ) : null}
               </div>
             )}
           </div>
