@@ -349,16 +349,12 @@ function PlayerSearchModal({ open, onClose, slotKey, rosterId, onDrafted }) {
 
   async function reloadAll() {
     if (!selectedLeagueId) return;
-    const [licensedData, customData] = await Promise.all([
-      getPlayers({
-        leagueId: selectedLeagueId,
-        name: licensedSearch,
-        rankBy: licensedSortBy,
-        order: licensedSortOrder,
-      }),
-      getCustomPlayers(selectedLeagueId),
-    ]);
-    setLicensedPlayers(Array.isArray(licensedData.players) ? licensedData.players : []);
+    // Reset licensed pagination to page 1 — the fetch useEffect picks it up automatically.
+    setLicensedPage(1);
+    setLicensedPlayers([]);
+    setLicensedHasMore(false);
+    // Custom players are always fetched in full; reload them directly.
+    const customData = await getCustomPlayers(selectedLeagueId);
     const docs = Array.isArray(customData.players) ? customData.players : [];
     setCustomPlayers(docs.map(flattenCustomPlayer));
     setPanelRefreshKey((prev) => prev + 1);
