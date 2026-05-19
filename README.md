@@ -207,8 +207,8 @@ All paths are relative to the Draft Kit backend base URL.
 ### Live Updates
 
 - `POST /api/live-updates/player` - receive a player depth chart, injury, or news update.
-- `GET /api/live-updates` - list recent live update notices.
-- `GET /api/live-updates/stream` - stream live update notices over SSE.
+- `GET /api/live-updates/notices` - list recent live update notices.
+- `GET /api/live-updates/events` - stream live update notices over SSE.
 
 ## Quality Assurance And Build Commands
 

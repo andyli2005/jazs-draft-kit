@@ -115,7 +115,7 @@ Behavior:
 Shared cross-app state is limited to auth and league selection. Everything else stays local:
 
 - `PlayerSearchPage` owns player-table state, sorting, search, selected row, and draft modal visibility
-- `TransactionsPage` owns transaction polling state
+- `TransactionsPage` owns transaction loading state
 - `PlayerStatsPanel` owns the loaded player document and in-panel notes editing state
 - `DraftPlayerModal`, `CreateLeagueModal`, `EditLeagueModal`, `LoginPage`, `RegisterPage`, and `SettingsPage` own form state locally
 
@@ -138,11 +138,24 @@ Network calls are intentionally centralized in two modules:
 - `getLeagues`
 - `setMyTeam`
 - `updateLeague`
+- `importLeagueData`
 - `getPlayers`
+- `getCustomPlayers`
+- `createCustomPlayer`
+- `updateCustomPlayer`
+- `deleteCustomPlayer`
 - `dropPlayer`
+- `movePlayer`
 - `getPlayerDoc`
 - `updatePlayerDoc`
 - `draftPlayer`
+- `draftTaxiPlayer`
+- `draftMinorLeaguePlayer`
+- `moveMinorLeaguePlayer`
+- `draftCustomPlayer`
+- `dropCustomPlayer`
+- `moveCustomPlayer`
+- `getDepthCharts`
 - `getTransactions`
 
 This means route pages and draft-related components do not call `fetch` directly for non-auth work anymore.
@@ -152,15 +165,20 @@ This means route pages and draft-related components do not call `fetch` directly
 Key routes in `src/App.jsx`:
 
 - `/`: public landing page or logged-in dashboard
+- `/pre-draft`
 - `/all-teams`
 - `/my-team`
 - `/player-search`
+- `/custom-players`
+- `/taxi`
+- `/minor-league`
 - `/rosters/:rosterId`
 - `/transactions`
 - `/api-dashboard`
 - `/settings`
 - `/login`
 - `/register`
+- `/forgot-password`
 
 Protected routing behavior:
 
@@ -171,7 +189,7 @@ Protected routing behavior:
 
 - Draft and drop actions mutate backend state, then the UI calls `refreshLeagues()` so roster views stay synchronized
 - `PlayerStatsPanel` loads and saves league-scoped player notes through the shared request layer
-- `TransactionsPage` polls `GET /api/transactions` every 3 seconds
+- `TransactionsPage` fetches `GET /api/transactions` when the selected league changes
 - `Sidebar` and league-protected pages derive their available navigation from the selected league context
 
 ## Quality Notes

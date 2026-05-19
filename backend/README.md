@@ -278,7 +278,7 @@ Request body:
 - Requires authentication
 - Returns transactions for a league
 - Requires query parameter `leagueId`
-- Used by the transactions page, which polls this endpoint
+- Used by the Transactions page to load recent transaction history for the selected league
 
 Example:
 
@@ -315,17 +315,34 @@ These are the routes actively called by the current frontend code:
 - `POST /api/auth/login`
 - `POST /api/auth/logout`
 - `GET /api/auth/loggedIn`
+- `GET /api/auth/security-question`
+- `POST /api/auth/reset-password`
 - `PUT /api/auth/user`
 - `DELETE /api/auth/user`
 - `GET /api/leagues`
 - `POST /api/leagues`
 - `PATCH /api/leagues/:id`
 - `PATCH /api/leagues/:id/my-team`
+- `POST /api/leagues/:id/import-from/:sourceId`
 - `GET /api/players`
+- `GET /api/players/depth-charts`
+- `GET /api/players/custom`
+- `POST /api/players/custom`
+- `PATCH /api/players/custom/:playerId`
+- `DELETE /api/players/custom/:playerId`
+- `POST /api/players/custom/:playerId/draft`
+- `POST /api/players/custom/:playerId/drop`
+- `POST /api/players/custom/:playerId/move`
 - `GET /api/players/:APIplayerId/doc`
 - `PUT /api/players/:APIplayerId/doc`
 - `POST /api/players/:APIplayerId/draft`
 - `POST /api/players/:APIplayerId/drop`
+- `POST /api/players/:APIplayerId/move`
+- `POST /api/players/:APIplayerId/taxi`
+- `POST /api/players/:APIplayerId/minor-league`
+- `POST /api/players/:APIplayerId/minor-league/move`
 - `GET /api/transactions`
+- `GET /api/live-updates/notices`
+- `GET /api/live-updates/events`
 
 `POST /api/transactions` and `GET /api/players/totalFantasyPoints` are implemented by the backend but are not currently called by the checked-in frontend code.
