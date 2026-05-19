@@ -122,6 +122,21 @@ describe("live-update-controller", () => {
     });
   });
 
+  it("builds local update fields for cleared injury notices", () => {
+    expect(
+      buildPlayerDocUpdateFields({
+        type: "injury",
+        player: {
+          status: "Active",
+          injuryStatus: "",
+        },
+      })
+    ).toMatchObject({
+      status: "Active",
+      injuryStatus: "",
+    });
+  });
+
   it("rejects webhook requests with the wrong shared secret", async () => {
     process.env.LIVE_UPDATE_WEBHOOK_SECRET = "expected";
     const req = createRequest({ type: "news", player: { APIplayerId: "api-player-1" } }, "wrong");
@@ -239,6 +254,61 @@ describe("live-update-controller", () => {
           APIplayerId: "api-player-1",
           injuryStatus: "10-Day IL",
           status: "Inactive",
+        },
+      },
+    });
+  });
+
+  it("clears injury status player docs and broadcasts the notice", async () => {
+    vi.spyOn(Player, "updateMany").mockResolvedValue({ matchedCount: 1, modifiedCount: 1 });
+    vi.spyOn(liveUpdateHub, "addNotice").mockImplementation((notice) => ({
+      id: "notice-3",
+      receivedAt: "2026-05-08T12:00:00.000Z",
+      ...notice,
+    }));
+
+    const req = createRequest({
+      type: "injury",
+      player: {
+        APIplayerId: "api-player-1",
+        name: "Player One",
+      },
+      updates: {
+        injuryStatus: "",
+        status: "Active",
+      },
+    });
+    const res = createResponse();
+
+    await LiveUpdateController.receivePlayerLiveUpdate(req, res);
+
+    expect(Player.updateMany).toHaveBeenCalledWith(
+      { APIplayerId: "api-player-1", isCustom: false },
+      {
+        $set: {
+          name: "Player One",
+          status: "Active",
+          injuryStatus: "",
+        },
+      }
+    );
+    expect(liveUpdateHub.addNotice).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: "injury",
+        affectedPlayerDocs: 1,
+      })
+    );
+    expect(res.statusCode).toBe(202);
+    expect(res.jsonPayload).toMatchObject({
+      success: true,
+      matchedPlayerDocs: 1,
+      affectedPlayerDocs: 1,
+      notice: {
+        id: "notice-3",
+        player: {
+          APIplayerId: "api-player-1",
+          injuryStatus: "",
+          status: "Active",
         },
       },
     });
