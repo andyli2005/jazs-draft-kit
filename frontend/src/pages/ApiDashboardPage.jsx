@@ -17,7 +17,7 @@ function ApiDashboardPage() {
             you can follow the instruction below to create an account and start utilizing it. </p>
           <h3> Step-by-Step Instruction to Setup and Start Utilizing API Services</h3>
           <ol>
-            <li>Access the API website from <a href="https://api-licensing.pages.dev "target="_blank"> here</a>(It will open a new tab)</li> 
+            <li>Access the API website from <a href="https://api-licensing.pages.dev "target="_blank"> here</a> (It will open a new tab; or access it in the portal below)</li> 
             <li>Create an account using your email address and a password at the top. </li>
             <li>Once you have an account, enter your email address and the password to login and click on "Generate New API Token" to receive the your token. Your token should pop up on the dashboard.</li>
             <li>Before the initial use, increase your balance by making a payment to the API licensing website. Enter the dollar amount that you wish to pay to.</li>
@@ -61,7 +61,15 @@ function ApiDashboardPage() {
         rankBy defines the criteria in which the players are returned, and order allows you to decide if the list should be in a descending or ascending order.
         
 
-         
+
+          <h3>API Licensing Portal</h3>
+          <iframe
+            src="https://api-licensing.pages.dev/"
+            title="API Licensing Portal"
+            width="100%"
+            height="800px"
+            style={{ border: "1px solid #ccc", borderRadius: "8px", marginTop: "12px" }}
+          />
         </section>
       </div>
     </main>

@@ -4,7 +4,9 @@ function PublicHomePage() {
   return (
     <main className="page page-public">
       <section className="card hero">
-        <p className="eyebrow">Draft Kit</p>
+        <span className="logo-wrap">
+          <img src="/logo.png" alt="JAZS Draft Kit" className="page-logo" />
+        </span>
         <h1>Build teams faster with cleaner draft workflows.</h1>
         <p className="muted">
           Track players, compare rosters, and organize picks in one place.

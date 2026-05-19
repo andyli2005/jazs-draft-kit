@@ -28,6 +28,9 @@ function LoginPage() {
   return (
     <main className="page">
       <section className="card auth-card">
+        <span className="logo-wrap">
+          <img src="/logo.png" alt="JAZS Draft Kit" className="page-logo" />
+        </span>
         <h1>Log In</h1>
         <p className="muted">Access your draft dashboard.</p>
         <form onSubmit={handleSubmit} className="form">

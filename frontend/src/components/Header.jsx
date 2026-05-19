@@ -58,7 +58,9 @@ function Header() {
   return (
     <header className="app-header">
       <div>
-        <p className="eyebrow">JAZS Draft Kit</p>
+        <span className="logo-wrap logo-wrap--sm">
+          <img src="/logo.png" alt="JAZS Draft Kit" className="header-logo" />
+        </span>
         <h2 className="app-title">Dashboard</h2>
       </div>
       <div className="header-right" ref={menuRef}>

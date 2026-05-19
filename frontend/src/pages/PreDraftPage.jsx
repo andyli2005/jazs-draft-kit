@@ -1,10 +1,10 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Header from "../components/Header";
 import PlayerSearchModal from "../components/PlayerSearchModal";
 import PlayerStatsPanel from "../components/PlayerStatsPanel";
 import Sidebar from "../components/Sidebar";
 import { useLeague } from "../leagues";
-import { importLeagueData } from "../leagues/requests";
+import { getDepthCharts, importLeagueData } from "../leagues/requests";
 import { SLOT_DEFS } from "../leagues/rosterSlots";
 import "./AllTeamsPage.css";
 
@@ -20,6 +20,21 @@ function PreDraftPage() {
   const [searchModal, setSearchModal] = useState(null);
   const [panelInfo, setPanelInfo] = useState(null);
   const [panelRefreshKey, setPanelRefreshKey] = useState(0);
+  const [depthCharts, setDepthCharts] = useState(null);
+
+  useEffect(() => {
+    let isMounted = true;
+    async function loadDepthCharts() {
+      try {
+        const data = await getDepthCharts();
+        if (isMounted) setDepthCharts(data.teams ?? null);
+      } catch {
+        // Depth charts are supplemental — fail silently.
+      }
+    }
+    loadDepthCharts();
+    return () => { isMounted = false; };
+  }, []);
 
   const [showPicker, setShowPicker] = useState(false);
   const [selectedSourceId, setSelectedSourceId] = useState("");
@@ -75,6 +90,25 @@ function PreDraftPage() {
   }
 
   const panelPlayer = panelInfo?.player || null;
+
+  const teamDepthChart = useMemo(() => {
+    if (!panelPlayer?.team || !depthCharts) return null;
+    const teamData = depthCharts[panelPlayer.team];
+    if (!teamData) return null;
+    return Object.entries(teamData)
+      .map(([position, posPlayers]) => ({
+        position,
+        players: posPlayers.map((p) => ({
+          name: p.name,
+          role: p.depthChart?.role,
+          section: p.depthChart?.section,
+          isSelected:
+            p.playerId === panelPlayer.APIplayerId ||
+            p.name === panelPlayer.name,
+        })),
+      }))
+      .sort((a, b) => a.position.localeCompare(b.position));
+  }, [panelPlayer, depthCharts]);
 
   return (
     <main className="app-shell page-private">
@@ -222,6 +256,7 @@ function PreDraftPage() {
               setPanelRefreshKey((prev) => prev + 1);
             }}
             refreshKey={panelRefreshKey}
+            teamDepthChart={teamDepthChart}
             onClose={() => setPanelInfo(null)}
           />
         ) : null}
