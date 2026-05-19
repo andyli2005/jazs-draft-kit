@@ -40,6 +40,9 @@ function RegisterPage() {
   return (
     <main className="page">
       <section className="card auth-card">
+        <span className="logo-wrap">
+          <img src="/logo.png" alt="JAZS Draft Kit" className="page-logo" />
+        </span>
         <h1>Create Account</h1>
         <p className="muted">Create your Draft Kit account.</p>
         <form onSubmit={handleSubmit} className="form">
