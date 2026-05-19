@@ -483,6 +483,10 @@ function PlayerSearchModal({ open, onClose, slotKey, rosterId, onDrafted }) {
                   onSort={handleSort}
                 />
               ) : null}
+              {isLicensedTab && <div ref={sentinelRef} style={{ height: 1 }} />}
+              {isLicensedTab && licensedLoadingMore ? (
+                <p className="muted">Loading more...</p>
+              ) : null}
             </div>
 
             {selectedPlayer ? (
