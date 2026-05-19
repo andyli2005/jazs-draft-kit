@@ -161,6 +161,14 @@ function PlayerSearchModal({ open, onClose, slotKey, rosterId, onDrafted }) {
     [slotKey]
   );
 
+  // Reset licensed pagination whenever any filter/sort/league changes so the
+  // fetch effect always starts fresh from page 1.
+  useEffect(() => {
+    setLicensedPage(1);
+    setLicensedPlayers([]);
+    setLicensedHasMore(false);
+  }, [open, selectedLeagueId, licensedSearch, licensedSortBy, licensedSortOrder, positionOverride]);
+
   // Licensed players: re-fetch from the server whenever search/sort changes (server-side).
   useEffect(() => {
     if (!open || !selectedLeagueId) return;
