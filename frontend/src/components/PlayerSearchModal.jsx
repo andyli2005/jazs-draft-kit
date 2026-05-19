@@ -261,6 +261,22 @@ function PlayerSearchModal({ open, onClose, slotKey, rosterId, onDrafted }) {
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [open, onClose, showDraftModal]);
 
+  // Infinite scroll: load next page when the sentinel enters the viewport.
+  useEffect(() => {
+    const sentinel = sentinelRef.current;
+    if (!sentinel) return;
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting && licensedHasMore && !licensedLoadingMore && !licensedLoading) {
+          setLicensedPage((prev) => prev + 1);
+        }
+      },
+      { threshold: 0.1 }
+    );
+    observer.observe(sentinel);
+    return () => observer.disconnect();
+  }, [licensedHasMore, licensedLoadingMore, licensedLoading]);
+
   function handleOverlayClick(e) {
     if (e.target === overlayRef.current) onClose();
   }
