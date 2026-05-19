@@ -59,7 +59,7 @@ function flattenCustomPlayer(doc) {
   };
 }
 
-function PlayerTable({ columns, players, selectedPlayer, onSelectPlayer, sortBy, sortOrder, onSort }) {
+function PlayerTable({ columns, players, selectedPlayer, onSelectPlayer, sortBy, sortOrder, onSort, sentinelRef }) {
   function sortIndicator(key) {
     if (sortBy !== key) return "";
     return sortOrder === "asc" ? " ▲" : " ▼";
@@ -120,6 +120,7 @@ function PlayerTable({ columns, players, selectedPlayer, onSelectPlayer, sortBy,
           </tbody>
         </table>
       </div>
+      {sentinelRef && <div ref={sentinelRef} style={{ height: 1 }} />}
     </div>
   );
 }
@@ -477,9 +478,9 @@ function PlayerSearchModal({ open, onClose, slotKey, rosterId, onDrafted }) {
                   sortBy={activeSortBy}
                   sortOrder={activeSortOrder}
                   onSort={handleSort}
+                  sentinelRef={isLicensedTab ? sentinelRef : undefined}
                 />
               ) : null}
-              {isLicensedTab && <div ref={sentinelRef} style={{ height: 1 }} />}
               {isLicensedTab && licensedLoadingMore ? (
                 <p className="muted">Loading more...</p>
               ) : null}
