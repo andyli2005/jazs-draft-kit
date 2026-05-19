@@ -8,7 +8,7 @@ const NAV_ITEMS = [
   { to: "/pre-draft", label: "Pre-draft", requiresLeague: true, dividerAfter: true },
   { to: "/all-teams", label: "All Teams", requiresLeague: true },
   { to: "/my-team", label: "My Team", requiresLeague: true, dividerAfter: true },
-  { to: "/player-search", label: "Player Search", requiresLeague: true },
+  { to: "/player-search", label: "Player Search", requiresLeague: true, sectionLabel: "Drafting" },
   { to: "/custom-players", label: "Custom Players", requiresLeague: true, dividerAfter: true },
   { to: "/taxi", label: "Taxi Draft", requiresLeague: true, requiresFullRosters: true },
   { to: "/minor-league", label: "Minor League Draft", requiresLeague: true, dividerAfter: true },
@@ -127,6 +127,9 @@ function Sidebar() {
 
         return (
           <div key={item.to} className="side-nav-item">
+            {item.sectionLabel && (
+              <span className="side-section-label">{item.sectionLabel}</span>
+            )}
             {node}
             {item.dividerAfter && <hr className="sidebar-divider" />}
           </div>

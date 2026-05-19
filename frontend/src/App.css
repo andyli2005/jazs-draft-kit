@@ -580,6 +580,7 @@
   text-transform: uppercase;
   color: #4866a2;
   font-weight: 700;
+  text-decoration: underline;
 }
 
 .side-link-toggle {
