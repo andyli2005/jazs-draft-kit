@@ -101,6 +101,12 @@ function buildPlayersQuery({ sortBy, sortOrder, search, selectedLeagueId, positi
   };
 }
 
+function filterVisiblePlayers(players, search) {
+  const hasNameSearch = search.trim().length > 0;
+  if (hasNameSearch) return players;
+  return players.filter((player) => !player.isDrafted);
+}
+
 function PlayerSearchPage() {
   const { selectedLeagueId, selectedLeague, refreshLeagues } = useLeague();
   const [players, setPlayers] = useState([]);
@@ -159,7 +165,7 @@ function PlayerSearchPage() {
 
         if (!isMounted) return;
 
-        const nextPlayers = Array.isArray(data.players) ? data.players : [];
+        const nextPlayers = filterVisiblePlayers(Array.isArray(data.players) ? data.players : [], search);
         setPlayers((prev) => isFirstPage ? nextPlayers : [...prev, ...nextPlayers]);
 
         const returnedPage = data.page || page;
@@ -170,7 +176,7 @@ function PlayerSearchPage() {
         setSelectedPlayer((prev) => {
           if (!prev?.APIplayerId) return prev;
           const all = isFirstPage ? nextPlayers : [...players, ...nextPlayers];
-          return all.find((p) => p.APIplayerId === prev.APIplayerId) || prev;
+          return all.find((p) => p.APIplayerId === prev.APIplayerId) || null;
         });
       } catch (err) {
         if (!isMounted) return;
