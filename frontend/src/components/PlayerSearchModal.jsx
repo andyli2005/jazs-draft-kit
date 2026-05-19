@@ -14,6 +14,8 @@ import {
   parseEligiblePositions,
 } from "../leagues/rosterSlots";
 
+const PAGE_SIZE = 50;
+
 const LICENSED_COLUMNS = [
   { label: "Name", key: "name" },
   { label: "Positions", key: "positions" },
@@ -57,7 +59,7 @@ function flattenCustomPlayer(doc) {
   };
 }
 
-function PlayerTable({ columns, players, selectedPlayer, onSelectPlayer, sortBy, sortOrder, onSort }) {
+function PlayerTable({ columns, players, selectedPlayer, onSelectPlayer, sortBy, sortOrder, onSort, sentinelRef }) {
   function sortIndicator(key) {
     if (sortBy !== key) return "";
     return sortOrder === "asc" ? " ▲" : " ▼";
@@ -118,6 +120,7 @@ function PlayerTable({ columns, players, selectedPlayer, onSelectPlayer, sortBy,
           </tbody>
         </table>
       </div>
+      {sentinelRef && <div ref={sentinelRef} style={{ height: 1 }} />}
     </div>
   );
 }
@@ -125,6 +128,7 @@ function PlayerTable({ columns, players, selectedPlayer, onSelectPlayer, sortBy,
 function PlayerSearchModal({ open, onClose, slotKey, rosterId, onDrafted }) {
   const { selectedLeagueId, selectedLeague, refreshLeagues } = useLeague();
   const overlayRef = useRef(null);
+  const sentinelRef = useRef(null);
 
   const [activeTab, setActiveTab] = useState("licensed");
 
@@ -134,6 +138,9 @@ function PlayerSearchModal({ open, onClose, slotKey, rosterId, onDrafted }) {
   const [licensedSortOrder, setLicensedSortOrder] = useState("desc");
   const [licensedPlayers, setLicensedPlayers] = useState([]);
   const [licensedLoading, setLicensedLoading] = useState(false);
+  const [licensedLoadingMore, setLicensedLoadingMore] = useState(false);
+  const [licensedHasMore, setLicensedHasMore] = useState(false);
+  const [licensedPage, setLicensedPage] = useState(1);
   const [licensedError, setLicensedError] = useState("");
 
   // Custom player state — all loaded once, search/sort are client-side
@@ -155,33 +162,59 @@ function PlayerSearchModal({ open, onClose, slotKey, rosterId, onDrafted }) {
     [slotKey]
   );
 
-  // Licensed players: re-fetch from the server whenever search/sort changes (server-side).
+  // Reset licensed pagination whenever any filter/sort/league changes so the
+  // fetch effect always starts fresh from page 1.
+  useEffect(() => {
+    setLicensedPage(1);
+    setLicensedPlayers([]);
+    setLicensedHasMore(false);
+  }, [open, selectedLeagueId, licensedSearch, licensedSortBy, licensedSortOrder, positionOverride]);
+
+  // Licensed players: re-fetch whenever page or filters change.
+  // Page 1 replaces the list; subsequent pages append.
   useEffect(() => {
     if (!open || !selectedLeagueId) return;
     let isMounted = true;
-    setLicensedLoading(true);
+    const isFirstPage = licensedPage === 1;
+    if (isFirstPage) {
+      setLicensedLoading(true);
+    } else {
+      setLicensedLoadingMore(true);
+    }
     setLicensedError("");
     getPlayers({
       leagueId: selectedLeagueId,
       name: licensedSearch,
       rankBy: licensedSortBy,
       order: licensedSortOrder,
+      page: licensedPage,
+      limit: PAGE_SIZE,
     })
       .then((data) => {
         if (!isMounted) return;
-        setLicensedPlayers(Array.isArray(data.players) ? data.players : []);
+        const fetched = Array.isArray(data.players) ? data.players : [];
+        setLicensedPlayers((prev) => (isFirstPage ? fetched : [...prev, ...fetched]));
+        const returnedPage = data.page || licensedPage;
+        const returnedLimit = data.limit || PAGE_SIZE;
+        const total = data.total || 0;
+        setLicensedHasMore(returnedPage * returnedLimit < total);
       })
       .catch((err) => {
         if (!isMounted) return;
         setLicensedError(err.message || "Failed to load players.");
       })
       .finally(() => {
-        if (isMounted) setLicensedLoading(false);
+        if (!isMounted) return;
+        if (isFirstPage) {
+          setLicensedLoading(false);
+        } else {
+          setLicensedLoadingMore(false);
+        }
       });
     return () => {
       isMounted = false;
     };
-  }, [open, selectedLeagueId, licensedSearch, licensedSortBy, licensedSortOrder]);
+  }, [open, selectedLeagueId, licensedSearch, licensedSortBy, licensedSortOrder, licensedPage]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (!open || !selectedLeagueId) return;
@@ -228,6 +261,22 @@ function PlayerSearchModal({ open, onClose, slotKey, rosterId, onDrafted }) {
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [open, onClose, showDraftModal]);
+
+  // Infinite scroll: load next page when the sentinel enters the viewport.
+  useEffect(() => {
+    const sentinel = sentinelRef.current;
+    if (!sentinel) return;
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting && licensedHasMore && !licensedLoadingMore && !licensedLoading) {
+          setLicensedPage((prev) => prev + 1);
+        }
+      },
+      { threshold: 0.1 }
+    );
+    observer.observe(sentinel);
+    return () => observer.disconnect();
+  }, [licensedHasMore, licensedLoadingMore, licensedLoading]);
 
   function handleOverlayClick(e) {
     if (e.target === overlayRef.current) onClose();
@@ -301,16 +350,12 @@ function PlayerSearchModal({ open, onClose, slotKey, rosterId, onDrafted }) {
 
   async function reloadAll() {
     if (!selectedLeagueId) return;
-    const [licensedData, customData] = await Promise.all([
-      getPlayers({
-        leagueId: selectedLeagueId,
-        name: licensedSearch,
-        rankBy: licensedSortBy,
-        order: licensedSortOrder,
-      }),
-      getCustomPlayers(selectedLeagueId),
-    ]);
-    setLicensedPlayers(Array.isArray(licensedData.players) ? licensedData.players : []);
+    // Reset licensed pagination to page 1 — the fetch useEffect picks it up automatically.
+    setLicensedPage(1);
+    setLicensedPlayers([]);
+    setLicensedHasMore(false);
+    // Custom players are always fetched in full; reload them directly.
+    const customData = await getCustomPlayers(selectedLeagueId);
     const docs = Array.isArray(customData.players) ? customData.players : [];
     setCustomPlayers(docs.map(flattenCustomPlayer));
     setPanelRefreshKey((prev) => prev + 1);
@@ -433,7 +478,11 @@ function PlayerSearchModal({ open, onClose, slotKey, rosterId, onDrafted }) {
                   sortBy={activeSortBy}
                   sortOrder={activeSortOrder}
                   onSort={handleSort}
+                  sentinelRef={isLicensedTab ? sentinelRef : undefined}
                 />
+              ) : null}
+              {isLicensedTab && licensedLoadingMore ? (
+                <p className="muted">Loading more...</p>
               ) : null}
             </div>
 
