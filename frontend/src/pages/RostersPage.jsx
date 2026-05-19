@@ -59,7 +59,9 @@ function RostersPage() {
         return {
           ...prev,
           status: playerUpdate.status || prev.status,
-          injuryStatus: playerUpdate.injuryStatus || prev.injuryStatus,
+          injuryStatus: Object.prototype.hasOwnProperty.call(playerUpdate, "injuryStatus")
+            ? playerUpdate.injuryStatus
+            : prev.injuryStatus,
           latestNews: playerUpdate.latestNews || prev.latestNews,
           depthChart:
             notice.type === "depthChart"

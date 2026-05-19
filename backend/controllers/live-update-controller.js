@@ -27,6 +27,19 @@ function normalizeNumberField(value) {
   return Number.isFinite(number) ? number : null;
 }
 
+function hasOwn(value, key) {
+  return Object.prototype.hasOwnProperty.call(value || {}, key);
+}
+
+function firstProvidedText(...entries) {
+  for (const [source, key] of entries) {
+    if (hasOwn(source, key)) {
+      return normalizeTextField(source[key]);
+    }
+  }
+  return "";
+}
+
 function normalizeUpdateType(value) {
   const normalized = normalizeTextField(value).toLowerCase();
   if (normalized === "depth_chart" || normalized === "depthchart") return "depthChart";
@@ -82,15 +95,24 @@ function normalizePlayerLiveUpdate(payload) {
     name: playerName,
     team: normalizeTextField(player.team),
     positions: normalizeTextField(player.positions),
-    status: normalizeTextField(updates.status || player.status),
-    injuryStatus: normalizeInjuryStatusField(updates.injuryStatus || updates.injury || player.injuryStatus || player.injury || player.status),
+    status: firstProvidedText([updates, "status"], [player, "status"]),
+    injuryStatus: normalizeInjuryStatusField(firstProvidedText(
+      [updates, "injuryStatus"],
+      [updates, "injury"],
+      [player, "injuryStatus"],
+      [player, "injury"],
+      [player, "status"]
+    )),
     latestNews: normalizeTextField(updates.latestNews || updates.news || player.latestNews || player.news),
     depthChart: normalizeDepthChart(updates.depthChart || player.depthChart),
     pictureURL: normalizeTextField(player.pictureURL),
   };
 
   if (type === "injury") {
-    normalizedPlayer.injuryStatus = normalizedPlayer.injuryStatus || normalizeTextField(payload?.message);
+    const hasExplicitInjuryStatus = hasOwn(updates, "injuryStatus") || hasOwn(updates, "injury");
+    if (!hasExplicitInjuryStatus) {
+      normalizedPlayer.injuryStatus = normalizedPlayer.injuryStatus || normalizeTextField(payload?.message);
+    }
     normalizedPlayer.status = normalizedPlayer.injuryStatus ? "Inactive" : normalizedPlayer.status || "Inactive";
   }
   if (type === "news") {

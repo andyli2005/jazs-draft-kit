@@ -225,7 +225,9 @@ function PlayerSearchPage() {
         return {
           ...player,
           status: playerUpdate.status || player.status,
-          injuryStatus: playerUpdate.injuryStatus || player.injuryStatus,
+          injuryStatus: Object.prototype.hasOwnProperty.call(playerUpdate, "injuryStatus")
+            ? playerUpdate.injuryStatus
+            : player.injuryStatus,
           latestNews: playerUpdate.latestNews || player.latestNews,
           depthChart:
             notice.type === "depthChart"
