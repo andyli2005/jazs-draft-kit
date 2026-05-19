@@ -169,33 +169,51 @@ function PlayerSearchModal({ open, onClose, slotKey, rosterId, onDrafted }) {
     setLicensedHasMore(false);
   }, [open, selectedLeagueId, licensedSearch, licensedSortBy, licensedSortOrder, positionOverride]);
 
-  // Licensed players: re-fetch from the server whenever search/sort changes (server-side).
+  // Licensed players: re-fetch whenever page or filters change.
+  // Page 1 replaces the list; subsequent pages append.
   useEffect(() => {
     if (!open || !selectedLeagueId) return;
     let isMounted = true;
-    setLicensedLoading(true);
+    const isFirstPage = licensedPage === 1;
+    if (isFirstPage) {
+      setLicensedLoading(true);
+    } else {
+      setLicensedLoadingMore(true);
+    }
     setLicensedError("");
     getPlayers({
       leagueId: selectedLeagueId,
       name: licensedSearch,
       rankBy: licensedSortBy,
       order: licensedSortOrder,
+      page: licensedPage,
+      limit: PAGE_SIZE,
     })
       .then((data) => {
         if (!isMounted) return;
-        setLicensedPlayers(Array.isArray(data.players) ? data.players : []);
+        const fetched = Array.isArray(data.players) ? data.players : [];
+        setLicensedPlayers((prev) => (isFirstPage ? fetched : [...prev, ...fetched]));
+        const returnedPage = data.page || licensedPage;
+        const returnedLimit = data.limit || PAGE_SIZE;
+        const total = data.total || 0;
+        setLicensedHasMore(returnedPage * returnedLimit < total);
       })
       .catch((err) => {
         if (!isMounted) return;
         setLicensedError(err.message || "Failed to load players.");
       })
       .finally(() => {
-        if (isMounted) setLicensedLoading(false);
+        if (!isMounted) return;
+        if (isFirstPage) {
+          setLicensedLoading(false);
+        } else {
+          setLicensedLoadingMore(false);
+        }
       });
     return () => {
       isMounted = false;
     };
-  }, [open, selectedLeagueId, licensedSearch, licensedSortBy, licensedSortOrder]);
+  }, [open, selectedLeagueId, licensedSearch, licensedSortBy, licensedSortOrder, licensedPage]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (!open || !selectedLeagueId) return;
