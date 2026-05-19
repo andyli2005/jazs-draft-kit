@@ -8,14 +8,14 @@
 
 .page-public {
   background:
-    radial-gradient(circle at 20% 15%, rgba(255, 188, 117, 0.3), transparent 45%),
+    radial-gradient(circle at 20% 15%, rgba(0, 195, 230, 0.18), transparent 45%),
     radial-gradient(circle at 80% 20%, rgba(86, 179, 255, 0.25), transparent 40%),
     linear-gradient(140deg, #f7fbff 0%, #eef3ff 100%);
 }
 
 .page-private {
   background:
-    radial-gradient(circle at 75% 25%, rgba(95, 223, 169, 0.28), transparent 42%),
+    radial-gradient(circle at 75% 25%, rgba(0, 200, 230, 0.2), transparent 42%),
     radial-gradient(circle at 15% 15%, rgba(104, 160, 255, 0.2), transparent 40%),
     linear-gradient(140deg, #f4fff8 0%, #eef7ff 100%);
 }
@@ -40,7 +40,44 @@
   text-transform: uppercase;
   letter-spacing: 0.08em;
   font-size: 0.8rem;
-  color: #4866a2;
+  color: #0090b8;
+}
+
+.logo-wrap {
+  display: flex;
+  width: fit-content;
+  margin: 0 auto 1rem;
+  align-items: center;
+  justify-content: center;
+}
+
+.logo-wrap--sm {
+  display: inline-flex;
+  width: auto;
+  margin: 0;
+}
+
+.header-logo {
+  height: 52px;
+  width: auto;
+  filter:
+    drop-shadow(1px 0 0 #000)
+    drop-shadow(-1px 0 0 #000)
+    drop-shadow(0 1px 0 #000)
+    drop-shadow(0 -1px 0 #000)
+    drop-shadow(0 0 6px rgba(0, 210, 240, 0.6));
+}
+
+.page-logo {
+  height: 100px;
+  width: auto;
+  display: block;
+  filter:
+    drop-shadow(1px 0 0 #000)
+    drop-shadow(-1px 0 0 #000)
+    drop-shadow(0 1px 0 #000)
+    drop-shadow(0 -1px 0 #000)
+    drop-shadow(0 0 10px rgba(0, 210, 240, 0.65));
 }
 
 .actions {
@@ -75,7 +112,7 @@
 }
 
 .form input:focus {
-  outline: 2px solid #7eb1ff;
+  outline: 2px solid #5dd4f0;
   outline-offset: 1px;
 }
 
@@ -93,7 +130,7 @@
 }
 
 .btn-primary {
-  background: #1f6fff;
+  background: #0080cc;
   color: #fff;
 }
 
@@ -161,7 +198,7 @@
   pointer-events: auto;
   background: #fff;
   border: 1px solid rgba(49, 61, 89, 0.14);
-  border-left: 5px solid #1f6fff;
+  border-left: 5px solid #0080cc;
   border-radius: 10px;
   box-shadow: 0 18px 34px rgba(31, 42, 68, 0.18);
   padding: 0.85rem 0.95rem;
@@ -193,7 +230,7 @@
 }
 
 .live-update-label {
-  color: #4866a2;
+  color: #0090b8;
   font-size: 0.72rem;
   font-weight: 800;
   letter-spacing: 0.04em;
@@ -241,7 +278,7 @@
 }
 
 .app-title {
-  margin: 0.15rem 0 0;
+  margin: 0.05rem 0 0;
   font-size: 1.15rem;
 }
 
@@ -268,8 +305,8 @@
 .header-bell-trigger:hover,
 .header-bell-trigger[aria-expanded="true"] {
   background: #edf2ff;
-  border-color: rgba(31, 111, 255, 0.34);
-  color: #1756c7;
+  border-color: rgba(0, 128, 204, 0.34);
+  color: #006fba;
 }
 
 .header-bell-icon {
@@ -319,7 +356,7 @@
   width: 36px;
   height: 36px;
   border-radius: 50%;
-  background: #1f6fff;
+  background: #0080cc;
   color: #fff;
   font-weight: 700;
   display: grid;
@@ -363,7 +400,7 @@
 }
 
 .header-dropdown-avatar-fallback {
-  background: #1f6fff;
+  background: #0080cc;
   color: #fff;
   font-weight: 700;
   display: grid;
@@ -407,7 +444,7 @@
 .header-notifications-clear {
   border: 0;
   background: transparent;
-  color: #1756c7;
+  color: #006fba;
   cursor: pointer;
   font: inherit;
   font-size: 0.8rem;
@@ -491,7 +528,7 @@
 }
 
 .header-league-row:focus {
-  outline: 2px solid #7eb1ff;
+  outline: 2px solid #5dd4f0;
   outline-offset: 1px;
 }
 
@@ -506,8 +543,8 @@
 .header-league-row.selected,
 .header-league-row:hover:not(:has(.header-league-edit-btn:hover)) {
   background: #edf2ff;
-  border-color: rgba(31, 111, 255, 0.34);
-  color: #1756c7;
+  border-color: rgba(0, 128, 204, 0.34);
+  color: #006fba;
 }
 
 .header-league-option span {
@@ -529,8 +566,8 @@
 
 .header-league-edit-btn:hover {
   background: #edf2ff;
-  border-color: rgba(31, 111, 255, 0.34);
-  color: #1756c7;
+  border-color: rgba(0, 128, 204, 0.34);
+  color: #006fba;
 }
 
 .app-body {
@@ -560,7 +597,7 @@
 }
 
 .side-link.active {
-  background: #1f6fff;
+  background: #0080cc;
   color: #fff;
 }
 
@@ -578,7 +615,7 @@
   font-size: 0.72rem;
   letter-spacing: 0.04em;
   text-transform: uppercase;
-  color: #4866a2;
+  color: #0090b8;
   font-weight: 700;
   text-decoration: underline;
 }
@@ -693,8 +730,8 @@
 }
 
 .dashboard-league-card.selected {
-  border-color: #1f6fff;
-  box-shadow: 0 0 0 2px rgba(31, 111, 255, 0.12);
+  border-color: #0080cc;
+  box-shadow: 0 0 0 2px rgba(0, 128, 204, 0.12);
 }
 
 .dashboard-league-top {
@@ -729,7 +766,7 @@
   min-width: 3.2rem;
   padding: 0.3rem 0.55rem;
   border-radius: 999px;
-  background: #1f6fff;
+  background: #0080cc;
   color: #fff;
   font-size: 0.75rem;
   font-weight: 700;
@@ -756,14 +793,14 @@
 }
 
 .dashboard-league-card .btn-primary:hover {
-  background: #175ed8;
-  box-shadow: 0 6px 14px rgba(31, 111, 255, 0.25);
+  background: #006fba;
+  box-shadow: 0 6px 14px rgba(0, 128, 204, 0.25);
 }
 
 .dashboard-league-card .btn-secondary:hover {
   background: #edf2ff;
-  border-color: rgba(31, 111, 255, 0.34);
-  color: #1756c7;
+  border-color: rgba(0, 128, 204, 0.34);
+  color: #006fba;
 }
 
 .settings-form {
@@ -1121,7 +1158,7 @@
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.04em;
-  color: #4866a2;
+  color: #0090b8;
   margin-bottom: 0.2rem;
 }
 
@@ -1129,7 +1166,7 @@
   display: block;
   font-size: 1.2rem;
   font-weight: 700;
-  color: #1f6fff;
+  color: #0080cc;
 }
 
 .player-stats-section {
@@ -1179,7 +1216,7 @@
 }
 
 .depth-chart-position-label {
-  background: #1f6fff;
+  background: #0080cc;
   color: #fff;
   font-size: 0.7rem;
   font-weight: 800;
@@ -1208,7 +1245,7 @@
 }
 
 .depth-chart-player-selected {
-  background: rgba(31, 111, 255, 0.08);
+  background: rgba(0, 128, 204, 0.08);
   font-weight: 700;
 }
 
@@ -1233,8 +1270,8 @@
 .depth-chart-section {
   flex-shrink: 0;
   font-size: 0.68rem;
-  color: #4866a2;
-  background: rgba(31, 111, 255, 0.08);
+  color: #0090b8;
+  background: rgba(0, 128, 204, 0.08);
   border-radius: 4px;
   padding: 0.1rem 0.35rem;
 }
@@ -1301,7 +1338,7 @@
 }
 
 .player-stats-textarea:focus {
-  outline: 2px solid #7eb1ff;
+  outline: 2px solid #5dd4f0;
   outline-offset: 1px;
 }
 
@@ -1388,11 +1425,11 @@
 }
 
 .players-table tbody tr:hover {
-  background: rgba(31, 111, 255, 0.05);
+  background: rgba(0, 128, 204, 0.05);
 }
 
 .players-table tbody tr.selected-row {
-  background: rgba(31, 111, 255, 0.1);
+  background: rgba(0, 128, 204, 0.1);
 }
 
 .players-table tbody tr.selected-row td {
@@ -1901,9 +1938,9 @@
 
 .modal-input:focus,
 .modal-select:focus {
-  outline: 2px solid #7eb1ff;
+  outline: 2px solid #5dd4f0;
   outline-offset: 1px;
-  border-color: #7eb1ff;
+  border-color: #5dd4f0;
 }
 
 .modal-select {
@@ -1977,7 +2014,7 @@
 }
 
 .position-count {
-  color: #4866a2;
+  color: #0090b8;
   font-weight: 700;
 }
 
