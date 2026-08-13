@@ -2,6 +2,18 @@
 
 A fantasy baseball draft management app for creating leagues, preparing rosters, running salary-cap drafts, tracking transactions, and viewing player information from the API-Licensing player service.
 
+JAZS was developed by a four-person team as a semester project for Stony Brook University's CSE 416 course. This repository is a public copy of the original team repository and preserves its complete contributor history.
+
+The companion player-data and valuation service is available in the [JAZS Player API repository](https://github.com/andyli2005/jazs-player-api).
+
+## My Contributions
+
+My work focused on integrating player valuations into the draft application, implementing transaction history, and developing taxi-squad drafting workflows. This included:
+
+- Passing league state, remaining budgets, position filters, and prior draft results to the valuation service to produce draft-aware player prices.
+- Adding league-specific transaction storage and views for draft, drop, move, taxi, minor-league, note, and position-change activity.
+- Building taxi-squad drafting across the backend and frontend with league ownership checks, positional eligibility, roster-capacity validation, and custom-player support.
+
 ## Project Structure
 
 This repository is split into two main components:
